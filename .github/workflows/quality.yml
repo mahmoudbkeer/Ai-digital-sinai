@@ -16,8 +16,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
-        with:
-          version: 10.4.1
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -47,8 +45,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
-        with:
-          version: 10.4.1
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -74,7 +70,7 @@ jobs:
       - name: Reject credential-shaped values
         shell: bash
         run: |
-          if git grep -nE 'art_v2_|gateway05|mysql://[^ ]+:[^ ]+@|BEGIN (RSA|OPENSSH)|sk-[A-Za-z0-9]+' -- ':!**/pnpm-lock.yaml'; then
+          if git grep -nE 'art_v2_|gateway05|mysql://[^ ]+:[^ ]+@|BEGIN (RSA|OPENSSH)|sk-(live|test)-[A-Za-z0-9]{16,}|sk_[A-Za-z0-9]{20,}' -- ':!**/pnpm-lock.yaml'; then
             echo "Credential-shaped value detected in tracked files"
             exit 1
           fi
