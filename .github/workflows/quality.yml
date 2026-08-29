@@ -1,0 +1,69 @@
+name: AI DIGITAL SINAI quality
+
+on:
+  push:
+    branches: [main, "integration/**"]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  web:
+    name: Web checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.4.1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm check
+      - run: pnpm test
+      - run: pnpm build
+
+  mobile:
+    name: Expo mobile checks
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.4.1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: mobile/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm check
+      - run: pnpm test -- --maxWorkers=1 --minWorkers=1
+      - run: pnpm lint
+      - run: pnpm build
+
+  secret-scan:
+    name: Public repository safety scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Reject session and environment artifacts
+        shell: bash
+        run: |
+          test -z "$(git ls-files | grep -E '(^|/)(\.project-config\.json|\.env$|\.env\..*\.local$|.*\.(pem|key|p12))$' || true)"
+      - name: Reject credential-shaped values
+        shell: bash
+        run: |
+          if git grep -nE 'art_v2_|gateway05|mysql://[^ ]+:[^ ]+@|BEGIN (RSA|OPENSSH)|sk-[A-Za-z0-9]+' -- ':!**/pnpm-lock.yaml'; then
+            echo "Credential-shaped value detected in tracked files"
+            exit 1
+          fi

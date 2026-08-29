@@ -50,3 +50,18 @@ pnpm dev
 ## الملفات المرجعية
 
 اقرأ [APP_MODE.md](APP_MODE.md) لحالة PWA، و[OPERATIONS_MODEL.md](OPERATIONS_MODEL.md) للنموذج التشغيلي، و[SECURITY_AUDIT.md](SECURITY_AUDIT.md) للمخاطر والضوابط، و[TRANSFER_GUIDE.md](TRANSFER_GUIDE.md) للنقل والتكملة.
+
+## نسخة Expo للجوال
+
+أضيفت النسخة الأصلية من تطبيق Expo داخل `mobile/` على فرع الدمج. هذا المسار مستقل عن بناء Vite/Express الجذري، ويُشغّل من داخله بعد إدخال متغيرات البيئة عبر مدير الأسرار:
+
+```bash
+cd mobile
+pnpm install
+pnpm check
+pnpm test -- --maxWorkers=1 --minWorkers=1
+pnpm lint
+pnpm build
+```
+
+توجد تفاصيل العزل، حماية البيانات، الملفات المنقولة، وخطة الرجوع في [MOBILE_INTEGRATION.md](MOBILE_INTEGRATION.md). لا تُشغّل migrations قبل نسخة احتياطية ومراجعة SQL في بيئة آمنة، ولا تضع ملف `.env` الفعلي أو `.project-config.json` داخل Git.
