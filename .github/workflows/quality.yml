@@ -33,6 +33,31 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Dependency audit report
+        continue-on-error: true
+        run: pnpm audit --prod --audit-level=high > audit-report.txt 2>&1
+
+      - name: Upload dependency audit report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dependency-audit-report
+          path: audit-report.txt
+          if-no-files-found: warn
+
+      - name: Secret filename and content scan
+        shell: bash
+        run: |
+          set -euo pipefail
+          if find . -path './.git' -prune -o -path './node_modules' -prune -o -type f \( -name '.env' -o -name '.env.*' \) -print -quit | grep -q .; then
+            echo 'Environment files must not be committed.'
+            exit 1
+          fi
+          if git grep -nI -E 'AKIA[0-9A-Z]{16}|-----BEGIN (RSA|OPENSSH|EC|DSA) PRIVATE KEY-----|sk_live_[A-Za-z0-9]+' -- .; then
+            echo 'Potential secret pattern detected.'
+            exit 1
+          fi
+
       - name: Type check
         run: pnpm check
 
