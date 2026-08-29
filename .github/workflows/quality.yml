@@ -45,5 +45,15 @@ jobs:
       - name: Install Playwright browser
         run: pnpm exec playwright install --with-deps chromium
 
+      - name: Start production server
+        run: |
+          pnpm start > /tmp/ai-digital-sinai-server.log 2>&1 &
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:3000/api/health > /dev/null; then exit 0; fi
+            sleep 1
+          done
+          cat /tmp/ai-digital-sinai-server.log
+          exit 1
+
       - name: Mobile end-to-end test
         run: pnpm test:e2e
