@@ -1,0 +1,82 @@
+import express from "express";
+import { createServer } from "http";
+import path from "path";
+import { fileURLToPath } from "url";
+import { verifyWebhookSignature } from "./payment";
+import { isValidCommand } from "./commandPolicy";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+async function startServer() {
+  const app = express();
+  const server = createServer(app);
+  const requestWindows = new Map<string, { startedAt: number; count: number }>();
+  const allowBurst = (key: string, limit = 30) => {
+    const now = Date.now();
+    const current = requestWindows.get(key);
+    if (!current || now - current.startedAt > 60_000) { requestWindows.set(key, { startedAt: now, count: 1 }); return true; }
+    if (current.count >= limit) return false;
+    current.count += 1;
+    return true;
+  };
+
+  // Serve static files from dist/public in production
+  const staticPath =
+    process.env.NODE_ENV === "production"
+      ? path.resolve(__dirname, "public")
+      : path.resolve(__dirname, "..", "dist", "public");
+
+  app.post("/api/payments/webhook", express.raw({ type: "application/json", limit: "256kb" }), (req, res) => {
+    if (!allowBurst(`webhook:${req.ip}`, 20)) return res.status(429).json({ accepted: false, status: "rate-limited" });
+    const secret = process.env.PAYMENT_WEBHOOK_SECRET;
+    if (!secret) return res.status(503).json({ accepted: false, status: "unconfigured", message: "Payment provider webhook is not configured; no transaction was settled." });
+    const signature = req.header("x-payment-signature") ?? "";
+    const payload = Buffer.isBuffer(req.body) ? req.body.toString("utf8") : "";
+    if (!verifyWebhookSignature(payload, signature, secret)) return res.status(403).json({ accepted: false, status: "invalid-signature", verified: false });
+    return res.status(202).json({ accepted: true, status: "verified-pending", verified: true, message: "Webhook verified; settlement is intentionally disabled until a provider adapter is configured." });
+  });
+  app.use((_req, res, next) => {
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    res.setHeader("X-Frame-Options", "DENY");
+    res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+    next();
+  });
+  app.use(express.json({ limit: "128kb" }));
+  app.post("/api/commands/prepare", (req, res) => {
+    if (!allowBurst(`command:${req.ip}`, 30)) return res.status(429).json({ accepted: false, status: "rate-limited", message: "تم تجاوز عدد المحاولات، أعد المحاولة لاحقاً." });
+    const { sectorId, moduleId, operationId } = req.body as { sectorId?: string; moduleId?: string; operationId?: string };
+    const valid = isValidCommand({ sectorId, moduleId, operationId });
+    if (!valid) return res.status(400).json({ accepted: false, status: "invalid-command", message: "بيانات الأمر غير مكتملة." });
+    return res.status(202).json({ accepted: true, status: "requires-auth", sectorId, moduleId, operationId, message: "تم استقبال الأمر. يلزم تسجيل الدخول ومساحة عمل مصرح بها قبل التنفيذ." });
+  });
+  app.get("/api/health", (_req, res) => res.json({ ok: true, service: "ai-digital-sinai-web", timestamp: new Date().toISOString() }));
+  app.get("/api/observability", (_req, res) => res.json({ status: "ok", runtime: "node", uptimeSeconds: Math.floor(process.uptime()), version: process.env.npm_package_version ?? "1.0.0" }));
+  app.get("/api/app-data", (_req, res) => res.json({
+    mode: "app",
+    locale: "ar",
+    businessData: "not-connected",
+    catalogCount: null,
+    capabilities: { health: true, paymentWebhookVerification: true, paymentSettlement: false, nativeApk: false },
+    roadmap: [
+      { id: "data", phase: "01", title: "بيانات الأعمال والصلاحيات", status: "requires-setup", detail: "ربط tRPC وTenant RBAC بقاعدة الإنتاج واختبارات العزل." },
+      { id: "payment", phase: "02", title: "الدفع والتسوية", status: "requires-setup", detail: "اعتماد مزود رسمي وإضافة secret ثم تفعيل adapter بعد تحقق webhook." },
+      { id: "quality", phase: "03", title: "الجودة والمراقبة", status: "ready", detail: "بوابات check وunit وbrowser smoke موجودة وقابلة للتشغيل." },
+      { id: "native", phase: "04", title: "الإصدار Native", status: "deferred", detail: "نقل shell إلى Expo ثم اختبار Android/iOS وإعداد التوقيع." },
+    ],
+  }));
+  app.use(express.static(staticPath));
+
+  // Handle client-side routing - serve index.html for all routes
+  app.get("*", (_req, res) => {
+    res.sendFile(path.join(staticPath, "index.html"));
+  });
+
+  const port = process.env.PORT || 3000;
+
+  server.listen(port, () => {
+    console.log(`Server running on http://localhost:${port}/`);
+  });
+}
+
+startServer().catch(console.error);
