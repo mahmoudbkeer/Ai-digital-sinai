@@ -4,6 +4,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 import { verifyWebhookSignature } from "./payment";
 import { isValidCommand } from "./commandPolicy";
+import { verifyCommandContext } from "./commandAuth";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -48,7 +49,14 @@ async function startServer() {
     const { sectorId, moduleId, operationId } = req.body as { sectorId?: string; moduleId?: string; operationId?: string };
     const valid = isValidCommand({ sectorId, moduleId, operationId });
     if (!valid) return res.status(400).json({ accepted: false, status: "invalid-command", message: "بيانات الأمر غير مكتملة." });
-    return res.status(202).json({ accepted: true, status: "requires-auth", sectorId, moduleId, operationId, message: "تم استقبال الأمر. يلزم تسجيل الدخول ومساحة عمل مصرح بها قبل التنفيذ." });
+    const userId = req.header("x-command-user");
+    const workspaceId = req.header("x-workspace-id");
+    const signature = req.header("x-command-context-signature");
+    if (!userId || !workspaceId || !signature) return res.status(401).json({ accepted: false, status: "requires-auth", message: "يلزم سياق مستخدم ومساحة عمل مصادق عليهما قبل تجهيز الأمر." });
+    const contextSecret = process.env.COMMAND_CONTEXT_SECRET ?? process.env.JWT_SECRET;
+    if (!contextSecret) return res.status(503).json({ accepted: false, status: "unconfigured", message: "سياق الأوامر غير مهيأ؛ لم يتم تنفيذ أي معاملة." });
+    if (!verifyCommandContext({ userId, workspaceId }, signature, contextSecret)) return res.status(403).json({ accepted: false, status: "invalid-context", message: "سياق المستخدم أو مساحة العمل غير صالح." });
+    return res.status(202).json({ accepted: true, status: "verified-pending", sectorId, moduleId, operationId, userId, workspaceId, message: "تم التحقق من سياق الأمر؛ التنفيذ الإنتاجي ما زال متوقفاً حتى ربط العملية وقاعدة البيانات وسجل التدقيق." });
   });
   app.get("/api/health", (_req, res) => res.json({ ok: true, service: "ai-digital-sinai-web", timestamp: new Date().toISOString() }));
   app.get("/api/observability", (_req, res) => res.json({ status: "ok", runtime: "node", uptimeSeconds: Math.floor(process.uptime()), version: process.env.npm_package_version ?? "1.0.0" }));
