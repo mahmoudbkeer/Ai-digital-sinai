@@ -2,12 +2,13 @@ import { spawn } from "node:child_process";
 
 const apiPort = process.env.API_PORT || "4318";
 const commonEnv = { ...process.env };
-const api = spawn("pnpm", ["exec", "tsx", "server/index.ts"], {
+const node = process.execPath;
+const api = spawn(node, ["node_modules/tsx/dist/cli.mjs", "server/index.ts"], {
   cwd: process.cwd(),
   env: { ...commonEnv, PORT: apiPort },
   stdio: "inherit",
 });
-const vite = spawn("pnpm", ["exec", "vite", "--host"], {
+const vite = spawn(node, ["node_modules/vite/bin/vite.js", "--host"], {
   cwd: process.cwd(),
   env: { ...commonEnv, API_PORT: apiPort },
   stdio: "inherit",
