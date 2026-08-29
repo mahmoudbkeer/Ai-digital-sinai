@@ -35,4 +35,8 @@
 
 ## الاختبارات
 
-الاختبارات الجديدة في `server/commandPolicy.test.ts` تثبت قبول tuple معروف ورفض cross-sector والمعرفات العشوائية والقيم غير النصية. اختبارات `server/payment.test.ts` تثبت HMAC الصحيح ورفض الحمولة المعدلة والتوقيع المشوه.
+الاختبارات في `server/commandPolicy.test.ts` تثبت قبول tuple معروف ورفض cross-sector والمعرفات العشوائية والقيم غير النصية. اختبارات `server/payment.test.ts` تثبت HMAC الصحيح، رفض الحمولة المعدلة والتوقيع المشوه، قبول الحدث مرة واحدة، رفض replay عبر `PaymentEventRegistry`، وبقاء التسوية معطلة حتى تهيئة adapter وledger حقيقيين.
+
+## Payment boundary after integration
+
+The web application now exposes a provider-neutral `PaymentGatewayAdapter` contract, a durable `PaymentEventRegistry` boundary, and a ledger-domain invariant module. Webhook signatures are checked with HMAC and timing-safe comparison; a verified event must still pass durable event-id/provider replay protection before any future settlement workflow. Ledger entries use positive integer minor units and require balanced debit/credit totals, but the repository intentionally provides no default settlement adapter, durable ledger persistence, refund, or invoice success path. The HTTP endpoint remains `verified-pending` until a real provider adapter, persistent idempotency key, transactional ledger write, and integration tests are configured.

@@ -2,7 +2,7 @@ import express from "express";
 import { createServer } from "http";
 import path from "path";
 import { fileURLToPath } from "url";
-import { verifyWebhookSignature } from "./payment";
+import { settlementUnavailable, verifyWebhookSignature } from "./payment";
 import { isValidCommand } from "./commandPolicy";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -34,7 +34,8 @@ async function startServer() {
     const signature = req.header("x-payment-signature") ?? "";
     const payload = Buffer.isBuffer(req.body) ? req.body.toString("utf8") : "";
     if (!verifyWebhookSignature(payload, signature, secret)) return res.status(403).json({ accepted: false, status: "invalid-signature", verified: false });
-    return res.status(202).json({ accepted: true, status: "verified-pending", verified: true, message: "Webhook verified; settlement is intentionally disabled until a provider adapter is configured." });
+    const settlement = settlementUnavailable();
+    return res.status(202).json({ accepted: true, verified: true, ...settlement });
   });
   app.use((_req, res, next) => {
     res.setHeader("X-Content-Type-Options", "nosniff");
