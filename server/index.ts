@@ -14,11 +14,16 @@ import {
 } from "./dataPlane";
 import { createPlatformRouter, platformErrorHandler } from "./platform";
 import { checkPostgres, isPostgresUrl } from "./postgres";
+import {
+  assertRuntimeEnvironment,
+  getIntegrationReadiness,
+} from "./integrations";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 async function startServer() {
+  assertRuntimeEnvironment();
   await ensureDataPlaneReady();
   const app = express();
   const server = createServer(app);
@@ -340,7 +345,9 @@ async function startServer() {
       ),
       paymentWebhook: Boolean(process.env.PAYMENT_WEBHOOK_SECRET),
       database,
-      businessDataPlane: true,
+      businessDataPlane: database,
+      productionDatabase:
+        process.env.NODE_ENV === "production" ? postgresConfigured : true,
     };
     const ready = Object.values(checks).every(Boolean);
     return res.status(ready ? 200 : 503).json({
@@ -349,6 +356,7 @@ async function startServer() {
       databaseProvider,
       databaseDetail,
       checks,
+      integrations: getIntegrationReadiness(),
       message: ready
         ? "الخدمات الأساسية مهيأة."
         : "الخدمات الأساسية غير مهيأة بالكامل؛ لم يتم تفعيل أي معاملة تلقائياً.",

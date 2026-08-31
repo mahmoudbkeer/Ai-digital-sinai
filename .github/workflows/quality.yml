@@ -63,7 +63,7 @@ jobs:
 
       - name: Start production server
         run: |
-          pnpm start > /tmp/ai-digital-sinai-server.log 2>&1 &
+          ALLOW_SQLITE_PRODUCTION_TEST=1 COMMAND_CONTEXT_SECRET=ci-command-secret PAYMENT_WEBHOOK_SECRET=ci-webhook-secret pnpm start > /tmp/ai-digital-sinai-server.log 2>&1 &
           for attempt in $(seq 1 30); do
             if curl --fail --silent http://127.0.0.1:3000/api/health > /dev/null; then exit 0; fi
             sleep 1
@@ -76,3 +76,6 @@ jobs:
 
       - name: Smoke test
         run: pnpm test:smoke
+
+      - name: Load smoke test
+        run: LOAD_CONCURRENCY=10 LOAD_REQUESTS=10 pnpm test:load

@@ -4,15 +4,15 @@
 
 ## الحالة الحالية
 
-التطبيق يعمل كواجهة تشغيل محمولة على `/app`، ويعرض القطاعات والوحدات والعمليات من خلال قاموس تشغيل يضم أربعة عشر قطاعاً. توجد نواة خادمية فعلية تحت `/api/platform` تستخدم `AsyncDataPlane` موحداً: SQLite في التطوير والاختبارات، وPostgreSQL Pool عند ضبط `DATABASE_URL`، مع migrations مقفلة ومعاملات وparameter binding. تشمل النواة الهوية والجلسات المبنية على scrypt، سياق Tenant، RBAC/ABAC، كتالوج المنتجات والخدمات، المخزون بحركات idempotent، Cart/Checkout، الطلبات، الفواتير، القيود المزدوجة، الاشتراكات والـentitlements، CRM، الموظفين، الموردين والمشتريات، المصروفات، POS، العروض والمراجعات والمفضلة، التقارير من قاعدة البيانات، التسليمات والإشعارات وAI policy/usage وlexical tenant-scoped fallback. كل أمر قديم يمر عبر `POST /api/commands/prepare` للتحقق من القطاع والوحدة والعملية وسياق المصادقة. الدفع ينشئ Payment Intent صادقاً بحالة `REQUIRES_SETUP` أو `REQUIRES_ACTION` فقط، وWebhook يسجل الأحداث ويمنع replay؛ ولا تتم أي تسوية تلقائية قبل ربط مزود رسمي بعقده وبيانات اعتماده.
+التطبيق يعمل كواجهة تشغيل محمولة على `/app`، ويعرض القطاعات والوحدات والعمليات من خلال قاموس تشغيل يضم أربعة عشر قطاعاً. توجد نواة خادمية فعلية تحت `/api/platform` تستخدم `AsyncDataPlane` موحداً: SQLite في التطوير والاختبارات، وPostgreSQL Pool عند ضبط `DATABASE_URL`، مع migrations مقفلة ومعاملات وparameter binding. تشمل النواة الهوية والجلسات المبنية على scrypt، سياق Tenant، RBAC/ABAC، كتالوج المنتجات والخدمات، المخزون بحركات idempotent، Cart/Checkout، الطلبات، الفواتير والضريبة القابلة للتهيئة، القيود المزدوجة، الاشتراكات والـentitlements، CRM، الموظفين، الموردين والمشتريات، المصروفات، POS، العروض والمراجعات والمفضلة، التقارير من قاعدة البيانات، advisor grounded، recommendations، forecast، التسليمات والإشعارات وAI provider contract وlexical tenant-scoped fallback. كل أمر قديم يمر عبر `POST /api/commands/prepare` للتحقق من القطاع والوحدة والعملية وسياق المصادقة. الدفع ينشئ Payment Intent صادقاً بحالة `REQUIRES_SETUP` أو `REQUIRES_ACTION` فقط، وWebhook يسجل الأحداث ويمنع replay؛ ولا تتم أي تسوية تلقائية قبل ربط مزود رسمي بعقده وبيانات اعتماده.
 
 ## التشغيل المحلي
 
-يتطلب المشروع Node.js 22 وpnpm 10. بعد تثبيت الاعتماديات شغّل `pnpm install --frozen-lockfile`، ثم `pnpm dev` لتشغيل Express وVite معاً. للفحوص استخدم `pnpm check` و`pnpm test` و`pnpm build`، ويمكن تشغيل `pnpm test:e2e` و`pnpm test:smoke` لفحوص المتصفح والـAPI. للتشغيل التشغيلي استخدم `pnpm backup` و`pnpm restore <backup-path>` بعد ضبط `SQLITE_PATH` أو `DATABASE_URL`.
+يتطلب المشروع Node.js 22 وpnpm 10. بعد تثبيت الاعتماديات شغّل `pnpm install --frozen-lockfile`، ثم `pnpm dev` لتشغيل Express وVite معاً. للفحوص استخدم `pnpm check` و`pnpm test` و`pnpm build`، ويمكن تشغيل `pnpm test:e2e` و`pnpm test:smoke` و`pnpm test:load` لفحوص المتصفح والـAPI والحمل المتزامن. للتشغيل التشغيلي استخدم `pnpm backup` و`pnpm restore <backup-path>` بعد ضبط `SQLITE_PATH` أو `DATABASE_URL`.
 
 ## فحص Smoke والبيئة
 
-يشغل `pnpm test:smoke` فحصاً سريعاً للصحة و`app-data` وواجهة HTML. عند عدم تمرير `BASE_URL`، يبني السكربت خادم إنتاج مؤقتاً على منفذ محلي ويغلقه بعد الفحص. لا يحتاج الفحص إلى أسرار أو قاعدة بيانات أو تسجيل دخول؛ وإذا كان الخادم يعمل مسبقاً فاستخدم `BASE_URL=http://127.0.0.1:3000 pnpm test:smoke` لتوجيهه إلى ذلك الخادم. يستخدم Playwright قيمة `BASE_URL` عند تمريرها، وإلا يعتمد عنوان التطوير المحلي الافتراضي.
+يشغل `pnpm test:smoke` فحصاً سريعاً للصحة و`app-data` وواجهة HTML، بينما يشغل `pnpm test:load` طلبات متزامنة ويحسب معدل الخطأ وp50/p95. عند عدم تمرير `BASE_URL`، يبني السكربت خادم إنتاج مؤقتاً على منفذ محلي ويغلقه بعد الفحص. لا يحتاج الفحص إلى أسرار أو قاعدة بيانات أو تسجيل دخول؛ وإذا كان الخادم يعمل مسبقاً فاستخدم `BASE_URL=http://127.0.0.1:3000 pnpm test:smoke` لتوجيهه إلى ذلك الخادم. يستخدم Playwright قيمة `BASE_URL` عند تمريرها، وإلا يعتمد عنوان التطوير المحلي الافتراضي.
 
 ## الجودة والحوكمة
 
@@ -32,6 +32,8 @@
 | `server/commandPolicy.ts` | التحقق من tuple القطاع/الوحدة/العملية |
 | `server/*.test.ts` | اختبارات السياسات والتوقيع والعزل والمعاملات |
 | `server/postgres.ts` | PostgreSQL pool وhealth وmigration lock |
+| `server/aiProviders.ts` / `server/integrations.ts` | عقود AI والتكاملات وحواجز البيئة |
+| `scripts/load-smoke.mjs` | اختبار حمل متزامن مستقل |
 | `scripts/backup.mjs` / `scripts/restore.mjs` | Backup وrestore صريحان |
 | `ARCHITECTURE.md` / `DEPLOYMENT.md` / `SECURITY.md` | العمارة والتشغيل والأمن |
 | `e2e/` | اختبارات الهاتف والتنقل |
@@ -39,7 +41,7 @@
 
 ## حدود الجاهزية
 
-هذا الإصدار يضم نواة تشغيل حقيقية محلية وقابلة للاختبار، لكنه لا يزعم الجاهزية الإنتاجية الكاملة. يلزم في الإنتاج تشغيل قاعدة مُدارة بآلية backup/restore وتهيئة أسرار مزود الدفع وAI وSMS/Push/Email والتخزين، ومراجعة نشر مستقلة. ما زالت وحدات الإعلان الذكي، التحليلات المتقدمة، AI/RAG/Agents، مركز Super Admin الكامل، MFA/OTP، وبعض كيانات Commerce/Inventory/Logistics الموسعة وAndroid/APK خارج نطاق التنفيذ الحالي ومصنفة صراحة في التدقيق النهائي.
+هذا الإصدار يضم نواة تشغيل حقيقية محلية وقابلة للاختبار، لكنه لا يزعم الجاهزية الإنتاجية الكاملة. يلزم في الإنتاج تشغيل قاعدة مُدارة بآلية backup/restore وتهيئة أسرار مزود الدفع وAI وSMS/Push/Email والتخزين، ومراجعة نشر مستقلة. ما زالت RAG/vector، التنفيذ الكامل للـAgents، التحليلات المتقدمة، مركز Super Admin الكامل، MFA/OTP، بعض كيانات Commerce/Inventory/Logistics الموسعة وAndroid/APK خارج نطاق التنفيذ الحالي، بينما أصبحت tax configuration وAI advisor/recommendations/forecast وmarketing lifecycle وprovider contracts منفذة جزئياً ومصنفة صراحة في التدقيق النهائي.
 
 ## عقود الاعتمادية التشغيلية
 
@@ -47,6 +49,6 @@
 
 ## نواة API المنفذة
 
-توجد المسارات الأساسية التالية تحت `/api/platform`: التسجيل وتسجيل الدخول والخروج، `/me`، الخطط والاشتراكات وcancel/renew و`/subscription/entitlements`، المنتجات والخدمات وكتالوج Marketplace، الموظفون والعملاء وتاريخ CRM والتفاعلات والوسوم، الموردون والمشتريات والاستلام، المصروفات والتقارير، السلة وCheckout، حركات المخزون، الطلبات وانتقالات حالاتها، جلسات POS والحركات النقدية والمبيعات والإغلاق، الفواتير وطلبات الاسترداد، دفتر القيود، Payment Intent، العروض والمراجعات والمفضلة، AI request وAgent prepare وAI usage مع نطاق بيانات محمي، السائقون والمركبات والتسليمات وProof-of-Delivery، الإشعارات والتفضيلات وإعادة المحاولة، Geo nearby، مؤشرات KPI من قاعدة البيانات، وسجل التدقيق ومركز الإدارة للمستخدمين والمستأجرين والـfeature flags. كل مسار حساس يحتاج Bearer session token و`x-tenant-id`، وتتحقق الاستعلامات من ملكية المستأجر قبل القراءة أو الكتابة.
+توجد المسارات الأساسية التالية تحت `/api/platform`: التسجيل وتسجيل الدخول والخروج، `/me`، الخطط والاشتراكات وcancel/renew و`/subscription/entitlements`، المنتجات والخدمات وكتالوج Marketplace، الموظفون والعملاء وتاريخ CRM والتفاعلات والوسوم، الموردون والمشتريات والاستلام، المصروفات والتقارير، السلة وCheckout، حركات المخزون، الطلبات وانتقالات حالاتها، جلسات POS والحركات النقدية والمبيعات والإغلاق، الفواتير وطلبات الاسترداد، دفتر القيود، Payment Intent، العروض والمراجعات والمفضلة، AI request وAgent prepare وAI usage مع نطاق بيانات محمي، السائقون والمركبات والتسليمات وProof-of-Delivery، الإشعارات والتفضيلات وإعادة المحاولة عبر provider، Geo nearby، `/configuration` للضريبة والعملة والفاتورة، `/ai/advisor/insights` و`/ai/advisor/forecast` و`/recommendations`، AI request execute، creative approval وmarketing campaign actions، مؤشرات KPI من قاعدة البيانات، وسجل التدقيق ومركز الإدارة للمستخدمين والمستأجرين والـfeature flags. كل مسار حساس يحتاج Bearer session token و`x-tenant-id`، وتتحقق الاستعلامات من ملكية المستأجر قبل القراءة أو الكتابة.
 
-يستخدم التشغيل المحلي `SQLITE_PATH` اختيارياً، وإلا تُحفظ القاعدة في `.data/ai-digital-sinai.sqlite` غير المتعقبة. ملفات `migrations/0001_core.sql` و`migrations/0002_business_os.sql` هي مصدر SQLite، ونسخ `migrations/postgres/` مصدر PostgreSQL. لا ينبغي تشغيل rollback على إنتاج دون نسخة احتياطية واختبار استعادة. الحالة الحالية **Business Core Implemented / Production Verification Pending**؛ ما تبقى من Redis/queues وObject Storage/CDN ومزودات الدفع والإشعارات وvector provider يعتمد على إعدادات خارجية موثقة صراحة في `DEPLOYMENT.md` و`CURRENT_IMPLEMENTATION_MAP.md`.
+يستخدم التشغيل المحلي `SQLITE_PATH` اختيارياً، وإلا تُحفظ القاعدة في `.data/ai-digital-sinai.sqlite` غير المتعقبة. ملفات `migrations/0001_core.sql` و`migrations/0002_business_os.sql` و`migrations/0003_productization.sql` هي مصدر SQLite، ونسخ `migrations/postgres/` مصدر PostgreSQL. في الإنتاج يتطلب startup `DATABASE_URL` PostgreSQL و`COMMAND_CONTEXT_SECRET`؛ لا يسمح بـSQLite إلا عبر `ALLOW_SQLITE_PRODUCTION_TEST=1` في الاختبارات المحلية. لا ينبغي تشغيل rollback على إنتاج دون نسخة احتياطية واختبار استعادة. الحالة الحالية **Business Core Implemented / Production Verification Pending**؛ ما تبقى من Redis/queues وObject Storage/CDN ومزودات الدفع والإشعارات وvector provider يعتمد على إعدادات خارجية موثقة صراحة في `DEPLOYMENT.md` و`CURRENT_IMPLEMENTATION_MAP.md`.

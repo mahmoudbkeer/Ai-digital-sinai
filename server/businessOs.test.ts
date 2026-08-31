@@ -244,6 +244,240 @@ describe("Business OS workflows", () => {
     });
   });
 
+  it("enforces advertising creative approval and campaign state transitions", async () => {
+    const identity = await register(
+      "marketing@example.com",
+      "Marketing Tenant"
+    );
+    const headers = auth(identity);
+    const advertiser = await request("/api/platform/ads/advertisers", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ businessId: identity.businessId }),
+    });
+    expect(advertiser.status).toBe(201);
+    const { advertiserId } = (await advertiser.json()) as {
+      advertiserId: string;
+    };
+    const campaign = await request("/api/platform/ads/campaigns", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        advertiserId,
+        name: "حملة سيناء",
+        budgetCents: 10000,
+      }),
+    });
+    expect(campaign.status).toBe(201);
+    const { campaignId } = (await campaign.json()) as { campaignId: string };
+    const blockedApproval = await request(
+      `/api/platform/marketing/campaigns/${campaignId}/actions`,
+      {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ action: "APPROVE" }),
+      }
+    );
+    expect(blockedApproval.status).toBe(409);
+    const creative = await request(
+      `/api/platform/ads/campaigns/${campaignId}/creatives`,
+      {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ headline: "عرض محلي", body: "عرض موثق" }),
+      }
+    );
+    expect(creative.status).toBe(201);
+    const { creativeId } = (await creative.json()) as { creativeId: string };
+    const approval = await request(
+      `/api/platform/ads/creatives/${creativeId}/approve`,
+      {
+        method: "POST",
+        headers,
+      }
+    );
+    expect(approval.status).toBe(200);
+    const transitions = [
+      ["SUBMIT", "PENDING_REVIEW"],
+      ["APPROVE", "ACTIVE"],
+      ["PAUSE", "PAUSED"],
+      ["RESUME", "ACTIVE"],
+      ["END", "ENDED"],
+    ] as const;
+    for (const [action, status] of transitions) {
+      const response = await request(
+        `/api/platform/marketing/campaigns/${campaignId}/actions`,
+        {
+          method: "POST",
+          headers,
+          body: JSON.stringify({ action }),
+        }
+      );
+      expect(response.status).toBe(200);
+      await expect(response.json()).resolves.toMatchObject({ action, status });
+    }
+  });
+
+  it("exposes configurable tax readiness and grounded analytics fallbacks", async () => {
+    const identity = await register(
+      "productization@example.com",
+      "Productization Tenant"
+    );
+    const headers = auth(identity);
+    const initial = await request("/api/platform/configuration", { headers });
+    expect(initial.status).toBe(200);
+    await expect(initial.json()).resolves.toMatchObject({
+      configuration: {
+        currency: "EGP",
+        tax_mode: "REQUIRES_CONFIGURATION",
+        tax_rate_basis_points: 0,
+      },
+    });
+    const update = await request("/api/platform/configuration", {
+      method: "PATCH",
+      headers,
+      body: JSON.stringify({
+        currency: "EGP",
+        taxMode: "EXCLUSIVE",
+        taxRateBasisPoints: 1400,
+        invoicePrefix: "SIN",
+        businessName: "نشاط سيناء",
+      }),
+    });
+    expect(update.status).toBe(200);
+    await expect(update.json()).resolves.toMatchObject({
+      configuration: {
+        tax_mode: "EXCLUSIVE",
+        tax_rate_basis_points: 1400,
+        invoice_prefix: "SIN",
+      },
+    });
+    const product = await request("/api/platform/products", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        businessId: identity.businessId,
+        sku: "TAX-001",
+        name: "منتج الضريبة",
+        priceCents: 1000,
+      }),
+    });
+    expect(product.status).toBe(201);
+    const { productId } = (await product.json()) as { productId: string };
+    const supplier = await request("/api/platform/suppliers", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        businessId: identity.businessId,
+        name: "مورد الضريبة",
+      }),
+    });
+    expect(supplier.status).toBe(201);
+    const { supplierId } = (await supplier.json()) as { supplierId: string };
+    const purchase = await request("/api/platform/purchases", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        businessId: identity.businessId,
+        branchId: identity.branchId,
+        supplierId,
+        idempotencyKey: "tax-purchase-001",
+        items: [{ productId, quantity: 2, unitCostCents: 500 }],
+      }),
+    });
+    expect(purchase.status).toBe(201);
+    const order = await request("/api/platform/orders", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        businessId: identity.businessId,
+        branchId: identity.branchId,
+        items: [{ productId, quantity: 1 }],
+      }),
+    });
+    expect(order.status).toBe(201);
+    await expect(order.json()).resolves.toMatchObject({
+      totalCents: 1140,
+      currency: "EGP",
+    });
+    const invoice = (await getDataPlane()
+      .prepare(
+        "SELECT invoice_number, tax_cents, total_cents, currency FROM invoices WHERE tenant_id = ? ORDER BY issued_at DESC LIMIT 1"
+      )
+      .get(identity.tenantId)) as {
+      invoice_number: string;
+      tax_cents: number;
+      total_cents: number;
+      currency: string;
+    };
+    expect(invoice).toMatchObject({
+      tax_cents: 140,
+      total_cents: 1140,
+      currency: "EGP",
+    });
+    expect(invoice.invoice_number).toMatch(/^SIN-/);
+    const subscription = await request("/api/platform/subscriptions", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ planCode: "trial" }),
+    });
+    expect(subscription.status).toBe(201);
+    const insights = await request("/api/platform/ai/advisor/insights", {
+      headers,
+    });
+    expect(insights.status).toBe(200);
+    await expect(insights.json()).resolves.toMatchObject({
+      provider: "DETERMINISTIC_GROUNDED",
+      source: "database",
+      insights: expect.arrayContaining([
+        expect.objectContaining({
+          insightType: "SALES",
+          evidence: expect.any(Object),
+        }),
+      ]),
+    });
+    const recommendations = await request("/api/platform/recommendations", {
+      headers,
+    });
+    expect(recommendations.status).toBe(200);
+    await expect(recommendations.json()).resolves.toMatchObject({
+      method: "DETERMINISTIC_FALLBACK",
+      source: "database",
+    });
+    const aiRequest = await request("/api/platform/ai/requests", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        purpose: "اختبار تحليل المبيعات",
+        input: "حلل مبيعات هذا النشاط",
+        allowedDataScope: ["orders"],
+      }),
+    });
+    expect(aiRequest.status).toBe(201);
+    const { requestId } = (await aiRequest.json()) as { requestId: string };
+    const aiExecution = await request(
+      `/api/platform/ai/requests/${requestId}/execute`,
+      {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ prompt: "حلل مبيعات هذا النشاط" }),
+      }
+    );
+    expect(aiExecution.status).toBe(503);
+    await expect(aiExecution.json()).resolves.toMatchObject({
+      status: "REQUIRES_SETUP",
+    });
+    const forecast = await request(
+      "/api/platform/ai/advisor/forecast?metric=SALES&horizonDays=7",
+      { headers }
+    );
+    expect(forecast.status).toBe(200);
+    await expect(forecast.json()).resolves.toMatchObject({
+      model: "INSUFFICIENT_DATA",
+      confidence: 0,
+    });
+  });
+
   it("enforces subscription entitlements server-side", async () => {
     const identity = await register(
       "entitlements@example.com",

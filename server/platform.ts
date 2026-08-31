@@ -21,6 +21,7 @@ import {
   resolveNotificationProvider,
   type NotificationChannel,
 } from "./notificationProviders";
+import { resolveAIProvider } from "./aiProviders";
 
 export const ROLES = [
   "SUPER_ADMIN",
@@ -392,6 +393,37 @@ async function postBalancedSaleJournal(
   return journalId;
 }
 
+function calculateConfiguredTotals(
+  subtotalCents: number,
+  discountCents: number,
+  configuration: TenantConfiguration,
+  requestedTaxCents = 0
+) {
+  const taxableBase = Math.max(0, subtotalCents - discountCents);
+  if (configuration.tax_mode === "EXCLUSIVE") {
+    const taxCents = Math.round(
+      (taxableBase * configuration.tax_rate_basis_points) / 10_000
+    );
+    return { taxCents, totalCents: taxableBase + taxCents };
+  }
+  if (configuration.tax_mode === "INCLUSIVE") {
+    const totalCents = taxableBase;
+    const taxCents = configuration.tax_rate_basis_points
+      ? totalCents -
+        Math.round(
+          (totalCents * 10_000) / (10_000 + configuration.tax_rate_basis_points)
+        )
+      : 0;
+    return { taxCents, totalCents };
+  }
+  if (configuration.tax_mode === "EXEMPT")
+    return { taxCents: 0, totalCents: taxableBase };
+  return {
+    taxCents: requestedTaxCents,
+    totalCents: taxableBase + requestedTaxCents,
+  };
+}
+
 async function issueInvoice(
   db: AsyncDataPlane,
   context: TenantContext,
@@ -413,7 +445,8 @@ async function issueInvoice(
     | undefined;
   if (existing) return existing;
   const invoiceId = randomUUID();
-  const invoiceNumber = `INV-${new Date().getUTCFullYear()}-${invoiceId.slice(0, 8).toUpperCase()}`;
+  const configuration = await getTenantConfiguration(db, context.tenantId);
+  const invoiceNumber = `${configuration.invoice_prefix}-${new Date().getUTCFullYear()}-${invoiceId.slice(0, 8).toUpperCase()}`;
   await db
     .prepare(
       "INSERT INTO invoices (id, tenant_id, order_id, invoice_number, subtotal_cents, tax_cents, total_cents, currency, issued_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
@@ -426,7 +459,7 @@ async function issueInvoice(
       order.subtotal_cents,
       order.tax_cents,
       order.total_cents,
-      order.currency,
+      configuration.currency,
       now()
     );
   await recordAudit(
@@ -761,6 +794,74 @@ const ORDER_TRANSITIONS: Record<string, string[]> = {
   CANCELLED: [],
   REFUNDED: [],
 };
+
+type TenantConfiguration = {
+  tenant_id: string;
+  currency: string;
+  tax_mode: "REQUIRES_CONFIGURATION" | "EXCLUSIVE" | "INCLUSIVE" | "EXEMPT";
+  tax_rate_basis_points: number;
+  tax_registration_number: string | null;
+  invoice_prefix: string;
+  business_name: string | null;
+  updated_at: number;
+};
+
+async function getTenantConfiguration(
+  db: AsyncDataPlane,
+  tenantId: string
+): Promise<TenantConfiguration> {
+  let configuration = (await db
+    .prepare(
+      "SELECT tenant_id, currency, tax_mode, tax_rate_basis_points, tax_registration_number, invoice_prefix, business_name, updated_at FROM tenant_configurations WHERE tenant_id = ?"
+    )
+    .get(tenantId)) as TenantConfiguration | undefined;
+  if (!configuration) {
+    await db
+      .prepare(
+        "INSERT INTO tenant_configurations (tenant_id, updated_at) VALUES (?, ?)"
+      )
+      .run(tenantId, now());
+    configuration = (await db
+      .prepare(
+        "SELECT tenant_id, currency, tax_mode, tax_rate_basis_points, tax_registration_number, invoice_prefix, business_name, updated_at FROM tenant_configurations WHERE tenant_id = ?"
+      )
+      .get(tenantId)) as TenantConfiguration;
+  }
+  return configuration;
+}
+
+function asNumber(value: unknown): number {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : 0;
+}
+
+function movingAverageForecast(values: number[], horizonDays: number) {
+  const nonZero = values.filter(value => value > 0);
+  if (nonZero.length < 3)
+    return {
+      method: "INSUFFICIENT_DATA" as const,
+      predicted: 0,
+      confidence: 0,
+      evaluation: { trainingDays: nonZero.length, mae: null },
+    };
+  const window = nonZero.slice(-7);
+  const predicted = Math.round(
+    window.reduce((sum, value) => sum + value, 0) / window.length
+  );
+  const errors = window
+    .slice(1)
+    .map((value, index) => Math.abs(value - window[index]));
+  const mae = errors.length
+    ? Math.round(errors.reduce((sum, value) => sum + value, 0) / errors.length)
+    : 0;
+  const scale = Math.max(predicted, 1);
+  return {
+    method: "MOVING_AVERAGE" as const,
+    predicted: predicted * horizonDays,
+    confidence: Math.max(0.1, Math.min(0.95, 1 - mae / scale)),
+    evaluation: { trainingDays: nonZero.length, mae },
+  };
+}
 
 export function createPlatformRouter(): Router {
   const router = Router();
@@ -1832,10 +1933,18 @@ export function createPlatformRouter(): Router {
         const db = getDataPlane();
         const delivery = (await db
           .prepare(
-            "SELECT id, provider, status, attempts FROM notification_deliveries WHERE notification_id = ? AND tenant_id = ?"
+            "SELECT d.id, d.provider, d.status, d.attempts, n.user_id, n.title, n.body FROM notification_deliveries d JOIN notifications n ON n.id = d.notification_id AND n.tenant_id = d.tenant_id WHERE d.notification_id = ? AND d.tenant_id = ?"
           )
           .get(req.params.notificationId, context.tenantId)) as
-          | { id: string; provider: string; status: string; attempts: number }
+          | {
+              id: string;
+              provider: string;
+              status: string;
+              attempts: number;
+              user_id: string;
+              title: string;
+              body: string;
+            }
           | undefined;
         if (!delivery)
           throw httpError(
@@ -1847,18 +1956,20 @@ export function createPlatformRouter(): Router {
           throw httpError(429, "retry-limit", "تم تجاوز حد إعادة المحاولة.");
         const channel = delivery.provider.toUpperCase() as NotificationChannel;
         const provider = resolveNotificationProvider(channel);
-        const nextStatus =
-          provider.status === "configured" ? "QUEUED" : "REQUIRES_SETUP";
+        const result = await provider.enqueue({
+          recipientUserId: delivery.user_id,
+          title: delivery.title,
+          body: delivery.body,
+        });
+        const nextStatus = result.status;
         await db
           .prepare(
             "UPDATE notification_deliveries SET status = ?, attempts = attempts + 1, last_error = ?, next_attempt_at = ?, updated_at = ? WHERE id = ? AND tenant_id = ?"
           )
           .run(
             nextStatus,
-            provider.status === "configured"
-              ? null
-              : "provider credentials missing",
-            provider.status === "configured" ? now() : null,
+            result.error ?? null,
+            nextStatus === "QUEUED" ? now() : null,
             now(),
             delivery.id,
             context.tenantId
@@ -1870,7 +1981,11 @@ export function createPlatformRouter(): Router {
           "notification_delivery",
           delivery.id,
           req.requestId,
-          { provider: delivery.provider, status: nextStatus }
+          {
+            provider: delivery.provider,
+            status: nextStatus,
+            error: result.error,
+          }
         );
         return res.status(202).json({
           ok: true,
@@ -1932,8 +2047,12 @@ export function createPlatformRouter(): Router {
             now()
           );
         const provider = resolveNotificationProvider(notificationChannel);
-        const deliveryStatus =
-          provider.status === "configured" ? "QUEUED" : "REQUIRES_SETUP";
+        const delivery = await provider.enqueue({
+          recipientUserId: userId,
+          title: title.trim(),
+          body: body.trim(),
+        });
+        const deliveryStatus = delivery.status;
         await db
           .prepare(
             "INSERT INTO notification_deliveries (id, tenant_id, notification_id, provider, status, attempts, updated_at) VALUES (?, ?, ?, ?, ?, 0, ?)"
@@ -1953,12 +2072,17 @@ export function createPlatformRouter(): Router {
           "notification",
           notificationId,
           req.requestId,
-          { channel: notificationChannel, userId, deliveryStatus }
+          {
+            channel: notificationChannel,
+            userId,
+            deliveryStatus,
+            error: delivery.error,
+          }
         );
         return res.status(201).json({
           ok: true,
           notificationId,
-          status: "QUEUED",
+          status: deliveryStatus,
           delivery: deliveryStatus.toLowerCase().replaceAll("_", "-"),
         });
       } catch (error) {
@@ -2909,6 +3033,101 @@ export function createPlatformRouter(): Router {
   );
 
   router.post(
+    "/ads/campaigns/:campaignId/creatives",
+    authenticate,
+    async (req: AuthenticatedRequest, res, next) => {
+      try {
+        const context = currentContext(req);
+        assertScope(context, context.tenantId, "advertising.manage");
+        const { headline, body, assetRef } = req.body ?? {};
+        if (
+          !isNonEmptyString(headline, 160) ||
+          (body !== undefined && !isNonEmptyString(body, 2000)) ||
+          (assetRef !== undefined && !isNonEmptyString(assetRef, 500))
+        )
+          throw httpError(
+            400,
+            "invalid-creative",
+            "عنوان المادة الإعلانية مطلوب وصالح."
+          );
+        const db = getDataPlane();
+        if (
+          !(await db
+            .prepare(
+              "SELECT id FROM ad_campaigns WHERE id = ? AND tenant_id = ?"
+            )
+            .get(req.params.campaignId, context.tenantId))
+        )
+          throw httpError(404, "campaign-not-found", "الحملة غير موجودة.");
+        const creativeId = randomUUID();
+        await db
+          .prepare(
+            "INSERT INTO ad_creatives (id, tenant_id, campaign_id, headline, body, asset_ref, status, created_at) VALUES (?, ?, ?, ?, ?, ?, 'DRAFT', ?)"
+          )
+          .run(
+            creativeId,
+            context.tenantId,
+            req.params.campaignId,
+            headline.trim(),
+            body?.trim() ?? null,
+            assetRef?.trim() ?? null,
+            now()
+          );
+        await recordAudit(
+          db,
+          context,
+          "ad.creative.create",
+          "ad_creative",
+          creativeId,
+          req.requestId,
+          { campaignId: req.params.campaignId }
+        );
+        return res.status(201).json({ ok: true, creativeId, status: "DRAFT" });
+      } catch (error) {
+        next(error);
+      }
+    }
+  );
+
+  router.post(
+    "/ads/creatives/:creativeId/approve",
+    authenticate,
+    async (req: AuthenticatedRequest, res, next) => {
+      try {
+        const context = currentContext(req);
+        assertScope(context, context.tenantId, "advertising.manage");
+        const db = getDataPlane();
+        const updated = await db
+          .prepare(
+            "UPDATE ad_creatives SET status = 'APPROVED' WHERE id = ? AND tenant_id = ? AND status = 'DRAFT'"
+          )
+          .run(req.params.creativeId, context.tenantId);
+        if (updated.changes !== 1)
+          throw httpError(
+            404,
+            "creative-not-found",
+            "المادة الإعلانية غير موجودة أو معتمدة سابقاً."
+          );
+        await recordAudit(
+          db,
+          context,
+          "ad.creative.approve",
+          "ad_creative",
+          req.params.creativeId,
+          req.requestId
+        );
+        return res.json({
+          ok: true,
+          creativeId: req.params.creativeId,
+          status: "APPROVED",
+        });
+      } catch (error) {
+        next(error);
+      }
+    }
+  );
+
+  router.post(
     "/ads/events",
     authenticate,
     async (req: AuthenticatedRequest, res, next) => {
@@ -3251,6 +3470,10 @@ export function createPlatformRouter(): Router {
         if (!isNonEmptyString(branchId, 100))
           throw httpError(400, "requires-branch", "الفرع مطلوب لإتمام الطلب.");
         const db = getDataPlane();
+        const configuration = await getTenantConfiguration(
+          db,
+          context.tenantId
+        );
         const result = await withDataPlaneTransaction(db, async () => {
           const cart = (await db
             .prepare(
@@ -3308,11 +3531,12 @@ export function createPlatformRouter(): Router {
               );
             subtotal += item.quantity * item.unit_price_cents;
           }
+          const pricing = calculateConfiguredTotals(subtotal, 0, configuration);
           const orderId = randomUUID();
           const timestamp = now();
           await db
             .prepare(
-              "INSERT INTO orders (id, tenant_id, business_id, branch_id, subtotal_cents, total_cents, created_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
+              "INSERT INTO orders (id, tenant_id, business_id, branch_id, subtotal_cents, tax_cents, total_cents, currency, created_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
             )
             .run(
               orderId,
@@ -3320,7 +3544,9 @@ export function createPlatformRouter(): Router {
               items[0].business_id,
               branchId,
               subtotal,
-              subtotal,
+              pricing.taxCents,
+              pricing.totalCents,
+              configuration.currency,
               context.userId,
               timestamp,
               timestamp
@@ -3374,7 +3600,7 @@ export function createPlatformRouter(): Router {
             db,
             context,
             orderId,
-            subtotal,
+            pricing.totalCents,
             req.requestId
           );
           await issueInvoice(
@@ -3383,9 +3609,9 @@ export function createPlatformRouter(): Router {
             {
               id: orderId,
               subtotal_cents: subtotal,
-              tax_cents: 0,
-              total_cents: subtotal,
-              currency: "EGP",
+              tax_cents: pricing.taxCents,
+              total_cents: pricing.totalCents,
+              currency: configuration.currency,
             },
             req.requestId
           );
@@ -3406,10 +3632,18 @@ export function createPlatformRouter(): Router {
               "order",
               orderId,
               req.requestId ?? null,
-              json({ totalCents: subtotal }),
+              json({
+                totalCents: pricing.totalCents,
+                taxCents: pricing.taxCents,
+              }),
               timestamp
             );
-          return { orderId, totalCents: subtotal };
+          return {
+            orderId,
+            totalCents: pricing.totalCents,
+            taxCents: pricing.taxCents,
+            currency: configuration.currency,
+          };
         });
         return res.status(201).json({ ok: true, ...result, state: "PENDING" });
       } catch (error) {
@@ -3798,8 +4032,12 @@ export function createPlatformRouter(): Router {
             "النشاط والفرع وعنصر واحد على الأقل مطلوبة."
           );
         const discount = validateMoney(discountCents, "discountCents");
-        const tax = validateMoney(taxCents, "taxCents");
+        const requestedTax = validateMoney(taxCents, "taxCents");
         const db = getDataPlane();
+        const configuration = await getTenantConfiguration(
+          db,
+          context.tenantId
+        );
         const result = await withDataPlaneTransaction(db, async () => {
           const branch = await db
             .prepare(
@@ -3853,7 +4091,14 @@ export function createPlatformRouter(): Router {
               };
             })
           );
-          const total = subtotal - Math.min(discount, subtotal) + tax;
+          const pricing = calculateConfiguredTotals(
+            subtotal,
+            Math.min(discount, subtotal),
+            configuration,
+            requestedTax
+          );
+          const tax = pricing.taxCents;
+          const total = pricing.totalCents;
           const orderId = randomUUID();
           const timestamp = now();
           await db
@@ -3935,7 +4180,7 @@ export function createPlatformRouter(): Router {
               subtotal_cents: subtotal,
               tax_cents: tax,
               total_cents: total,
-              currency: "EGP",
+              currency: configuration.currency,
             },
             req.requestId
           );
@@ -4229,6 +4474,7 @@ export function createPlatformRouter(): Router {
             "تم رفض مدخل يحاول تجاوز سياسات النظام."
           );
         const db = getDataPlane();
+        const aiProvider = resolveAIProvider();
         const requestId = randomUUID();
         const allowed = Array.from(
           new Set(allowedDataScope as string[])
@@ -4244,7 +4490,7 @@ export function createPlatformRouter(): Router {
             purpose.trim(),
             hashToken(input),
             json(allowed),
-            process.env.AI_PROVIDER_API_KEY ? "QUEUED" : "REQUIRES_SETUP",
+            aiProvider.status === "configured" ? "QUEUED" : "REQUIRES_SETUP",
             now()
           );
         await recordAudit(
@@ -4259,13 +4505,170 @@ export function createPlatformRouter(): Router {
         return res.status(201).json({
           ok: true,
           requestId,
-          status: process.env.AI_PROVIDER_API_KEY ? "QUEUED" : "REQUIRES_SETUP",
+          status:
+            aiProvider.status === "configured" ? "QUEUED" : "REQUIRES_SETUP",
           tenantId: context.tenantId,
           userId: context.userId,
           allowedDataScope: allowed,
-          message: process.env.AI_PROVIDER_API_KEY
-            ? "تم تسجيل الطلب ضمن نطاق البيانات المصرح."
-            : "موفر الذكاء الاصطناعي غير مهيأ؛ لم يتم اختلاق نتيجة.",
+          message:
+            aiProvider.status === "configured"
+              ? "تم تسجيل الطلب ضمن نطاق البيانات المصرح."
+              : "موفر الذكاء الاصطناعي غير مهيأ؛ لم يتم اختلاق نتيجة.",
+        });
+      } catch (error) {
+        next(error);
+      }
+    }
+  );
+
+  router.post(
+    "/ai/requests/:requestId/execute",
+    authenticate,
+    async (req: AuthenticatedRequest, res, next) => {
+      try {
+        const context = currentContext(req);
+        assertScope(context, context.tenantId, "ai.manage");
+        const prompt = req.body?.prompt;
+        if (!isNonEmptyString(prompt, 12_000))
+          throw httpError(
+            400,
+            "invalid-ai-prompt",
+            "النص الأصلي مطلوب للتنفيذ."
+          );
+        if (
+          /(ignore|disregard|override).*(system|policy|permission)|تجاهل.*(التعليمات|السياسة|الصلاحيات)/i.test(
+            prompt
+          )
+        )
+          throw httpError(
+            400,
+            "prompt-injection",
+            "تم رفض مدخل يحاول تجاوز سياسات النظام."
+          );
+        const db = getDataPlane();
+        const request = (await db
+          .prepare(
+            "SELECT id, user_id, purpose, input_hash, allowed_data_scope, provider_status FROM ai_requests WHERE id = ? AND tenant_id = ?"
+          )
+          .get(req.params.requestId, context.tenantId)) as
+          | {
+              id: string;
+              user_id: string;
+              purpose: string;
+              input_hash: string;
+              allowed_data_scope: string;
+              provider_status: string;
+            }
+          | undefined;
+        if (!request)
+          throw httpError(
+            404,
+            "ai-request-not-found",
+            "طلب الذكاء الاصطناعي غير موجود."
+          );
+        if (
+          request.user_id !== context.userId &&
+          !hasPermission(context, "ai.manage")
+        )
+          throw httpError(403, "forbidden", "لا تملك صلاحية تنفيذ هذا الطلب.");
+        if (hashToken(prompt) !== request.input_hash)
+          throw httpError(
+            409,
+            "ai-prompt-mismatch",
+            "النص لا يطابق الطلب المسجل."
+          );
+        if (request.provider_status === "COMPLETED")
+          return res.json({
+            ok: true,
+            requestId: request.id,
+            status: "COMPLETED",
+            replay: true,
+          });
+        const provider = resolveAIProvider();
+        if (provider.status !== "configured") {
+          await db
+            .prepare(
+              "UPDATE ai_requests SET provider_status = 'REQUIRES_SETUP' WHERE id = ? AND tenant_id = ?"
+            )
+            .run(request.id, context.tenantId);
+          return res.status(503).json({
+            ok: false,
+            requestId: request.id,
+            status: "REQUIRES_SETUP",
+            message: "موفر الذكاء الاصطناعي غير مهيأ؛ لم يتم اختلاق نتيجة.",
+          });
+        }
+        const startedAt = now();
+        const result = await provider.complete({
+          purpose: request.purpose,
+          prompt,
+          tenantId: context.tenantId,
+          allowedDataScope: parseJson<string[]>(request.allowed_data_scope, []),
+        });
+        await db
+          .prepare(
+            "UPDATE ai_requests SET provider_status = ? WHERE id = ? AND tenant_id = ?"
+          )
+          .run(result.status, request.id, context.tenantId);
+        if (result.status === "COMPLETED") {
+          const inputTokens = result.inputTokens ?? 0;
+          const outputTokens = result.outputTokens ?? 0;
+          await db
+            .prepare(
+              "INSERT INTO ai_usage (id, tenant_id, user_id, request_id, feature, model, input_tokens, output_tokens, total_tokens, latency_ms, cost_cents, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(tenant_id, request_id) DO UPDATE SET feature = excluded.feature, model = excluded.model, input_tokens = excluded.input_tokens, output_tokens = excluded.output_tokens, total_tokens = excluded.total_tokens, latency_ms = excluded.latency_ms, cost_cents = excluded.cost_cents"
+            )
+            .run(
+              randomUUID(),
+              context.tenantId,
+              request.user_id,
+              request.id,
+              request.purpose,
+              result.model ?? provider.name,
+              inputTokens,
+              outputTokens,
+              result.totalTokens ?? inputTokens + outputTokens,
+              now() - startedAt,
+              result.costCents ?? null,
+              now()
+            );
+          await recordAudit(
+            db,
+            context,
+            "ai.request.complete",
+            "ai_request",
+            request.id,
+            req.requestId,
+            { provider: provider.name, model: result.model }
+          );
+          return res.json({
+            ok: true,
+            requestId: request.id,
+            status: result.status,
+            output: result.output,
+            model: result.model,
+            usage: {
+              inputTokens,
+              outputTokens,
+              totalTokens: result.totalTokens ?? inputTokens + outputTokens,
+              latencyMs: now() - startedAt,
+              costCents: result.costCents ?? null,
+            },
+          });
+        }
+        await recordAudit(
+          db,
+          context,
+          "ai.request.failed",
+          "ai_request",
+          request.id,
+          req.requestId,
+          { provider: provider.name, error: result.error }
+        );
+        return res.status(502).json({
+          ok: false,
+          requestId: request.id,
+          status: "FAILED",
+          message: result.error ?? "فشل موفر الذكاء الاصطناعي.",
         });
       } catch (error) {
         next(error);
@@ -5895,9 +6298,513 @@ export function createPlatformRouter(): Router {
     }
   );
 
+  router.get(
+    "/configuration",
+    authenticate,
+    async (req: AuthenticatedRequest, res, next) => {
+      try {
+        const context = currentContext(req);
+        assertScope(context, context.tenantId, "business.read");
+        return res.json({
+          ok: true,
+          configuration: await getTenantConfiguration(
+            getDataPlane(),
+            context.tenantId
+          ),
+        });
+      } catch (error) {
+        next(error);
+      }
+    }
+  );
+
+  router.patch(
+    "/configuration",
+    authenticate,
+    async (req: AuthenticatedRequest, res, next) => {
+      try {
+        const context = currentContext(req);
+        assertScope(context, context.tenantId, "business.manage");
+        const body = req.body ?? {};
+        const currency = body.currency ?? "EGP";
+        const taxMode = body.taxMode ?? "REQUIRES_CONFIGURATION";
+        const taxRateBasisPoints = body.taxRateBasisPoints ?? 0;
+        const taxRegistrationNumber = body.taxRegistrationNumber ?? null;
+        const invoicePrefix = body.invoicePrefix ?? "INV";
+        const businessName = body.businessName ?? null;
+        if (
+          !isNonEmptyString(currency, 3) ||
+          ![
+            "REQUIRES_CONFIGURATION",
+            "EXCLUSIVE",
+            "INCLUSIVE",
+            "EXEMPT",
+          ].includes(taxMode) ||
+          !Number.isSafeInteger(taxRateBasisPoints) ||
+          taxRateBasisPoints < 0 ||
+          taxRateBasisPoints > 10000 ||
+          (taxRegistrationNumber !== null &&
+            !isNonEmptyString(taxRegistrationNumber, 100)) ||
+          !isNonEmptyString(invoicePrefix, 20) ||
+          (businessName !== null && !isNonEmptyString(businessName, 200))
+        )
+          throw httpError(
+            400,
+            "invalid-configuration",
+            "إعدادات النشاط أو الضريبة غير صالحة."
+          );
+        const db = getDataPlane();
+        await db
+          .prepare(
+            "INSERT INTO tenant_configurations (tenant_id, currency, tax_mode, tax_rate_basis_points, tax_registration_number, invoice_prefix, business_name, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT (tenant_id) DO UPDATE SET currency = excluded.currency, tax_mode = excluded.tax_mode, tax_rate_basis_points = excluded.tax_rate_basis_points, tax_registration_number = excluded.tax_registration_number, invoice_prefix = excluded.invoice_prefix, business_name = excluded.business_name, updated_at = excluded.updated_at"
+          )
+          .run(
+            context.tenantId,
+            currency.trim().toUpperCase(),
+            taxMode,
+            taxRateBasisPoints,
+            taxRegistrationNumber?.trim() ?? null,
+            invoicePrefix.trim().toUpperCase(),
+            businessName?.trim() ?? null,
+            now()
+          );
+        await recordAudit(
+          db,
+          context,
+          "business.configuration.update",
+          "tenant_configuration",
+          context.tenantId,
+          req.requestId,
+          { taxMode, taxRateBasisPoints }
+        );
+        return res.json({
+          ok: true,
+          configuration: await getTenantConfiguration(db, context.tenantId),
+        });
+      } catch (error) {
+        next(error);
+      }
+    }
+  );
+
+  router.get(
+    "/ai/advisor/insights",
+    authenticate,
+    async (req: AuthenticatedRequest, res, next) => {
+      try {
+        const context = currentContext(req);
+        assertScope(context, context.tenantId, "ai.read");
+        const db = getDataPlane();
+        await assertEntitlement(db, context, "analytics.read");
+        const to = now();
+        const from = to - 30 * 24 * 60 * 60 * 1000;
+        const sales = (await db
+          .prepare(
+            "SELECT COUNT(*) AS orders, COALESCE(SUM(total_cents), 0) AS cents FROM orders WHERE tenant_id = ? AND state = 'COMPLETED' AND created_at BETWEEN ? AND ?"
+          )
+          .get(context.tenantId, from, to)) as {
+          orders: number | string;
+          cents: number | string;
+        };
+        const expenses = (await db
+          .prepare(
+            "SELECT COUNT(*) AS count, COALESCE(SUM(amount_cents), 0) AS cents FROM expenses WHERE tenant_id = ? AND status = 'POSTED' AND created_at BETWEEN ? AND ?"
+          )
+          .get(context.tenantId, from, to)) as {
+          count: number | string;
+          cents: number | string;
+        };
+        const inventory = (await db
+          .prepare(
+            "SELECT COUNT(*) AS sku_count, COALESCE(SUM(quantity), 0) AS units FROM inventory_stock WHERE tenant_id = ?"
+          )
+          .get(context.tenantId)) as {
+          sku_count: number | string;
+          units: number | string;
+        };
+        const lowStock = (await db
+          .prepare(
+            "SELECT p.id, p.name, COALESCE(SUM(s.quantity), 0) AS quantity FROM products p LEFT JOIN inventory_stock s ON s.product_id = p.id AND s.tenant_id = p.tenant_id WHERE p.tenant_id = ? AND p.status = 'active' GROUP BY p.id, p.name HAVING COALESCE(SUM(s.quantity), 0) <= 5 ORDER BY quantity ASC LIMIT 20"
+          )
+          .all(context.tenantId)) as Array<{
+          id: string;
+          name: string;
+          quantity: number | string;
+        }>;
+        const salesCents = asNumber(sales.cents);
+        const expenseCents = asNumber(expenses.cents);
+        const insights = [
+          {
+            insightType: "SALES",
+            severity: salesCents > 0 ? "INFO" : "WARNING",
+            title: "ملخص المبيعات الفعلي",
+            summary:
+              salesCents > 0
+                ? `تم تسجيل ${asNumber(sales.orders)} طلباً مكتملًا بقيمة ${salesCents} سنت خلال 30 يوماً.`
+                : "لا توجد مبيعات مكتملة خلال آخر 30 يوماً.",
+            evidence: { from, to, orders: asNumber(sales.orders), salesCents },
+            recommendation:
+              salesCents > 0
+                ? "راجع أكثر المنتجات مبيعاً قبل تعديل الأسعار أو العروض."
+                : "تحقق من النشر والمخزون وقنوات البيع قبل إطلاق حملة مدفوعة.",
+          },
+          {
+            insightType: "PROFIT",
+            severity: expenseCents > salesCents ? "CRITICAL" : "INFO",
+            title: "مؤشر الربحية قبل التسوية",
+            summary: `الفرق المحسوب بين المبيعات المكتملة والمصروفات المنشورة هو ${salesCents - expenseCents} سنت.`,
+            evidence: {
+              from,
+              to,
+              salesCents,
+              expenseCents,
+              expenseCount: asNumber(expenses.count),
+            },
+            recommendation:
+              expenseCents > salesCents
+                ? "راجع المصروفات المنشورة وتوقيت الاعتراف بالإيراد قبل أي قرار مالي."
+                : "استمر في مطابقة القيود مع الفواتير والتسويات الخارجية.",
+          },
+          {
+            insightType: "INVENTORY",
+            severity: lowStock.length ? "WARNING" : "INFO",
+            title: "تنبيه المخزون المنخفض",
+            summary: lowStock.length
+              ? `يوجد ${lowStock.length} منتجاً عند أو دون حد التنبيه التشغيلي المؤقت.`
+              : "لا توجد منتجات عند أو دون حد التنبيه التشغيلي المؤقت.",
+            evidence: {
+              skuCount: asNumber(inventory.sku_count),
+              units: asNumber(inventory.units),
+              lowStock,
+            },
+            recommendation: lowStock.length
+              ? "تحقق من طلبات الشراء ومستويات إعادة الطلب قبل قبول مبيعات إضافية."
+              : "استمر في تسجيل كل حركة شراء وبيع وتسوية.",
+          },
+        ];
+        for (const insight of insights)
+          await db
+            .prepare(
+              "INSERT INTO ai_insights (id, tenant_id, insight_type, severity, title, summary, evidence_json, recommendation, as_of, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+            )
+            .run(
+              randomUUID(),
+              context.tenantId,
+              insight.insightType,
+              insight.severity,
+              insight.title,
+              insight.summary,
+              json(insight.evidence),
+              insight.recommendation,
+              to,
+              to
+            );
+        return res.json({
+          ok: true,
+          provider: "DETERMINISTIC_GROUNDED",
+          source: "database",
+          asOf: new Date(to).toISOString(),
+          insights,
+        });
+      } catch (error) {
+        next(error);
+      }
+    }
+  );
+
+  router.get(
+    "/recommendations",
+    authenticate,
+    async (req: AuthenticatedRequest, res, next) => {
+      try {
+        const context = currentContext(req);
+        assertScope(context, context.tenantId, "product.read");
+        const db = getDataPlane();
+        await assertEntitlement(db, context, "catalog.read");
+        const query =
+          typeof req.query.query === "string" ? req.query.query.trim() : "";
+        const limit = Math.min(
+          Math.max(Number(req.query.limit ?? 20) || 20, 1),
+          50
+        );
+        const products = (await db
+          .prepare(
+            "SELECT p.id, p.business_id, p.name, p.category, p.price_cents, p.currency, COALESCE((SELECT SUM(quantity) FROM inventory_stock s WHERE s.product_id = p.id AND s.tenant_id = p.tenant_id), 0) AS available_units FROM products p WHERE p.tenant_id = ? AND p.status = 'active' AND (? = '' OR p.name LIKE ? OR COALESCE(p.category, '') LIKE ?) ORDER BY p.created_at DESC LIMIT ?"
+          )
+          .all(
+            context.tenantId,
+            query,
+            `%${query}%`,
+            `%${query}%`,
+            limit
+          )) as Array<{
+          id: string;
+          business_id: string;
+          name: string;
+          category: string | null;
+          price_cents: number | string;
+          currency: string;
+          available_units: number | string;
+        }>;
+        const recommendations = products
+          .map(product => {
+            const available = asNumber(product.available_units);
+            const score =
+              (available > 0 ? 2 : 0) +
+              (available >= 3 ? 1 : 0) +
+              (product.category ? 1 : 0);
+            return {
+              ...product,
+              score,
+              factors: {
+                available: available > 0,
+                healthyStock: available >= 3,
+                categorized: Boolean(product.category),
+                method: "DETERMINISTIC_FALLBACK",
+              },
+            };
+          })
+          .sort(
+            (left, right) =>
+              right.score - left.score ||
+              Number(left.price_cents) - Number(right.price_cents)
+          );
+        for (const recommendation of recommendations)
+          await db
+            .prepare(
+              "INSERT INTO recommendation_events (id, tenant_id, user_id, resource_type, resource_id, score, factors_json, created_at) VALUES (?, ?, ?, 'PRODUCT', ?, ?, ?, ?)"
+            )
+            .run(
+              randomUUID(),
+              context.tenantId,
+              context.userId,
+              recommendation.id,
+              recommendation.score,
+              json(recommendation.factors),
+              now()
+            );
+        return res.json({
+          ok: true,
+          source: "database",
+          method: "DETERMINISTIC_FALLBACK",
+          recommendations,
+        });
+      } catch (error) {
+        next(error);
+      }
+    }
+  );
+
+  router.get(
+    "/ai/advisor/forecast",
+    authenticate,
+    async (req: AuthenticatedRequest, res, next) => {
+      try {
+        const context = currentContext(req);
+        assertScope(context, context.tenantId, "report.read");
+        const db = getDataPlane();
+        await assertEntitlement(db, context, "analytics.read");
+        const metric =
+          typeof req.query.metric === "string"
+            ? req.query.metric.toUpperCase()
+            : "SALES";
+        const horizonDays = Number(req.query.horizonDays ?? 7) || 7;
+        if (
+          !["SALES", "EXPENSES", "ORDERS", "CUSTOMERS"].includes(metric) ||
+          !Number.isSafeInteger(horizonDays) ||
+          horizonDays < 1 ||
+          horizonDays > 90
+        )
+          throw httpError(
+            400,
+            "invalid-forecast",
+            "المؤشر أو أفق التنبؤ غير صالح."
+          );
+        const to = now();
+        const from = to - 30 * 24 * 60 * 60 * 1000;
+        const values = new Array<number>(30).fill(0);
+        const orderValueColumn = metric === "SALES" ? "total_cents" : "1";
+        const rows =
+          metric === "EXPENSES"
+            ? await db
+                .prepare(
+                  "SELECT amount_cents AS value, created_at FROM expenses WHERE tenant_id = ? AND status = 'POSTED' AND created_at BETWEEN ? AND ?"
+                )
+                .all(context.tenantId, from, to)
+            : metric === "CUSTOMERS"
+              ? await db
+                  .prepare(
+                    "SELECT 1 AS value, created_at FROM customers WHERE tenant_id = ? AND created_at BETWEEN ? AND ?"
+                  )
+                  .all(context.tenantId, from, to)
+              : await db
+                  .prepare(
+                    `SELECT ${orderValueColumn} AS value, created_at FROM orders WHERE tenant_id = ? AND state = 'COMPLETED' AND created_at BETWEEN ? AND ?`
+                  )
+                  .all(context.tenantId, from, to);
+        for (const row of rows as Array<{
+          value: number | string;
+          created_at: number | string;
+        }>) {
+          const day = Math.min(
+            29,
+            Math.max(
+              0,
+              Math.floor(
+                (asNumber(row.created_at) - from) / (24 * 60 * 60 * 1000)
+              )
+            )
+          );
+          values[day] += asNumber(row.value);
+        }
+        const forecast = movingAverageForecast(values, horizonDays);
+        const forecastId = randomUUID();
+        await db
+          .prepare(
+            "INSERT INTO forecast_outputs (id, tenant_id, metric, horizon_days, predicted_cents, predicted_value, confidence, method, training_window_days, evaluation_json, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+          )
+          .run(
+            forecastId,
+            context.tenantId,
+            metric,
+            horizonDays,
+            ["SALES", "EXPENSES"].includes(metric) ? forecast.predicted : null,
+            forecast.predicted,
+            forecast.confidence,
+            forecast.method,
+            forecast.evaluation.trainingDays,
+            json(forecast.evaluation),
+            to
+          );
+        return res.json({
+          ok: true,
+          source: "database",
+          model: forecast.method,
+          metric,
+          horizonDays,
+          predictedCents: ["SALES", "EXPENSES"].includes(metric)
+            ? forecast.predicted
+            : null,
+          predictedValue: forecast.predicted,
+          confidence: forecast.confidence,
+          evaluation: forecast.evaluation,
+          forecastId,
+        });
+      } catch (error) {
+        next(error);
+      }
+    }
+  );
+
+  router.post(
+    "/marketing/campaigns/:campaignId/actions",
+    authenticate,
+    async (req: AuthenticatedRequest, res, next) => {
+      try {
+        const context = currentContext(req);
+        assertScope(context, context.tenantId, "advertising.manage");
+        const action =
+          typeof req.body?.action === "string"
+            ? req.body.action.toUpperCase()
+            : "";
+        const reason =
+          typeof req.body?.reason === "string" ? req.body.reason.trim() : null;
+        const transitions: Record<string, { from: string[]; to: string }> = {
+          SUBMIT: { from: ["DRAFT"], to: "PENDING_REVIEW" },
+          APPROVE: { from: ["PENDING_REVIEW"], to: "ACTIVE" },
+          PAUSE: { from: ["ACTIVE"], to: "PAUSED" },
+          RESUME: { from: ["PAUSED"], to: "ACTIVE" },
+          END: { from: ["ACTIVE", "PAUSED"], to: "ENDED" },
+        };
+        const transition = transitions[action];
+        if (!transition || (reason !== null && reason.length > 500))
+          throw httpError(
+            400,
+            "invalid-campaign-action",
+            "إجراء الحملة غير صالح."
+          );
+        const db = getDataPlane();
+        const campaign = (await db
+          .prepare(
+            "SELECT id, status FROM ad_campaigns WHERE id = ? AND tenant_id = ?"
+          )
+          .get(req.params.campaignId, context.tenantId)) as
+          | { id: string; status: string }
+          | undefined;
+        if (!campaign)
+          throw httpError(404, "campaign-not-found", "الحملة غير موجودة.");
+        if (!transition.from.includes(campaign.status))
+          throw httpError(
+            409,
+            "invalid-campaign-transition",
+            "انتقال حالة الحملة غير مسموح."
+          );
+        if (
+          action === "APPROVE" &&
+          !(await db
+            .prepare(
+              "SELECT id FROM ad_creatives WHERE campaign_id = ? AND tenant_id = ? AND status = 'APPROVED' LIMIT 1"
+            )
+            .get(campaign.id, context.tenantId))
+        )
+          throw httpError(
+            409,
+            "creative-required",
+            "لا يمكن اعتماد حملة بلا مادة إعلانية معتمدة."
+          );
+        const result = await withDataPlaneTransaction(db, async () => {
+          await db
+            .prepare(
+              "UPDATE ad_campaigns SET status = ?, updated_at = ? WHERE id = ? AND tenant_id = ? AND status = ?"
+            )
+            .run(
+              transition.to,
+              now(),
+              campaign.id,
+              context.tenantId,
+              campaign.status
+            );
+          const actionId = randomUUID();
+          await db
+            .prepare(
+              "INSERT INTO marketing_campaign_actions (id, tenant_id, campaign_id, action, actor_user_id, reason, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)"
+            )
+            .run(
+              actionId,
+              context.tenantId,
+              campaign.id,
+              action,
+              context.userId,
+              reason,
+              now()
+            );
+          await recordAudit(
+            db,
+            context,
+            `marketing.campaign.${action.toLowerCase()}`,
+            "ad_campaign",
+            campaign.id,
+            req.requestId,
+            { from: campaign.status, to: transition.to, actionId }
+          );
+          return { actionId };
+        });
+        return res.json({
+          ok: true,
+          campaignId: campaign.id,
+          action,
+          from: campaign.status,
+          status: transition.to,
+          ...result,
+        });
+      } catch (error) {
+        next(error);
+      }
+    }
+  );
+
   return router;
 }
-
 export function platformErrorHandler(
   error: unknown,
   _req: Request,

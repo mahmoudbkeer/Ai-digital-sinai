@@ -144,6 +144,14 @@ export function getDataPlane(): AsyncDataPlane {
 }
 
 export async function ensureDataPlaneReady() {
+  if (
+    process.env.NODE_ENV === "production" &&
+    !isPostgresUrl() &&
+    process.env.ALLOW_SQLITE_PRODUCTION_TEST !== "1"
+  )
+    throw new Error(
+      "Production requires DATABASE_URL PostgreSQL; SQLite is allowed only for explicit tests."
+    );
   if (isPostgresUrl()) {
     postgresReady ??= migratePostgres();
     await postgresReady;

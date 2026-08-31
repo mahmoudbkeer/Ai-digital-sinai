@@ -733,6 +733,22 @@ export function getDatabase(): AppDatabase {
       )
       .run(2, Date.now());
   }
+  const appliedProductization = database
+    .prepare("SELECT version FROM schema_migrations WHERE version = 3")
+    .get() as { version?: number } | undefined;
+  if (!appliedProductization) {
+    database.exec(
+      readFileSync(
+        path.resolve(process.cwd(), "migrations/0003_productization.sql"),
+        "utf8"
+      )
+    );
+    database
+      .prepare(
+        "INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)"
+      )
+      .run(3, Date.now());
+  }
   const planInsert = database.prepare(
     "INSERT OR IGNORE INTO plans (code, name, price_cents, trial_days, active, created_at) VALUES (?, ?, ?, ?, 1, ?)"
   );

@@ -71,3 +71,13 @@
 ## الحدود المتبقية
 
 ما زالت مزودات الدفع الفعلية والتسوية، MFA/OTP الفعلي، قنوات البريد وSMS وPush، vector embeddings/RAG provider، Redis للـqueues/rate limits، object storage/CDN، اختبارات PostgreSQL staging/restore، وبعض وحدات الضرائب والموارد البشرية المتقدمة والعقارات وتطبيق Android/APK تحتاج adapters واختبارات وتهيئة تشغيلية. تم إبقاء هذه الحالات معلنة كـ`REQUIRES_SETUP` أو `BLOCKED_EXTERNAL_DEPENDENCY` أو فجوات، لا كميزات مكتملة.
+
+## Execution batch — productization and operational gates
+
+تم تنفيذ دفعة TXT التالية دون اختلاق جاهزية خارجية. أضيفت migration version 3 لجداول إعدادات الضريبة والفاتورة، insights الموثقة، forecast outputs، recommendation events، وإجراءات الحملات الإعلانية في SQLite وPostgreSQL. أصبحت الطلبات القياسية وCart Checkout تحترم أوضاع الضريبة `EXCLUSIVE` و`INCLUSIVE` و`EXEMPT`، وعملة المستأجر وبادئة الفاتورة، مع إبقاء السلوك الافتراضي السابق صفراً للضريبة.
+
+أضيف advisor حتمي مصدره قاعدة البيانات، recommendation ranking مع event logging، moving-average forecast مع confidence و`INSUFFICIENT_DATA`، ومسارات إنشاء/اعتماد المواد الإعلانية وانتقالات الحملة. أضيف AI provider gateway صارم مع prompt-hash binding وtimeout وoutput validation وusage persistence وسلوك `REQUIRES_SETUP` الصريح. أصبحت notification creation وretry تستخدمان provider adapter فعلياً مع حالات queue/setup/failure.
+
+أصبح فصل البيئات enforced: الإنتاج يتطلب PostgreSQL و`COMMAND_CONTEXT_SECRET`، ولا يسمح بـSQLite إلا عبر `ALLOW_SQLITE_PRODUCTION_TEST=1` الاختباري. يعرِض readiness حالة PostgreSQL وRedis وObject Storage والدفع وAI والإشعارات ومدير الأسرار. أضيف load smoke مستقل عبر `pnpm test:load` ومضمن في CI.
+
+آخر تحقق محلي: `pnpm check` و`pnpm test` نجحا مع 37 اختباراً، كما نجح build وE2E وsmoke وload. ما زال اختبار PostgreSQL staging، Redis المدار، توقيع Object Storage، payment/notification/AI sandboxes، WAF، restore drill الخارجي، pentest، وAndroid signing متوقفاً على خدمات واعتمادات خارجية.

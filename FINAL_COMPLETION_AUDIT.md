@@ -97,3 +97,22 @@
 ## الخلاصة
 
 تم رفع المستودع من حالة **PostgreSQL adapter only + Business OS gap** إلى **Async PostgreSQL-ready business core + Business OS basic implementation** فوق نفس repository والـbaseline. لا توجد إعادة بناء للمشروع ولا fake data أو fake payment أو fake AI. البنود المتبقية موثقة بحالتها، وأكبر خطوة تالية هي توفير staging credentials ثم تنفيذ migration/tenant/financial/security/backup/restore/load gates على PostgreSQL الحقيقي قبل أي إعلان إنتاجي.
+
+## Current execution addendum — supersedes earlier local counts
+
+تمت مراجعة ملف TXT وتنفيذ الدفعة التالية فوق نفس المستودع: migration version 3، إعدادات الضريبة وربطها بالطلبات والفواتير، advisor حتمي grounded، recommendations، forecast مع fallback، AI provider execute contract، notification provider delivery/retry، creative approval وmarketing campaign state machine، runtime production PostgreSQL/secret gate، integration readiness، وload smoke harness.
+
+| الفحص النهائي | النتيجة الموثقة |
+|---|---|
+| `pnpm check` | PASS |
+| `pnpm test` | PASS — 8 ملفات / 37 اختباراً |
+| `pnpm build` | PASS |
+| `pnpm test:e2e` | PASS — 1 browser test |
+| `pnpm test:smoke` | PASS — 3 checks |
+| `pnpm test:load` | PASS محلياً — 100 requests، concurrency 10، failures 0، p50 11ms، p95 34ms |
+| Tax/invoice integration | PASS — 14% exclusive tax، tenant currency، invoice prefix، persisted totals |
+| Advertising lifecycle | PASS — creative approval ثم submit/approve/pause/resume/end |
+| AI provider setup boundary | PASS — no credentials returns `REQUIRES_SETUP` بلا نتيجة مختلقة |
+| Production separation | PASS — production بلا PostgreSQL يرفض startup إلا عبر test bypass صريح |
+
+لا تزال البنود الخارجية التالية غير مغلقة: PostgreSQL staging الفعلي، provider sandboxes للدفع والإشعارات والـAI، Redis المدار والworker، توقيع Object Storage والفحص، WAF/TLS/CDN، restore drill مشفر على PostgreSQL، pentest مستقل، Android/Expo signing، وقياس load على staging. لذلك يبقى الحكم **Business Core Implemented / Production Verification Pending** وليس `PRODUCTION READY`.
