@@ -111,6 +111,40 @@ describe("platform core", () => {
     await expect(stock.json()).resolves.toMatchObject({ stock: [expect.objectContaining({ product_id: productId, quantity: 1 })] });
   });
 
+  it("keeps V3 documents, invoices, ads, geo, and notifications tenant-scoped", async () => {
+    const a = await register("owner-i@example.com", "Tenant I"); const b = await register("owner-j@example.com", "Tenant J"); const headers = auth(a);
+    const document = await request("/api/platform/ai/documents", { method: "POST", headers, body: JSON.stringify({ sourceType: "manual", sourceRef: "doc-i", title: "بيانات خاصة", content: "مخزون العريش الخاص بالمستأجر I" }) });
+    expect(document.status).toBe(201);
+    const searchB = await request("/api/platform/ai/search", { method: "POST", headers: auth(b), body: JSON.stringify({ query: "مخزون العريش" }) });
+    expect(searchB.status).toBe(200); await expect(searchB.json()).resolves.toMatchObject({ results: [] });
+    const searchA = await request("/api/platform/ai/search", { method: "POST", headers, body: JSON.stringify({ query: "مخزون العريش" }) });
+    await expect(searchA.json()).resolves.toMatchObject({ results: [expect.objectContaining({ title: "بيانات خاصة" })] });
+    const place = await request("/api/platform/geo/places", { method: "POST", headers, body: JSON.stringify({ entityType: "BUSINESS", entityId: a.businessId, city: "العريش", latitude: 31.132, longitude: 33.803 }) });
+    expect(place.status).toBe(201);
+    const nearby = await request("/api/platform/geo/nearby?latitude=31.132&longitude=33.803&radiusKm=1", { headers });
+    await expect(nearby.json()).resolves.toMatchObject({ places: [expect.objectContaining({ entity_id: a.businessId })] });
+    const advertiser = await request("/api/platform/ads/advertisers", { method: "POST", headers, body: JSON.stringify({ businessId: a.businessId }) });
+    const { advertiserId } = await advertiser.json() as { advertiserId: string };
+    const campaign = await request("/api/platform/ads/campaigns", { method: "POST", headers, body: JSON.stringify({ advertiserId, name: "حملة اختبار", budgetCents: 1000 }) });
+    expect(campaign.status).toBe(201);
+    const notification = await request("/api/platform/notifications", { method: "POST", headers, body: JSON.stringify({ userId: a.userId, channel: "EMAIL", title: "تنبيه", body: "اختبار" }) });
+    expect(notification.status).toBe(201);
+    await expect(notification.json()).resolves.toMatchObject({ delivery: "requires-setup" });
+  });
+
+  it("requires delivery proof and blocks sensitive agent actions", async () => {
+    const identity = await register("owner-k@example.com", "Tenant K"); const headers = auth(identity);
+    const productResponse = await request("/api/platform/products", { method: "POST", headers, body: JSON.stringify({ businessId: identity.businessId, sku: "SKU-DELIVERY", name: "منتج التسليم", priceCents: 200 }) }); const { productId } = await productResponse.json() as { productId: string };
+    await request("/api/platform/inventory/movements", { method: "POST", headers, body: JSON.stringify({ branchId: identity.branchId, productId, quantityDelta: 2, reason: "initial", idempotencyKey: "movement-delivery" }) });
+    const order = await request("/api/platform/orders", { method: "POST", headers, body: JSON.stringify({ businessId: identity.businessId, branchId: identity.branchId, items: [{ productId, quantity: 1 }] }) }); const { orderId } = await order.json() as { orderId: string };
+    const delivery = await request("/api/platform/deliveries", { method: "POST", headers, body: JSON.stringify({ orderId }) }); const { deliveryId } = await delivery.json() as { deliveryId: string };
+    for (const state of ["ASSIGNED", "PICKED_UP", "IN_TRANSIT"]) expect((await request(`/api/platform/deliveries/${deliveryId}/state`, { method: "PATCH", headers, body: JSON.stringify({ state }) })).status).toBe(200);
+    const blocked = await request(`/api/platform/deliveries/${deliveryId}/state`, { method: "PATCH", headers, body: JSON.stringify({ state: "DELIVERED" }) }); expect(blocked.status).toBe(409); await expect(blocked.json()).resolves.toMatchObject({ error: "proof-required" });
+    const proof = await request(`/api/platform/deliveries/${deliveryId}/proof`, { method: "POST", headers, body: JSON.stringify({ proofType: "NOTE", storageRef: "signed:delivery-k", recipientName: "عميل" }) }); expect(proof.status).toBe(201);
+    const delivered = await request(`/api/platform/deliveries/${deliveryId}/state`, { method: "PATCH", headers, body: JSON.stringify({ state: "DELIVERED" }) }); expect(delivered.status).toBe(200);
+    const agent = await request("/api/platform/ai/agents/prepare", { method: "POST", headers, body: JSON.stringify({ purpose: "refund agent", requestedAction: "refund", tenantScope: identity.tenantId, tools: ["refund.create"] }) }); expect(agent.status).toBe(403); await expect(agent.json()).resolves.toMatchObject({ status: "BLOCKED_POLICY" });
+  });
+
   it("keeps payment and AI honest when external providers are absent", async () => {
     const identity = await register("owner-f@example.com", "Tenant F");
     const headers = auth(identity);

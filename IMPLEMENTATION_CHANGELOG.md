@@ -1,45 +1,58 @@
-# Implementation Changelog
+# Implementation Changelog — V3 Professional Hardening
 
-## 31 أغسطس 2026 — Enterprise Core Slice
+## النطاق
 
-### What changed
+تم تنفيذ الجولة على المستودع `mahmoudbkeer/Ai-digital-sinai` فوق commit `8e52dc9`. الهدف كان رفع جودة Enterprise Core دون ادعاء اكتمال مزودات خارجية أو data plane غير موصول.
 
-تم تنفيذ شريحة تشغيلية حقيقية فوق المشروع الحالي، مع الحفاظ على App Mode/PWA وExpress وVite وعقود الأوامر وWebhook الموجودة. أضيفت قاعدة SQLite محلية فعلية مع foreign keys وunique constraints وindexes وtransactions وmigration وrollback script. أضيفت هوية بتجزئة `scrypt`، جلسات قابلة للإبطال، قفل مؤقت بعد محاولات الدخول الفاشلة، واستعادة كلمة مرور ذات رموز مخزنة بالتجزئة. أضيف سياق Tenant إلزامي للمسارات الحساسة، ومصفوفة RBAC/ABAC قابلة للتوسعة للأدوار المحددة في المواصفة.
+## التنفيذ التراكمي
 
-أضيفت وحدات المنتجات والخدمات والكتالوج والسلة وCheckout والطلبات وحالات الطلبات وحركات المخزون ومنع المخزون السالب وIdempotency. أضيف دفتر قيود مزدوج يمنع القيد غير المتوازن ويسجل مبيعات الطلبات داخل transaction. أضيفت الخطط والاشتراكات والتجربة المضبوطة من الخادم، إضافة إلى السائقين والمركبات والتسليمات وآلة حالات التسليم والإشعارات الداخلية ومؤشرات KPI مشتقة من قاعدة البيانات.
+تم الحفاظ على App Mode/PWA وExpress وVite وعقود الأوامر وWebhook الموجودة، مع إضافة قاعدة SQLite فعلية وforeign keys وunique constraints وindexes وtransactions وmigration وrollback. أضيفت هوية بتجزئة `scrypt`، جلسات قابلة للإبطال، قفل مؤقت لمحاولات الدخول الفاشلة، واستعادة كلمة مرور ذات رموز مخزنة بالتجزئة. أضيف سياق Tenant إلزامي ومصفوفة RBAC/ABAC قابلة للتوسعة.
 
-أضيف Payment Provider abstraction مع حالات `REQUIRES_SETUP` و`REQUIRES_ACTION` دون Fake Success. كما أصبح Webhook يسجل الحدث، يتحقق من المعرف والحمولة، يمنع replay والتعارض، ويبقي التسوية متوقفة حتى تهيئة مزود رسمي. أضيف AI request gateway أولي يسجل نطاق البيانات المسموح ويمنع نمطاً واضحاً من Prompt Injection، ولا يختلق نتيجة عند غياب مزود AI.
+أضيفت المنتجات والخدمات والكتالوج والسلة وCheckout والطلبات وحالات الطلبات وحركات المخزون ومنع المخزون السالب وIdempotency. أضيف دفتر قيود مزدوج يمنع القيد غير المتوازن ويسجل مبيعات الطلبات داخل transaction. أضيفت الخطط والاشتراكات والتجربة المضبوطة من الخادم، السائقون والمركبات والتسليمات وآلة الحالات والإشعارات الداخلية ومؤشرات KPI.
 
-### Why
+## الجولة الحالية
 
-الهدف هو تنفيذ الأولويات P0 إلى P3 الممكنة داخل المستودع الحالي دون إنشاء Repository أو مشروع جديد أو هدم الواجهة الموجودة، مع إبقاء كل External Dependency غير المهيأة في حالة صادقة ومعلنة.
+| المجال | التنفيذ |
+|---|---|
+| Subscription lifecycle | الخطط المدفوعة تبدأ `PENDING_PAYMENT` عند غياب provider، وإضافة cancel-at-period-end وrenew مع server-controlled dates |
+| Logistics | حالة `CREATED`، جدول `delivery_proofs`، مسار إثبات التسليم، ومنع `DELIVERED` بلا proof |
+| Admin | إدارة المستخدمين والمستأجرين، تعليق/تنشيط، audit feed، AI usage، feature flags، مع scope platform/tenant |
+| AI | `ai_agent_runs`، policy/permission/tenant scope/tool allowlist، `BLOCKED_POLICY` للأفعال الحساسة، وجدول `ai_usage` للتكلفة والزمن والنموذج |
+| Notifications | تفضيلات القنوات، retry بحد أقصى 5، وحالات `QUEUED`/`REQUIRES_SETUP` عبر provider abstraction |
+| Security middleware | headers قبل Webhook، CORS allowlist، OPTIONS policy، Permissions-Policy، وCSP/HSTS production |
+| Express | ترقية Express إلى 5.2.1 وإصلاح catch-all إلى `/{*splat}` |
+| Dependencies | إزالة axios غير المستخدم، ترقية nanoid إلى 5.1.16، Recharts إلى 3.10.1، streamdown إلى 2.6.0، ومواءمة chart typings |
+| Operations | `scripts/backup.mjs` و`scripts/restore.mjs` مع SQLite safety copy وPostgreSQL pg_dump/pg_restore |
+| CI | Quality Gate لـcheck/test/build/E2E/smoke/audit/secret scan، بدون `continue-on-error` للـaudit |
+| Documentation | `ARCHITECTURE.md`، `DEPLOYMENT.md`، `SECURITY.md` وتحديث migrations |
 
-### Files
+## الملفات الرئيسية
 
-| النوع | الملفات |
-| --- | --- |
-| نواة البيانات | `server/database.ts`, `migrations/0001_core.sql`, `migrations/0001_core_rollback.sql` |
-| API والأمن | `server/platform.ts`, `server/paymentProviders.ts`, `server/index.ts` |
-| الاختبارات | `server/platform.test.ts`, `server/paymentEndpoint.test.ts` |
-| الجودة | `vitest.config.ts`, `playwright.config.ts` |
-| التوثيق | `README.md`, `IMPLEMENTATION_CHANGELOG.md`, `FINAL_COMPLETION_AUDIT.md` |
+- `server/platform.ts`: lifecycle وAdmin وAI وLogistics وNotifications.
+- `server/database.ts`: schema SQLite، composite constraints، AI usage/agents، delivery proofs.
+- `server/index.ts`: Express 5، headers، CORS، Webhook، readiness.
+- `server/postgres.ts`: pool/health/migration-lock adapter.
+- `migrations/postgres/0001_core.sql`: مخطط PostgreSQL الموثق.
+- `.github/workflows/quality.yml`: بوابة الجودة.
+- `scripts/backup.mjs` و`scripts/restore.mjs`: إجراءات التعافي.
 
-### Database impact
+## قرارات الصدق التشغيلي
 
-أضيفت جداول users وsessions وpassword reset وuser security وtenants وtenant members وbusinesses وbranches وcustomers وproducts وservices وcategories وcarts وcart items وinventory وorders وorder items وledger accounts وjournals وentries وpayment intents وpayment webhook events وplans وentitlements وsubscriptions وdrivers وvehicles وdeliveries وdelivery events وnotifications وnotification preferences وAI requests وaudit logs. كل الجداول الحساسة تحمل `tenant_id` أو ترتبط بكيان tenant-aware، وتُفرض العلاقات المركبة حيث يلزم منع cross-tenant references.
+لا يعلن النظام Payment settlement أو Refund أو Email/SMS/Push أو AI provider result عند غياب الاعتماد. كما أن PostgreSQL adapter موجود ويجتاز type/build، لكن business router الحالي يعتمد synchronous SQLite؛ لذلك لا يُصنّف data plane الإنتاجي PostgreSQL مكتملًا حتى تتم مواءمة repository layer async واختبار migration على قاعدة حقيقية.
 
-### API impact
+## نتيجة الجودة
 
-أضيفت مسارات `/api/platform` للتسجيل والدخول والخروج واستعادة كلمة المرور و`/me` والخطط والاشتراكات والمنتجات والخدمات والكتالوج والسلة وCheckout والمخزون والطلبات والقيود والدفع والذكاء الاصطناعي والتسليمات والإشعارات والتحليلات والتدقيق والإدارة. بقيت المسارات القديمة `/api/commands/prepare` و`/api/payments/webhook` متوافقة مع عقودها، مع تقوية Webhook ضد replay.
+| الفحص | النتيجة |
+|---|---|
+| `pnpm check` | PASS |
+| `pnpm test` | PASS — 6 files / 27 tests |
+| `pnpm build` | PASS |
+| `pnpm test:e2e` | PASS — 1 browser test |
+| `pnpm test:smoke` | PASS — 3 checks |
+| `pnpm audit --prod --audit-level=high` | PASS بعد الترقيات |
+| `git diff --check` | PASS |
+| `node scripts/backup.mjs` | PASS على SQLite persistent test file |
 
-### Security impact
+## الحدود المتبقية
 
-أضيفت جلسات Bearer قابلة للإبطال، تجزئة كلمات المرور، قفل محاولات الدخول، rate limiting للدخول والاستعادة، tenant isolation في الاستعلامات، RBAC/ABAC، تحقق مدخلات، حدود للمبالغ والكميات، منع المخزون السالب، منع القيد المالي غير المتوازن، HMAC للـWebhook، event idempotency، سجلات تدقيق، وحماية أولية من Prompt Injection. لم تُضف أي أسرار أو مفاتيح إلى المستودع.
-
-### Tests
-
-اجتازت `pnpm check`، و`pnpm test` بعدد **6 ملفات و25 اختباراً ناجحاً**، و`pnpm build`، و`pnpm test:e2e`، و`pnpm test:smoke`. كما اجتاز `git diff --check` وفحص الأسرار النصي. أعاد `pnpm audit --prod` قائمة تحديثات مقترحة لاعتماديات غير مباشرة؛ لم تُحدّث تلقائياً لتجنب تغيير شجرة الاعتماديات دون مراجعة توافق.
-
-### Known limitations
-
-هذه ليست مطابقة كاملة للمواصفة الضخمة. ما زالت مزودات الدفع الفعلية والتسوية، AI/RAG/vector search، MFA/OTP الفعلي، SMS وPush وEmail، التخزين السحابي، قاعدة الإنتاج المدارة، الإعلانات الذكية، KPIs المتقدمة، Super Admin الكامل، النسخ الاحتياطي والاستعادة المجرّبة، وبعض كيانات المشتريات والضرائب والفواتير والمراجعات والوظائف والعقارات وAndroid/APK خارج التنفيذ الحالي. تم توثيقها في `FINAL_COMPLETION_AUDIT.md` كفجوات أو External Dependencies لا كميزات مكتملة.
+ما زالت مزودات الدفع الفعلية والتسوية، MFA/OTP الفعلي، قنوات البريد وSMS وPush، vector embeddings/RAG provider، Redis للـqueues/rate limits، object storage/CDN، قاعدة PostgreSQL business data plane، وبعض وحدات المشتريات والضرائب والموارد البشرية والعقارات وتطبيق Android/APK تحتاج تنفيذ adapters واختبارات وتهيئة تشغيلية. تم إبقاء هذه الحالات معلنة كـ`REQUIRES_SETUP` أو فجوات، لا كميزات مكتملة.

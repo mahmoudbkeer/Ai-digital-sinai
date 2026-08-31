@@ -9,6 +9,7 @@ import { verifyCommandContext } from "./commandAuth";
 import { createSafeErrorLog } from "./observability";
 import { getDatabase, withTransaction } from "./database";
 import { createPlatformRouter, platformErrorHandler } from "./platform";
+import { checkPostgres, isPostgresUrl } from "./postgres";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -24,6 +25,13 @@ async function startServer() {
     res.on("finish", () => {
       console.log(JSON.stringify({ event: "http_request", requestId, method: req.method, path: req.path, status: res.statusCode, durationMs: Date.now() - startedAt }));
     });
+    next();
+  });
+  app.use((req, res, next) => {
+    res.setHeader("X-Content-Type-Options", "nosniff"); res.setHeader("X-Frame-Options", "DENY"); res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin"); res.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=(self)");
+    if (process.env.NODE_ENV === "production") { res.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains"); res.setHeader("Content-Security-Policy", "default-src 'self'; base-uri 'self'; frame-ancestors 'none'; object-src 'none'; img-src 'self' data: https:; font-src 'self' data: https:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self' https:; form-action 'self'"); }
+    const origin = req.header("origin"); const allowedOrigins = (process.env.CORS_ORIGINS ?? "").split(",").map((value) => value.trim()).filter(Boolean); if (origin && allowedOrigins.includes(origin)) { res.setHeader("Access-Control-Allow-Origin", origin); res.setHeader("Vary", "Origin"); res.setHeader("Access-Control-Allow-Credentials", "true"); res.setHeader("Access-Control-Allow-Headers", "Authorization, Content-Type, Idempotency-Key, X-Tenant-Id, X-Request-Id"); res.setHeader("Access-Control-Allow-Methods", "GET,POST,PATCH,PUT,OPTIONS"); }
+    if (req.method === "OPTIONS") return res.sendStatus(origin && allowedOrigins.includes(origin) ? 204 : 403);
     next();
   });
   const requestWindows = new Map<string, { startedAt: number; count: number }>();
@@ -66,16 +74,6 @@ async function startServer() {
     withTransaction(db, () => db.prepare("INSERT INTO payment_webhook_events (id, provider, event_id, payload_hash, signature_hash, status, received_at) VALUES (?, ?, ?, ?, ?, 'VERIFIED_PENDING', ?)").run(randomUUID(), provider, eventId, payloadHash, signatureHash, Date.now()));
     return res.status(202).json({ accepted: true, status: "verified-pending", verified: true, eventId, message: "تم التحقق من Webhook وتسجيله؛ التسوية متوقفة حتى تهيئة adapter مزود رسمي." });
   });
-  app.use((_req, res, next) => {
-    res.setHeader("X-Content-Type-Options", "nosniff");
-    res.setHeader("X-Frame-Options", "DENY");
-    res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
-    if (process.env.NODE_ENV === "production") {
-      res.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
-      res.setHeader("Content-Security-Policy", "default-src 'self'; base-uri 'self'; frame-ancestors 'none'; object-src 'none'; img-src 'self' data: https:; font-src 'self' data: https:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self' https:; form-action 'self'");
-    }
-    next();
-  });
   app.use(express.json({ limit: "128kb" }));
   app.use("/api/platform", createPlatformRouter());
   app.use(platformErrorHandler);
@@ -104,12 +102,14 @@ async function startServer() {
     return res.status(202).json(response);
   });
   app.get("/api/health", (_req, res) => res.json({ ok: true, service: "ai-digital-sinai-web", timestamp: new Date().toISOString() }));
-  app.get("/api/readiness", (_req, res) => {
-    let database = false;
-    try { getDatabase(); database = true; } catch { database = false; }
-    const checks = { commandContext: Boolean(process.env.COMMAND_CONTEXT_SECRET ?? process.env.JWT_SECRET), paymentWebhook: Boolean(process.env.PAYMENT_WEBHOOK_SECRET), database };
+  app.get("/api/readiness", async (_req, res) => {
+    const postgresConfigured = isPostgresUrl();
+    let database = false; let databaseProvider: "sqlite" | "postgresql" = postgresConfigured ? "postgresql" : "sqlite"; let databaseDetail: unknown = undefined;
+    if (postgresConfigured) { const result = await checkPostgres(); database = result.ok; databaseDetail = result; }
+    else { try { getDatabase(); database = true; } catch (error) { databaseDetail = error instanceof Error ? error.message : "sqlite unavailable"; } }
+    const checks = { commandContext: Boolean(process.env.COMMAND_CONTEXT_SECRET ?? process.env.JWT_SECRET), paymentWebhook: Boolean(process.env.PAYMENT_WEBHOOK_SECRET), database, businessDataPlane: !postgresConfigured };
     const ready = Object.values(checks).every(Boolean);
-    return res.status(ready ? 200 : 503).json({ ok: ready, status: ready ? "ready" : "degraded", checks, message: ready ? "الخدمات الأساسية مهيأة." : "الخدمات الأساسية غير مهيأة بالكامل؛ لم يتم تفعيل أي معاملة تلقائياً." });
+    return res.status(ready ? 200 : 503).json({ ok: ready, status: ready ? "ready" : "degraded", databaseProvider, databaseDetail, checks, message: ready ? "الخدمات الأساسية مهيأة." : "الخدمات الأساسية غير مهيأة بالكامل؛ لم يتم تفعيل أي معاملة تلقائياً." });
   });
   app.get("/api/observability", (_req, res) => res.json({ status: "ok", runtime: "node", uptimeSeconds: Math.floor(process.uptime()), version: process.env.npm_package_version ?? "1.0.0" }));
   app.get("/api/app-data", (_req, res) => res.json({
@@ -137,7 +137,7 @@ async function startServer() {
   });
 
   // Handle client-side routing - serve index.html for all routes
-  app.get("*", (_req, res) => {
+  app.get("/{*splat}", (_req, res) => {
     res.sendFile(path.join(staticPath, "index.html"));
   });
 

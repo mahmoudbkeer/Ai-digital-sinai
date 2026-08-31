@@ -4,11 +4,11 @@
 
 ## الحالة الحالية
 
-التطبيق يعمل كواجهة تشغيل محمولة على `/app`، ويعرض القطاعات والوحدات والعمليات من خلال قاموس تشغيل يضم أربعة عشر قطاعاً. أضيفت نواة خادمية فعلية تحت `/api/platform` تستخدم SQLite في التشغيل المحلي مع ترحيل موثق، وهوية وجلسات مبنية على scrypt، وسياق Tenant، وRBAC/ABAC، وكتالوج منتجات وخدمات، ومخزون بحركات idempotent، وCart/Checkout، وطلبات بآلة حالات، وقيود Ledger مزدوجة، واشتراكات وتجربة يحددها الخادم، وتسليمات، وإشعارات داخلية، ومؤشرات مشتقة من قاعدة البيانات، وتدقيقاً لكل عملية حساسة. كل أمر قديم ما زال يمر عبر `POST /api/commands/prepare` للتحقق من القطاع والوحدة والعملية وسياق المصادقة. الدفع ينشئ Payment Intent صادقاً بحالة `REQUIRES_SETUP` أو `REQUIRES_ACTION` فقط، وWebhook يسجل الأحداث ويمنع replay؛ ولا تتم أي تسوية تلقائية قبل ربط مزود رسمي بعقده وبيانات اعتماده.
+التطبيق يعمل كواجهة تشغيل محمولة على `/app`، ويعرض القطاعات والوحدات والعمليات من خلال قاموس تشغيل يضم أربعة عشر قطاعاً. أضيفت نواة خادمية فعلية تحت `/api/platform` تستخدم SQLite في التشغيل المحلي مع migration موثق، وهوية وجلسات مبنية على scrypt، وسياق Tenant، وRBAC/ABAC، وكتالوج منتجات وخدمات، ومخزون بحركات idempotent، وCart/Checkout، وطلبات بآلة حالات، وقيود Ledger مزدوجة، وفواتير وعكس إلغاء، واشتراكات server-controlled، وتسليمات مع Proof-of-Delivery، وإشعارات مع تفضيلات وretry، وGeo nearby، وAdmin controls، وAI policy/usage وlexical tenant-scoped fallback. يوجد PostgreSQL pool/migration-lock adapter منفصل، لكنه لا يُعد business data plane مكتملاً قبل مواءمة repository layer async. كل أمر قديم ما زال يمر عبر `POST /api/commands/prepare` للتحقق من القطاع والوحدة والعملية وسياق المصادقة. الدفع ينشئ Payment Intent صادقاً بحالة `REQUIRES_SETUP` أو `REQUIRES_ACTION` فقط، وWebhook يسجل الأحداث ويمنع replay؛ ولا تتم أي تسوية تلقائية قبل ربط مزود رسمي بعقده وبيانات اعتماده.
 
 ## التشغيل المحلي
 
-يتطلب المشروع Node.js 22 وpnpm 10. بعد تثبيت الاعتماديات شغّل `pnpm install --frozen-lockfile`، ثم `pnpm dev` لتشغيل Express وVite معاً. للفحوص استخدم `pnpm check` و`pnpm test` و`pnpm build`، ويمكن تشغيل `pnpm test:e2e` و`pnpm test:smoke` لفحوص المتصفح والـAPI.
+يتطلب المشروع Node.js 22 وpnpm 10. بعد تثبيت الاعتماديات شغّل `pnpm install --frozen-lockfile`، ثم `pnpm dev` لتشغيل Express وVite معاً. للفحوص استخدم `pnpm check` و`pnpm test` و`pnpm build`، ويمكن تشغيل `pnpm test:e2e` و`pnpm test:smoke` لفحوص المتصفح والـAPI. للتشغيل التشغيلي استخدم `pnpm backup` و`pnpm restore <backup-path>` بعد ضبط `SQLITE_PATH` أو `DATABASE_URL`.
 
 ## فحص Smoke والبيئة
 
@@ -16,11 +16,11 @@
 
 ## الجودة والحوكمة
 
-يحتوي المستودع على GitHub Actions في `.github/workflows/quality.yml` لتشغيل TypeScript والاختبارات الوحدوية والبناء عند كل push أو Pull Request إلى `main`. إعدادات حماية الفرع المقترحة موثقة في `.github/BRANCH_PROTECTION.md`، ولا تُفرض تلقائياً على حساب GitHub.
+يحتوي المستودع على GitHub Actions في `.github/workflows/quality.yml` لتشغيل TypeScript والاختبارات الوحدوية والبناء وE2E وSmoke وdependency audit وsecret scan عند كل push أو Pull Request إلى `main`. إعدادات حماية الفرع المقترحة موثقة في `.github/BRANCH_PROTECTION.md`، ولا تُفرض تلقائياً على حساب GitHub. راجع `ARCHITECTURE.md` و`DEPLOYMENT.md` و`SECURITY.md` و`FINAL_COMPLETION_AUDIT.md` قبل أي نشر.
 
 ## الأمن
 
-لا تضع أسراراً في Git أو في الواجهة. راجع `SECURITY_AUDIT.md` لمصفوفة المخاطر وضوابط HTTP وHMAC وحدود الطلبات وسياسة الأوامر. يشرح `TRANSFER_GUIDE.md` طريقة نقل المشروع إلى بيئة أخرى دون نسخ الأسرار أو الاعتماديات أو مخرجات البناء.
+لا تضع أسراراً في Git أو في الواجهة. راجع `SECURITY.md` و`SECURITY_AUDIT.md` لمصفوفة المخاطر وضوابط HTTP وHMAC وحدود الطلبات وسياسة الأوامر، و`DEPLOYMENT.md` لإجراءات الهجرة والنسخ والاستعادة. يشرح `TRANSFER_GUIDE.md` طريقة نقل المشروع إلى بيئة أخرى دون نسخ الأسرار أو الاعتماديات أو مخرجات البناء.
 
 ## بنية الملفات
 
@@ -30,7 +30,10 @@
 | `client/src/lib/operationsCatalog.ts` | القطاعات والوحدات والعمليات |
 | `server/index.ts` | Express API وhealth وwebhook وcommand preparation |
 | `server/commandPolicy.ts` | التحقق من tuple القطاع/الوحدة/العملية |
-| `server/*.test.ts` | اختبارات السياسات والتوقيع |
+| `server/*.test.ts` | اختبارات السياسات والتوقيع والعزل والمعاملات |
+| `server/postgres.ts` | PostgreSQL pool وhealth وmigration lock |
+| `scripts/backup.mjs` / `scripts/restore.mjs` | Backup وrestore صريحان |
+| `ARCHITECTURE.md` / `DEPLOYMENT.md` / `SECURITY.md` | العمارة والتشغيل والأمن |
 | `e2e/` | اختبارات الهاتف والتنقل |
 | `.github/workflows/quality.yml` | بوابة CI |
 
@@ -44,6 +47,6 @@
 
 ## نواة API المنفذة
 
-توجد المسارات الأساسية التالية تحت `/api/platform`: التسجيل وتسجيل الدخول والخروج، `/me`، الخطط والاشتراكات، المنتجات والخدمات وكتالوج Marketplace، السلة وCheckout، حركات المخزون، الطلبات وانتقالات حالاتها، دفتر القيود، Payment Intent، AI request مع نطاق بيانات محمي، السائقون والمركبات والتسليمات، الإشعارات الداخلية، مؤشرات KPI من قاعدة البيانات، وسجل التدقيق ومركز الإدارة المحمي. كل مسار حساس يحتاج Bearer session token و`x-tenant-id`، وتتحقق الاستعلامات من ملكية المستأجر قبل القراءة أو الكتابة.
+توجد المسارات الأساسية التالية تحت `/api/platform`: التسجيل وتسجيل الدخول والخروج، `/me`، الخطط والاشتراكات وcancel/renew، المنتجات والخدمات وكتالوج Marketplace، السلة وCheckout، حركات المخزون، الطلبات وانتقالات حالاتها، الفواتير وطلبات الاسترداد، دفتر القيود، Payment Intent، AI request وAgent prepare وAI usage مع نطاق بيانات محمي، السائقون والمركبات والتسليمات وProof-of-Delivery، الإشعارات والتفضيلات وإعادة المحاولة، Geo nearby، مؤشرات KPI من قاعدة البيانات، وسجل التدقيق ومركز الإدارة للمستخدمين والمستأجرين والـfeature flags. كل مسار حساس يحتاج Bearer session token و`x-tenant-id`، وتتحقق الاستعلامات من ملكية المستأجر قبل القراءة أو الكتابة.
 
-يستخدم التشغيل المحلي `SQLITE_PATH` اختيارياً، وإلا تُحفظ القاعدة في `.data/ai-digital-sinai.sqlite` غير المتعقبة. ملفات `migrations/0001_core.sql` و`migrations/0001_core_rollback.sql` هي مصدر الترحيل والرجوع، ولا ينبغي تشغيل rollback على إنتاج دون نسخة احتياطية واختبار استعادة.
+يستخدم التشغيل المحلي `SQLITE_PATH` اختيارياً، وإلا تُحفظ القاعدة في `.data/ai-digital-sinai.sqlite` غير المتعقبة. ملفات `migrations/0001_core.sql` و`migrations/0001_core_rollback.sql` هي مصدر SQLite، و`migrations/postgres/0001_core.sql` مصدر PostgreSQL. لا ينبغي تشغيل rollback على إنتاج دون نسخة احتياطية واختبار استعادة. الحالة الحالية **Core Implemented / Not Ready for Production**؛ الفجوات والاعتماديات الخارجية موثقة صراحة في التدقيق النهائي.

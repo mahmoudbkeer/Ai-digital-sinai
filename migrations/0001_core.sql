@@ -350,7 +350,7 @@ CREATE TABLE IF NOT EXISTS subscriptions (
   id TEXT PRIMARY KEY,
   tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE RESTRICT,
   plan_code TEXT NOT NULL REFERENCES plans(code) ON DELETE RESTRICT,
-  status TEXT NOT NULL CHECK (status IN ('TRIALING','ACTIVE','PAST_DUE','CANCELLED','EXPIRED')),
+  status TEXT NOT NULL CHECK (status IN ('TRIALING','ACTIVE','PAST_DUE','PENDING_PAYMENT','CANCELLED','EXPIRED')),
   current_period_start INTEGER NOT NULL,
   current_period_end INTEGER NOT NULL,
   cancel_at_period_end INTEGER NOT NULL DEFAULT 0 CHECK (cancel_at_period_end IN (0,1)),
@@ -397,11 +397,12 @@ CREATE TABLE IF NOT EXISTS deliveries (
   order_id TEXT NOT NULL REFERENCES orders(id) ON DELETE RESTRICT,
   driver_id TEXT REFERENCES drivers(id) ON DELETE SET NULL,
   vehicle_id TEXT REFERENCES vehicles(id) ON DELETE SET NULL,
-  state TEXT NOT NULL DEFAULT 'PENDING' CHECK (state IN ('PENDING','ASSIGNED','PICKED_UP','IN_TRANSIT','DELIVERED','FAILED','CANCELLED')),
+  state TEXT NOT NULL DEFAULT 'CREATED' CHECK (state IN ('CREATED','PENDING','ASSIGNED','PICKED_UP','IN_TRANSIT','DELIVERED','FAILED','CANCELLED')),
   delivery_fee_cents INTEGER NOT NULL DEFAULT 0 CHECK (delivery_fee_cents >= 0),
   created_at INTEGER NOT NULL,
   updated_at INTEGER NOT NULL,
   UNIQUE (tenant_id, order_id),
+  UNIQUE (tenant_id, id),
   FOREIGN KEY (tenant_id, order_id) REFERENCES orders(tenant_id, id),
   FOREIGN KEY (tenant_id, driver_id) REFERENCES drivers(tenant_id, id),
   FOREIGN KEY (tenant_id, vehicle_id) REFERENCES vehicles(tenant_id, id)
@@ -417,6 +418,19 @@ CREATE TABLE IF NOT EXISTS delivery_events (
   FOREIGN KEY (tenant_id, delivery_id) REFERENCES deliveries(tenant_id, id)
 );
 CREATE INDEX IF NOT EXISTS idx_deliveries_scope ON deliveries(tenant_id, state, updated_at);
+CREATE TABLE IF NOT EXISTS delivery_proofs (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE RESTRICT,
+  delivery_id TEXT NOT NULL REFERENCES deliveries(id) ON DELETE RESTRICT,
+  proof_type TEXT NOT NULL CHECK (proof_type IN ('PHOTO','SIGNATURE','OTP','NOTE')),
+  storage_ref TEXT NOT NULL,
+  content_hash TEXT NOT NULL,
+  recipient_name TEXT,
+  captured_by TEXT NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+  captured_at INTEGER NOT NULL,
+  UNIQUE (tenant_id, delivery_id),
+  FOREIGN KEY (tenant_id, delivery_id) REFERENCES deliveries(tenant_id, id)
+);
 
 CREATE TABLE IF NOT EXISTS notifications (
   id TEXT PRIMARY KEY,
@@ -426,7 +440,8 @@ CREATE TABLE IF NOT EXISTS notifications (
   title TEXT NOT NULL,
   body TEXT NOT NULL,
   status TEXT NOT NULL DEFAULT 'QUEUED' CHECK (status IN ('QUEUED','SENT','FAILED','READ')),
-  created_at INTEGER NOT NULL
+  created_at INTEGER NOT NULL,
+  UNIQUE (tenant_id, id)
 );
 
 CREATE TABLE IF NOT EXISTS notification_preferences (
@@ -435,6 +450,205 @@ CREATE TABLE IF NOT EXISTS notification_preferences (
   channel TEXT NOT NULL CHECK (channel IN ('IN_APP','PUSH','SMS','EMAIL')),
   enabled INTEGER NOT NULL DEFAULT 1 CHECK (enabled IN (0,1)),
   PRIMARY KEY (tenant_id, user_id, channel)
+);
+
+CREATE TABLE IF NOT EXISTS invoices (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE RESTRICT,
+  order_id TEXT NOT NULL REFERENCES orders(id) ON DELETE RESTRICT,
+  invoice_number TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'ISSUED' CHECK (status IN ('DRAFT','ISSUED','PAID','VOID','REFUNDED')),
+  subtotal_cents INTEGER NOT NULL CHECK (subtotal_cents >= 0),
+  tax_cents INTEGER NOT NULL CHECK (tax_cents >= 0),
+  total_cents INTEGER NOT NULL CHECK (total_cents >= 0),
+  currency TEXT NOT NULL DEFAULT 'EGP',
+  issued_at INTEGER NOT NULL,
+  UNIQUE (tenant_id, invoice_number),
+  UNIQUE (tenant_id, order_id),
+  UNIQUE (tenant_id, id),
+  FOREIGN KEY (tenant_id, order_id) REFERENCES orders(tenant_id, id)
+);
+CREATE TABLE IF NOT EXISTS refunds (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE RESTRICT,
+  order_id TEXT NOT NULL REFERENCES orders(id) ON DELETE RESTRICT,
+  payment_intent_id TEXT REFERENCES payment_intents(id) ON DELETE RESTRICT,
+  amount_cents INTEGER NOT NULL CHECK (amount_cents > 0),
+  status TEXT NOT NULL CHECK (status IN ('REQUESTED','REQUIRES_SETUP','PROCESSING','REFUNDED','FAILED')),
+  reason TEXT NOT NULL,
+  idempotency_key TEXT NOT NULL,
+  created_by TEXT NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL,
+  UNIQUE (tenant_id, idempotency_key),
+  FOREIGN KEY (tenant_id, order_id) REFERENCES orders(tenant_id, id)
+);
+
+CREATE TABLE IF NOT EXISTS ai_documents (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  owner_user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
+  source_type TEXT NOT NULL,
+  source_ref TEXT NOT NULL,
+  title TEXT NOT NULL,
+  permission_scope_json TEXT NOT NULL DEFAULT '{}',
+  status TEXT NOT NULL DEFAULT 'ACTIVE' CHECK (status IN ('ACTIVE','ARCHIVED','PENDING')),
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL,
+  UNIQUE (tenant_id, source_type, source_ref),
+  UNIQUE (tenant_id, id)
+);
+CREATE TABLE IF NOT EXISTS ai_chunks (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  document_id TEXT NOT NULL REFERENCES ai_documents(id) ON DELETE CASCADE,
+  chunk_index INTEGER NOT NULL CHECK (chunk_index >= 0),
+  content TEXT NOT NULL,
+  content_hash TEXT NOT NULL,
+  embedding_provider TEXT,
+  embedding_ref TEXT,
+  metadata_json TEXT NOT NULL DEFAULT '{}',
+  created_at INTEGER NOT NULL,
+  UNIQUE (tenant_id, document_id, chunk_index),
+  FOREIGN KEY (tenant_id, document_id) REFERENCES ai_documents(tenant_id, id)
+);
+CREATE INDEX IF NOT EXISTS idx_ai_chunks_scope ON ai_chunks(tenant_id, document_id, chunk_index);
+
+CREATE TABLE IF NOT EXISTS ai_usage (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE RESTRICT,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+  request_id TEXT NOT NULL REFERENCES ai_requests(id) ON DELETE RESTRICT,
+  feature TEXT NOT NULL,
+  model TEXT NOT NULL,
+  input_tokens INTEGER NOT NULL DEFAULT 0 CHECK (input_tokens >= 0),
+  output_tokens INTEGER NOT NULL DEFAULT 0 CHECK (output_tokens >= 0),
+  total_tokens INTEGER NOT NULL DEFAULT 0 CHECK (total_tokens >= 0),
+  latency_ms INTEGER NOT NULL DEFAULT 0 CHECK (latency_ms >= 0),
+  cost_cents INTEGER CHECK (cost_cents IS NULL OR cost_cents >= 0),
+  created_at INTEGER NOT NULL,
+  UNIQUE (tenant_id, request_id)
+);
+CREATE INDEX IF NOT EXISTS idx_ai_usage_scope ON ai_usage(tenant_id, user_id, feature, created_at);
+CREATE TABLE IF NOT EXISTS ai_agent_runs (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE RESTRICT,
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+  purpose TEXT NOT NULL,
+  policy_json TEXT NOT NULL,
+  permissions_json TEXT NOT NULL,
+  tenant_scope TEXT NOT NULL,
+  tool_allowlist_json TEXT NOT NULL,
+  status TEXT NOT NULL CHECK (status IN ('VERIFIED_PENDING','BLOCKED_POLICY','REQUIRES_SETUP','COMPLETED','FAILED')),
+  created_at INTEGER NOT NULL,
+  UNIQUE (tenant_id, id)
+);
+
+CREATE TABLE IF NOT EXISTS geo_places (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  entity_type TEXT NOT NULL CHECK (entity_type IN ('BUSINESS','BRANCH','SERVICE','DELIVERY_ZONE')),
+  entity_id TEXT NOT NULL,
+  city TEXT NOT NULL DEFAULT 'العريش',
+  district TEXT,
+  latitude REAL NOT NULL CHECK (latitude BETWEEN -90 AND 90),
+  longitude REAL NOT NULL CHECK (longitude BETWEEN -180 AND 180),
+  radius_meters INTEGER CHECK (radius_meters IS NULL OR radius_meters > 0),
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL,
+  UNIQUE (tenant_id, entity_type, entity_id)
+);
+CREATE INDEX IF NOT EXISTS idx_geo_places_scope ON geo_places(tenant_id, entity_type, city, district);
+
+CREATE TABLE IF NOT EXISTS advertisers (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  business_id TEXT NOT NULL REFERENCES businesses(id) ON DELETE RESTRICT,
+  status TEXT NOT NULL DEFAULT 'ACTIVE' CHECK (status IN ('ACTIVE','SUSPENDED','PENDING')),
+  billing_account_ref TEXT,
+  created_at INTEGER NOT NULL,
+  UNIQUE (tenant_id, id),
+  FOREIGN KEY (tenant_id, business_id) REFERENCES businesses(tenant_id, id)
+);
+CREATE TABLE IF NOT EXISTS ad_campaigns (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  advertiser_id TEXT NOT NULL REFERENCES advertisers(id) ON DELETE RESTRICT,
+  name TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'DRAFT' CHECK (status IN ('DRAFT','PENDING_REVIEW','ACTIVE','PAUSED','ENDED','REJECTED')),
+  budget_cents INTEGER NOT NULL CHECK (budget_cents >= 0),
+  spent_cents INTEGER NOT NULL DEFAULT 0 CHECK (spent_cents >= 0),
+  targeting_json TEXT NOT NULL DEFAULT '{}',
+  starts_at INTEGER,
+  ends_at INTEGER,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL,
+  UNIQUE (tenant_id, id),
+  FOREIGN KEY (tenant_id, advertiser_id) REFERENCES advertisers(tenant_id, id),
+  CHECK (spent_cents <= budget_cents)
+);
+CREATE TABLE IF NOT EXISTS ad_creatives (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  campaign_id TEXT NOT NULL REFERENCES ad_campaigns(id) ON DELETE CASCADE,
+  headline TEXT NOT NULL,
+  body TEXT,
+  asset_ref TEXT,
+  status TEXT NOT NULL DEFAULT 'DRAFT' CHECK (status IN ('DRAFT','APPROVED','REJECTED')),
+  created_at INTEGER NOT NULL,
+  FOREIGN KEY (tenant_id, campaign_id) REFERENCES ad_campaigns(tenant_id, id)
+);
+CREATE TABLE IF NOT EXISTS ad_events (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  campaign_id TEXT NOT NULL REFERENCES ad_campaigns(id) ON DELETE CASCADE,
+  event_type TEXT NOT NULL CHECK (event_type IN ('IMPRESSION','CLICK','CONVERSION')),
+  user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
+  event_key TEXT NOT NULL,
+  created_at INTEGER NOT NULL,
+  UNIQUE (tenant_id, event_key),
+  FOREIGN KEY (tenant_id, campaign_id) REFERENCES ad_campaigns(tenant_id, id)
+);
+
+CREATE TABLE IF NOT EXISTS notification_templates (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT REFERENCES tenants(id) ON DELETE CASCADE,
+  code TEXT NOT NULL,
+  channel TEXT NOT NULL CHECK (channel IN ('IN_APP','PUSH','SMS','EMAIL')),
+  subject_template TEXT NOT NULL,
+  body_template TEXT NOT NULL,
+  active INTEGER NOT NULL DEFAULT 1 CHECK (active IN (0,1)),
+  created_at INTEGER NOT NULL,
+  UNIQUE (tenant_id, code, channel)
+);
+CREATE TABLE IF NOT EXISTS notification_deliveries (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  notification_id TEXT NOT NULL REFERENCES notifications(id) ON DELETE CASCADE,
+  provider TEXT NOT NULL,
+  status TEXT NOT NULL CHECK (status IN ('QUEUED','SENT','FAILED','REQUIRES_SETUP')),
+  attempts INTEGER NOT NULL DEFAULT 0 CHECK (attempts >= 0),
+  last_error TEXT,
+  next_attempt_at INTEGER,
+  updated_at INTEGER NOT NULL,
+  UNIQUE (tenant_id, notification_id, provider),
+  FOREIGN KEY (tenant_id, notification_id) REFERENCES notifications(tenant_id, id)
+);
+
+CREATE TABLE IF NOT EXISTS feature_flags (
+  key TEXT PRIMARY KEY,
+  enabled INTEGER NOT NULL DEFAULT 0 CHECK (enabled IN (0,1)),
+  rollout_percent INTEGER NOT NULL DEFAULT 0 CHECK (rollout_percent BETWEEN 0 AND 100),
+  metadata_json TEXT NOT NULL DEFAULT '{}',
+  updated_by TEXT REFERENCES users(id) ON DELETE SET NULL,
+  updated_at INTEGER NOT NULL
+);
+CREATE TABLE IF NOT EXISTS platform_settings (
+  key TEXT PRIMARY KEY,
+  value_json TEXT NOT NULL,
+  is_secret INTEGER NOT NULL DEFAULT 0 CHECK (is_secret IN (0,1)),
+  updated_by TEXT REFERENCES users(id) ON DELETE SET NULL,
+  updated_at INTEGER NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS audit_logs (

@@ -1,13 +1,3 @@
-import { mkdirSync } from "node:fs";
-import { createRequire } from "node:module";
-import { randomUUID } from "node:crypto";
-import path from "node:path";
-
-type SqliteStatement = { get: (...parameters: unknown[]) => unknown; all: (...parameters: unknown[]) => unknown[]; run: (...parameters: unknown[]) => unknown };
-export type AppDatabase = { exec: (sql: string) => void; prepare: (sql: string) => SqliteStatement; close: () => void };
-const { DatabaseSync } = createRequire(import.meta.url)("node:sqlite") as { DatabaseSync: new (location: string) => AppDatabase };
-
-const schema = `
 CREATE TABLE IF NOT EXISTS schema_migrations (
   version INTEGER PRIMARY KEY,
   applied_at INTEGER NOT NULL
@@ -15,7 +5,7 @@ CREATE TABLE IF NOT EXISTS schema_migrations (
 
 CREATE TABLE IF NOT EXISTS users (
   id TEXT PRIMARY KEY,
-  email TEXT NOT NULL UNIQUE COLLATE NOCASE,
+  email TEXT NOT NULL UNIQUE,
   display_name TEXT NOT NULL,
   password_hash TEXT,
   status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'locked', 'disabled')),
@@ -56,7 +46,7 @@ CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id, expires_at);
 CREATE TABLE IF NOT EXISTS tenants (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
-  slug TEXT NOT NULL UNIQUE COLLATE NOCASE,
+  slug TEXT NOT NULL UNIQUE,
   status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'suspended')),
   created_at INTEGER NOT NULL,
   updated_at INTEGER NOT NULL
@@ -673,43 +663,3 @@ CREATE TABLE IF NOT EXISTS audit_logs (
   created_at INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_audit_scope ON audit_logs(tenant_id, created_at);
-`;
-
-let database: AppDatabase | undefined;
-
-export function getDatabase(): AppDatabase {
-  if (database) return database;
-  const configured = process.env.DATABASE_URL;
-  if (configured && /^(postgres|postgresql|mysql|mariadb):\/\//i.test(configured) && !process.env.SQLITE_PATH) throw new Error("A production DATABASE_URL was provided; use the PostgreSQL adapter or set SQLITE_PATH explicitly for local development.");
-  const dbPath = configured?.startsWith("sqlite://")
-    ? configured.slice("sqlite://".length)
-    : process.env.SQLITE_PATH ?? path.resolve(process.cwd(), ".data", "ai-digital-sinai.sqlite");
-  if (dbPath !== ":memory:") mkdirSync(path.dirname(dbPath), { recursive: true });
-  database = new DatabaseSync(dbPath);
-  database.exec("PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000;");
-  database.exec(schema);
-  const applied = database.prepare("SELECT version FROM schema_migrations WHERE version = 1").get() as { version?: number } | undefined;
-  if (!applied) database.prepare("INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)").run(1, Date.now());
-  const planInsert = database.prepare("INSERT OR IGNORE INTO plans (code, name, price_cents, trial_days, active, created_at) VALUES (?, ?, ?, ?, 1, ?)");
-  for (const plan of [["trial", "التجربة", 0, 14], ["starter", "الأساسية", 49900, 0], ["growth", "النمو", 99900, 0], ["business", "الأعمال", 199900, 0], ["enterprise", "المؤسسات", 499900, 0]] as const) planInsert.run(...plan, Date.now());
-  const accountInsert = database.prepare("INSERT OR IGNORE INTO ledger_accounts (id, tenant_id, code, name, account_type, created_at) VALUES (?, ?, ?, ?, ?, ?)");
-  for (const tenant of database.prepare("SELECT id FROM tenants").all() as Array<{ id: string }>) for (const account of [["1000", "النقدية", "ASSET"], ["1100", "المخزون", "ASSET"], ["1200", "الذمم المدينة", "ASSET"], ["4000", "المبيعات", "REVENUE"], ["5000", "تكلفة المبيعات", "EXPENSE"]] as const) accountInsert.run(randomUUID(), tenant.id, ...account, Date.now());
-  return database;
-}
-
-export function withTransaction<T>(db: AppDatabase, fn: () => T): T {
-  db.exec("BEGIN IMMEDIATE");
-  try {
-    const value = fn();
-    db.exec("COMMIT");
-    return value;
-  } catch (error) {
-    db.exec("ROLLBACK");
-    throw error;
-  }
-}
-
-export function resetDatabaseForTests(): void {
-  database?.close();
-  database = undefined;
-}
