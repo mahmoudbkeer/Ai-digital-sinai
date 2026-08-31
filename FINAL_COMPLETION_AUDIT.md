@@ -117,3 +117,7 @@
 ## V6 execution update
 
 تم تنفيذ دفعة V6 قابلة للإثبات: MFA/TOTP server-enforcement، PostgreSQL migration 4، critical-path staging API، وObject Storage signed URL contract مع tenant-scoped keys ومنع path traversal. أضيف اختبار HSTS إلى security smoke في production mode. فحص `pnpm audit --audit-level high` فشل بشكل صريح بوجود 56 vulnerability (27 high و2 critical)، لذلك لم يتم تصنيفه PASS ولم تُستخدم ترقيات آلية غير متوافقة.
+
+## V6 weighted matrix
+
+المصفوفة الشاملة للحالات والنسب والأدلة والفجوات موجودة في [`V6_FINAL_COMPLETION_MATRIX.md`](./V6_FINAL_COMPLETION_MATRIX.md). التقدير weighted التقريبي الحالي 67%، والتصنيف الصحيح `RELEASE CANDIDATE` مع بقاء dependency audit في حالة `FAILED`.
