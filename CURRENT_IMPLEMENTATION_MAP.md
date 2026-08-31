@@ -1,6 +1,6 @@
 # خريطة التنفيذ الحالية — AI DIGITAL SINAI V5.1
 
-**الـbaseline:** `0bba8b44f3f57e6fb5305ac12db03379eea575ce` على `main`
+**الـbaseline:** `7e3fbe9c559fd4f29324d52d1e4afdbe91b1ba57` على `main`
 **آخر تحديث:** 31 أغسطس 2026
 
 | المجال | الحالة الموثقة | الدليل |
