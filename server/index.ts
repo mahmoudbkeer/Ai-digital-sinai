@@ -1,12 +1,14 @@
 import express from "express";
 import { createServer } from "http";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import path from "path";
 import { fileURLToPath } from "url";
 import { verifyWebhookSignature } from "./payment";
 import { isValidCommand } from "./commandPolicy";
 import { verifyCommandContext } from "./commandAuth";
 import { createSafeErrorLog } from "./observability";
+import { getDatabase, withTransaction } from "./database";
+import { createPlatformRouter, platformErrorHandler } from "./platform";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -46,9 +48,23 @@ async function startServer() {
     const secret = process.env.PAYMENT_WEBHOOK_SECRET;
     if (!secret) return res.status(503).json({ accepted: false, status: "unconfigured", message: "Payment provider webhook is not configured; no transaction was settled." });
     const signature = req.header("x-payment-signature") ?? "";
+    const provider = (req.header("x-payment-provider") ?? "unknown").trim().toLowerCase();
     const payload = Buffer.isBuffer(req.body) ? req.body.toString("utf8") : "";
     if (!verifyWebhookSignature(payload, signature, secret)) return res.status(403).json({ accepted: false, status: "invalid-signature", verified: false });
-    return res.status(202).json({ accepted: true, status: "verified-pending", verified: true, message: "Webhook verified; settlement is intentionally disabled until a provider adapter is configured." });
+    let parsed: { id?: unknown; eventId?: unknown };
+    try { parsed = JSON.parse(payload) as { id?: unknown; eventId?: unknown }; } catch { return res.status(400).json({ accepted: false, status: "invalid-payload", verified: false }); }
+    const eventId = typeof parsed.eventId === "string" ? parsed.eventId : typeof parsed.id === "string" ? parsed.id : req.header("x-payment-event-id");
+    if (!eventId || !/^[A-Za-z0-9._:-]{3,200}$/.test(eventId)) return res.status(400).json({ accepted: false, status: "missing-event-id", verified: true });
+    const db = getDatabase();
+    const payloadHash = createHash("sha256").update(payload).digest("hex");
+    const signatureHash = createHash("sha256").update(signature).digest("hex");
+    const previous = db.prepare("SELECT payload_hash, status FROM payment_webhook_events WHERE provider = ? AND event_id = ?").get(provider, eventId) as { payload_hash: string; status: string } | undefined;
+    if (previous) {
+      if (previous.payload_hash !== payloadHash) return res.status(409).json({ accepted: false, status: "webhook-replay-conflict", verified: true });
+      return res.status(200).json({ accepted: true, status: previous.status.toLowerCase().replaceAll("_", "-"), verified: true, duplicate: true, message: "تمت معالجة هذا الحدث سابقاً؛ لم تتم إعادة التسوية." });
+    }
+    withTransaction(db, () => db.prepare("INSERT INTO payment_webhook_events (id, provider, event_id, payload_hash, signature_hash, status, received_at) VALUES (?, ?, ?, ?, ?, 'VERIFIED_PENDING', ?)").run(randomUUID(), provider, eventId, payloadHash, signatureHash, Date.now()));
+    return res.status(202).json({ accepted: true, status: "verified-pending", verified: true, eventId, message: "تم التحقق من Webhook وتسجيله؛ التسوية متوقفة حتى تهيئة adapter مزود رسمي." });
   });
   app.use((_req, res, next) => {
     res.setHeader("X-Content-Type-Options", "nosniff");
@@ -61,6 +77,8 @@ async function startServer() {
     next();
   });
   app.use(express.json({ limit: "128kb" }));
+  app.use("/api/platform", createPlatformRouter());
+  app.use(platformErrorHandler);
   app.post("/api/commands/prepare", (req, res) => {
     if (!allowBurst(`command:${req.ip}`, 30)) return res.status(429).json({ accepted: false, status: "rate-limited", message: "تم تجاوز عدد المحاولات، أعد المحاولة لاحقاً." });
     const { sectorId, moduleId, operationId } = req.body as { sectorId?: string; moduleId?: string; operationId?: string };
@@ -87,7 +105,9 @@ async function startServer() {
   });
   app.get("/api/health", (_req, res) => res.json({ ok: true, service: "ai-digital-sinai-web", timestamp: new Date().toISOString() }));
   app.get("/api/readiness", (_req, res) => {
-    const checks = { commandContext: Boolean(process.env.COMMAND_CONTEXT_SECRET ?? process.env.JWT_SECRET), paymentWebhook: Boolean(process.env.PAYMENT_WEBHOOK_SECRET) };
+    let database = false;
+    try { getDatabase(); database = true; } catch { database = false; }
+    const checks = { commandContext: Boolean(process.env.COMMAND_CONTEXT_SECRET ?? process.env.JWT_SECRET), paymentWebhook: Boolean(process.env.PAYMENT_WEBHOOK_SECRET), database };
     const ready = Object.values(checks).every(Boolean);
     return res.status(ready ? 200 : 503).json({ ok: ready, status: ready ? "ready" : "degraded", checks, message: ready ? "الخدمات الأساسية مهيأة." : "الخدمات الأساسية غير مهيأة بالكامل؛ لم يتم تفعيل أي معاملة تلقائياً." });
   });
@@ -97,10 +117,10 @@ async function startServer() {
     locale: "ar",
     businessData: "not-connected",
     catalogCount: null,
-    capabilities: { health: true, paymentWebhookVerification: true, paymentSettlement: false, nativeApk: false },
+    capabilities: { health: true, platformCore: true, tenantIsolation: true, inventory: true, orders: true, ledger: true, paymentWebhookVerification: true, paymentSettlement: false, aiProvider: Boolean(process.env.AI_PROVIDER_API_KEY), nativeApk: false },
     roadmap: [
-      { id: "data", phase: "01", title: "بيانات الأعمال والصلاحيات", status: "requires-setup", detail: "ربط tRPC وTenant RBAC بقاعدة الإنتاج واختبارات العزل." },
-      { id: "payment", phase: "02", title: "الدفع والتسوية", status: "requires-setup", detail: "اعتماد مزود رسمي وإضافة secret ثم تفعيل adapter بعد تحقق webhook." },
+      { id: "data", phase: "01", title: "بيانات الأعمال والصلاحيات", status: "ready", detail: "SQLite مع علاقات وفهارس ومعاملات، وهوية وجلسات وTenant RBAC/ABAC وتدقيق خادمي." },
+      { id: "payment", phase: "02", title: "الدفع والتسوية", status: process.env.PAYMENT_PROVIDER_API_KEY ? "requires-setup" : "blocked-external-dependency", detail: "Payment Intent وIdempotency موجودان؛ يلزم مزود رسمي وبيانات اعتماد قبل أي تفويض أو تسوية." },
       { id: "quality", phase: "03", title: "الجودة والمراقبة", status: "ready", detail: "بوابات check وunit وbrowser smoke موجودة وقابلة للتشغيل." },
       { id: "native", phase: "04", title: "الإصدار Native", status: "deferred", detail: "نقل shell إلى Expo ثم اختبار Android/iOS وإعداد التوقيع." },
     ],
