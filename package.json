@@ -13,6 +13,7 @@
     "test:e2e": "playwright test",
     "test:smoke": "node scripts/app-smoke.mjs",
     "test:load": "node scripts/load-smoke.mjs",
+    "test:security": "node scripts/security-smoke.mjs",
     "backup": "node scripts/backup.mjs",
     "restore": "node scripts/restore.mjs",
     "format": "prettier --write ."

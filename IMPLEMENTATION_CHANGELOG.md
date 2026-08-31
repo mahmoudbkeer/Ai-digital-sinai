@@ -1,83 +1,32 @@
-# Implementation Changelog — V3 Professional Hardening
+# Implementation Changelog — V5.1 Verification Hardening
 
-## النطاق
+## 31 أغسطس 2026 — فوق baseline `0bba8b44`
 
-تم تنفيذ هذه الجولة على المستودع `mahmoudbkeer/Ai-digital-sinai` فوق baseline `38d8f52` على `main`. الهدف كان إغلاق فجوة PostgreSQL business data plane وإضافة الوحدات القابلة للتنفيذ من Business OS دون إعادة بناء Enterprise Core أو ادعاء اكتمال مزودات خارجية.
+تم تنفيذ دفعة صغيرة عالية العائد دون إعادة بناء المشروع أو تكرار الميزات الموجودة. أُصلح `scripts/load-smoke.mjs` ليبدأ خادم production المحلي تلقائيًا عندما لا يمرر المستخدم `BASE_URL`، مع test-only SQLite bypass صريح، health wait، قياس p50/p95/p99، وإغلاق آمن للخادم. بذلك أصبح `pnpm test:load` أمرًا مستقلًا قابلًا للتشغيل في CI أو محليًا.
 
-## التنفيذ التراكمي
+أضيف `scripts/security-smoke.mjs` كاختبار أمني داخلي قابل للتكرار. يفحص عدم تتبع ملفات الأسرار، وجود `.env.example`، security headers، request ID، وصيغة health/readiness. أضيف الأمر `pnpm test:security` إلى `package.json` وإلى `.github/workflows/quality.yml` بعد تشغيل الخادم.
 
-تم الحفاظ على App Mode/PWA وExpress وVite وعقود الأوامر وWebhook الموجودة، مع إضافة قاعدة SQLite فعلية وforeign keys وunique constraints وindexes وtransactions وmigration وrollback. أضيفت هوية بتجزئة `scrypt`، جلسات قابلة للإبطال، قفل مؤقت لمحاولات الدخول الفاشلة، واستعادة كلمة مرور ذات رموز مخزنة بالتجزئة. أضيف سياق Tenant إلزامي ومصفوفة RBAC/ABAC قابلة للتوسعة.
+أضيف `.env.example` بلا قيم سرية، مع استثناء واضح في `.gitignore`، لتوثيق فصل البيئات ومنع الالتباس بين إعدادات الاختبار والإنتاج.
 
-أضيفت المنتجات والخدمات والكتالوج والسلة وCheckout والطلبات وحالات الطلبات وحركات المخزون ومنع المخزون السالب وIdempotency. أضيف دفتر قيود مزدوج يمنع القيد غير المتوازن ويسجل مبيعات الطلبات داخل transaction. أضيفت الخطط والاشتراكات والتجربة المضبوطة من الخادم، السائقون والمركبات والتسليمات وآلة الحالات والإشعارات الداخلية ومؤشرات KPI.
-
-## الجولة الحالية
-
-| المجال | التنفيذ |
-|---|---|
-| Async data plane | `server/dataPlane.ts` يوحد SQLite وPostgreSQL، ويحوّل الاستعلامات إلى async مع parameter binding وtransactions وaffected-row semantics صحيحة |
-| PostgreSQL startup | `ensureDataPlaneReady()` يطبق migrations 1 و2 تحت advisory lock قبل إنشاء Express، وwebhook يستخدم نفس data plane |
-| Business OS migration | migration version 2 لجداول employees، suppliers، purchases، purchase_items، expenses، CRM interactions/tags، POS sessions/cash/sales، offers |
-| Employees/CRM | employee registry مع PIN hash، customers/history، interactions، tags |
-| Procurement/Finance | supplier CRUD، purchase receiving يحدّث inventory ويقيد AP، expenses تقيد cash/expense، idempotency للمشتريات |
-| POS | session open/list/close، cash movements، POS sale يربط order/payment/invoice/ledger |
-| Marketplace | offers، reviews مرتبطة بعميل، favorites |
-| Reports/Entitlements | report summary مصدره DB، plans/entitlements seeded، gate server-side للتقارير، endpoint لعرض features |
-| Verification | `server/businessOs.test.ts` يختبر الدورة التشغيلية ورفض feature غير مصرح بها |
-
-| المجال | التنفيذ |
-|---|---|
-| Subscription lifecycle | الخطط المدفوعة تبدأ `PENDING_PAYMENT` عند غياب provider، وإضافة cancel-at-period-end وrenew مع server-controlled dates |
-| Logistics | حالة `CREATED`، جدول `delivery_proofs`، مسار إثبات التسليم، ومنع `DELIVERED` بلا proof |
-| Admin | إدارة المستخدمين والمستأجرين، تعليق/تنشيط، audit feed، AI usage، feature flags، مع scope platform/tenant |
-| AI | `ai_agent_runs`، policy/permission/tenant scope/tool allowlist، `BLOCKED_POLICY` للأفعال الحساسة، وجدول `ai_usage` للتكلفة والزمن والنموذج |
-| Notifications | تفضيلات القنوات، retry بحد أقصى 5، وحالات `QUEUED`/`REQUIRES_SETUP` عبر provider abstraction |
-| Security middleware | headers قبل Webhook، CORS allowlist، OPTIONS policy، Permissions-Policy، وCSP/HSTS production |
-| Express | ترقية Express إلى 5.2.1 وإصلاح catch-all إلى `/{*splat}` |
-| Dependencies | إزالة axios غير المستخدم، ترقية nanoid إلى 5.1.16، Recharts إلى 3.10.1، streamdown إلى 2.6.0، ومواءمة chart typings |
-| Operations | `scripts/backup.mjs` و`scripts/restore.mjs` مع SQLite safety copy وPostgreSQL pg_dump/pg_restore |
-| CI | Quality Gate لـcheck/test/build/E2E/smoke/audit/secret scan، بدون `continue-on-error` للـaudit |
-| Documentation | `ARCHITECTURE.md`، `DEPLOYMENT.md`، `SECURITY.md` وتحديث migrations |
-
-## الملفات الرئيسية
-
-- `server/platform.ts`: lifecycle وAdmin وAI وLogistics وNotifications.
-- `server/database.ts`: schema SQLite، composite constraints، AI usage/agents، delivery proofs.
-- `server/index.ts`: Express 5، headers، CORS، Webhook، readiness.
-- `server/postgres.ts`: pool/health/migration-lock/multi-version migration runner.
-- `server/dataPlane.ts`: async repository/data-plane seam لـSQLite وPostgreSQL.
-- `server/businessOs.test.ts`: اختبارات Business OS وentitlements.
-- `migrations/0002_business_os.sql` و`migrations/postgres/0002_business_os.sql`: توسعة domain schema.
-- `migrations/postgres/0001_core.sql`: مخطط PostgreSQL الموثق.
-- `.github/workflows/quality.yml`: بوابة الجودة.
-- `scripts/backup.mjs` و`scripts/restore.mjs`: إجراءات التعافي.
-
-## قرارات الصدق التشغيلي
-
-لا يعلن النظام Payment settlement أو Refund أو Email/SMS/Push أو AI provider result عند غياب الاعتماد. PostgreSQL أصبح مسار business data فعلياً عبر `AsyncDataPlane`، لكن لا تزال مطالبة staging الحقيقية واختبارات provider/restore الخارجية مطلوبة قبل تصنيف الخدمة Production Ready.
-
-## نتيجة الجودة
+## Evidence
 
 | الفحص | النتيجة |
 |---|---|
-| `pnpm check` | PASS |
-| `pnpm test` | PASS — 7 files / 29 tests |
-| `pnpm build` | PASS |
-| `pnpm test:e2e` | PASS — 1 browser test |
-| `pnpm test:smoke` | PASS — 3 checks |
-| `pnpm audit --prod --audit-level=high` | PASS بعد الترقيات |
-| `git diff --check` | PASS |
-| `node scripts/backup.mjs` | PASS على SQLite persistent test file |
+| TypeScript | PASS |
+| Vitest | PASS — 8 files / 37 tests |
+| Production build | PASS |
+| Playwright E2E | PASS — 1 test |
+| App smoke | PASS — 3 checks |
+| Load smoke | PASS — 100 requests، concurrency 10، failures 0، p50 5ms، p95 16ms، p99 22ms |
+| Security smoke | PASS |
+| PostgreSQL staging | BLOCKED_EXTERNAL_DEPENDENCY |
+| External providers/Redis/Object Storage | REQUIRES_SETUP |
+| Android signing | REQUIRES_SETUP |
 
-## الحدود المتبقية
+## Integrity policy
 
-ما زالت مزودات الدفع الفعلية والتسوية، MFA/OTP الفعلي، قنوات البريد وSMS وPush، vector embeddings/RAG provider، Redis للـqueues/rate limits، object storage/CDN، اختبارات PostgreSQL staging/restore، وبعض وحدات الضرائب والموارد البشرية المتقدمة والعقارات وتطبيق Android/APK تحتاج adapters واختبارات وتهيئة تشغيلية. تم إبقاء هذه الحالات معلنة كـ`REQUIRES_SETUP` أو `BLOCKED_EXTERNAL_DEPENDENCY` أو فجوات، لا كميزات مكتملة.
+لا يُعلن هذا المستودع `PRODUCTION READY` بناءً على build أو local smoke فقط. يظل اعتماد PostgreSQL staging، restore، provider sandboxes، WAF/pentest، load staging، وAndroid signing مطلوبًا قبل إعلان الجاهزية.
 
-## Execution batch — productization and operational gates
+## References
 
-تم تنفيذ دفعة TXT التالية دون اختلاق جاهزية خارجية. أضيفت migration version 3 لجداول إعدادات الضريبة والفاتورة، insights الموثقة، forecast outputs، recommendation events، وإجراءات الحملات الإعلانية في SQLite وPostgreSQL. أصبحت الطلبات القياسية وCart Checkout تحترم أوضاع الضريبة `EXCLUSIVE` و`INCLUSIVE` و`EXEMPT`، وعملة المستأجر وبادئة الفاتورة، مع إبقاء السلوك الافتراضي السابق صفراً للضريبة.
-
-أضيف advisor حتمي مصدره قاعدة البيانات، recommendation ranking مع event logging، moving-average forecast مع confidence و`INSUFFICIENT_DATA`، ومسارات إنشاء/اعتماد المواد الإعلانية وانتقالات الحملة. أضيف AI provider gateway صارم مع prompt-hash binding وtimeout وoutput validation وusage persistence وسلوك `REQUIRES_SETUP` الصريح. أصبحت notification creation وretry تستخدمان provider adapter فعلياً مع حالات queue/setup/failure.
-
-أصبح فصل البيئات enforced: الإنتاج يتطلب PostgreSQL و`COMMAND_CONTEXT_SECRET`، ولا يسمح بـSQLite إلا عبر `ALLOW_SQLITE_PRODUCTION_TEST=1` الاختباري. يعرِض readiness حالة PostgreSQL وRedis وObject Storage والدفع وAI والإشعارات ومدير الأسرار. أضيف load smoke مستقل عبر `pnpm test:load` ومضمن في CI.
-
-آخر تحقق محلي: `pnpm check` و`pnpm test` نجحا مع 37 اختباراً، كما نجح build وE2E وsmoke وload. ما زال اختبار PostgreSQL staging، Redis المدار، توقيع Object Storage، payment/notification/AI sandboxes، WAF، restore drill الخارجي، pentest، وAndroid signing متوقفاً على خدمات واعتمادات خارجية.
+[1]: https://github.com/mahmoudbkeer/Ai-digital-sinai "AI DIGITAL SINAI GitHub repository"

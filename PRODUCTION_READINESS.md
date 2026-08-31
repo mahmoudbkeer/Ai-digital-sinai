@@ -51,3 +51,15 @@ curl -i http://127.0.0.1:3000/api/readiness
 ```
 
 لا تُرفع حالة الإصدار إلى **Ready** إلا إذا نجحت الأوامر السابقة، وتأكد اتصال PostgreSQL، واكتملت اختبارات staging وrestore drill ومراجعة provider contracts. غياب credential أو قاعدة staging يجب أن يظل **REQUIRES_SETUP**، وليس نجاحاً وهمياً.
+
+## V5.1 verification addendum
+
+الـbaseline المعتمد لهذا التدقيق هو `0bba8b44f3f57e6fb5305ac12db03379eea575ce`، وليس `38d8f52`. في هذه الجولة أصبح `pnpm test:load` self-contained؛ يبدأ خادمًا محليًا مع test-only SQLite bypass عند غياب `BASE_URL`، ويسجل p50/p95/p99. كما أضيف `pnpm test:security` إلى Quality Gate لفحص الأسرار المتتبعة، `.env.example`، security headers، request ID، وhealth/readiness contract.
+
+النتيجة المحلية المثبتة: `pnpm check` و`pnpm test` (37 اختبارًا) و`pnpm build` و`pnpm test:e2e` و`pnpm test:smoke` و`pnpm test:load` و`pnpm test:security` كلها **PASS**. نتيجة load هي 100 طلبًا، concurrency 10، failures 0، p50 5ms، p95 16ms، p99 22ms. هذه نتيجة local verification وليست staging load test.
+
+تظل PostgreSQL staging وRedis وObject Storage ومزودات الدفع/الإشعارات/AI وMFA الكامل وWAF/pentest وencrypted restore drill وAndroid signing حالات `REQUIRES_SETUP` أو `BLOCKED_EXTERNAL_DEPENDENCY` حتى تتوفر الأدلة الخارجية. لذلك يبقى الحكم **Production Verification Pending**.
+
+## References
+
+[1]: https://github.com/mahmoudbkeer/Ai-digital-sinai "AI DIGITAL SINAI GitHub repository"

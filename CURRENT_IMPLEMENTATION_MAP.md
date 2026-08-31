@@ -1,43 +1,50 @@
-# خريطة التنفيذ الحالية — AI DIGITAL SINAI
+# خريطة التنفيذ الحالية — AI DIGITAL SINAI V5.1
 
-**خط الأساس:** `38d8f52` على `main`
-**نطاق هذه الدفعة:** نقل مسارات الأعمال إلى data plane غير متزامنة، وإضافة وحدات Business OS/CRM/Procurement/POS/Reports، مع اختبارات SQLite قابلة للتكرار.
+**الـbaseline:** `0bba8b44f3f57e6fb5305ac12db03379eea575ce` على `main`
+**آخر تحديث:** 31 أغسطس 2026
 
-## الحالة المثبتة
+| المجال | الحالة الموثقة | الدليل |
+|---|---|---|
+| Identity/Tenant | PARTIALLY_IMPLEMENTED | `server/platform.ts`، auth tests، scoped queries |
+| Async data plane/PostgreSQL | PARTIALLY_IMPLEMENTED | `server/dataPlane.ts`، `server/postgres.ts`، migrations |
+| Business OS/CRM/Procurement | PARTIALLY_IMPLEMENTED | routes والجداول واختبارات `businessOs` |
+| Commerce/POS/Inventory/Finance | PARTIALLY_IMPLEMENTED | order/payment/invoice/ledger/movement transactions |
+| Subscription/Entitlements | IMPLEMENTED كـserver-side foundation | plans، lifecycle، entitlement gates |
+| Marketplace/Logistics | PARTIALLY_IMPLEMENTED | products/services/offers/reviews/deliveries/proof |
+| Payments | PARTIALLY_IMPLEMENTED | provider contract، HMAC webhook، replay protection؛ لا sandbox |
+| AI Gateway/RAG | FOUNDATION | policy/usage وlexical tenant-scoped fallback؛ لا embeddings/vector provider |
+| Advisor/Recommendations/Forecast | IMPLEMENTED كـdeterministic foundations | grounded advisor، ranking/event log، fallback/confidence |
+| Agents/Advertising/Analytics | FOUNDATION/PARTIALLY_IMPLEMENTED | policy، lifecycle، KPI sources |
+| Notifications | PARTIALLY_IMPLEMENTED | provider boundary، retry، status |
+| Admin | PARTIALLY_IMPLEMENTED | users/tenants/audit/flags/AI usage APIs |
+| Redis/Queues | REQUIRES_SETUP | configuration boundary فقط |
+| Object Storage | REQUIRES_SETUP | storage reference boundary فقط |
+| Security/Observability | PARTIALLY_IMPLEMENTED | headers، CORS/CSP، request ID، readiness، security smoke |
+| Backup/DR | PARTIALLY_IMPLEMENTED | `scripts/backup.mjs` و`restore.mjs`؛ staging drill مطلوب |
+| Android | REQUIRES_SETUP | لا native project/keystore |
 
-| المجال             | التنفيذ الفعلي                                                            | الدليل                                                              | الحالة                   |
-| ------------------ | ------------------------------------------------------------------------- | ------------------------------------------------------------------- | ------------------------ |
-| Identity وTenant   | جلسات scrypt، revoke، recovery، membership و`x-tenant-id`                 | `server/platform.ts`، اختبارات auth والعزل                          | منفذ                     |
-| Data plane         | عقد Async موحد يدعم SQLite وPostgreSQL، parameter binding، معاملات، pool  | `server/dataPlane.ts`، `server/postgres.ts`                         | منفذ برمجياً             |
-| PostgreSQL startup | migration lock، تطبيق migrations 1 و2، readiness قبل استقبال الطلبات      | `server/index.ts`، `server/postgres.ts`                             | منفذ، يحتاج staging فعلي |
-| Core commerce      | products/services/cart/checkout/orders/invoices/payments                  | `server/platform.ts`، الاختبارات الحالية                            | منفذ جزئياً              |
-| Ledger             | قيود sale/cancellation/purchase/expense/POS payment متوازنة tenant-scoped | `postBalancedJournal` ومسارات المال                                 | منفذ جزئياً              |
-| Subscription       | خطط، entitlements، اشتراك trial، feature gate للتقارير والتحليلات         | `/subscriptions`، `/subscription/entitlements`، `assertEntitlement` | منفذ                     |
-| Employees          | employee registry، ربط مستخدم/فرع، PIN hash وصلاحيات                      | `POST/GET /api/platform/employees`                                  | منفذ أساسي               |
-| CRM                | العملاء، التاريخ، التفاعلات، الوسوم                                       | `customers` و`customer_interactions` و`customer_tags`               | منفذ أساسي               |
-| Procurement        | suppliers، purchases، items، inventory receipt، AP journal، idempotency   | `POST/GET /api/platform/suppliers` و`purchases`                     | منفذ أساسي               |
-| Expenses           | تسجيل المصروف وتكويد قيد 5000/1000                                        | `POST/GET /api/platform/expenses`                                   | منفذ أساسي               |
-| POS                | وردية، حركة نقدية، ربط بيع بطلب، دفع، إغلاق                               | `/pos/sessions/*` و`pos_sales`                                      | منفذ أساسي               |
-| Marketplace        | عروض، reviews مرتبطة بعميل، favorites                                     | `/offers` و`/marketplace/*`                                         | منفذ أساسي               |
-| Reports            | تقرير مبيعات/مصروفات/مخزون/عملاء/موظفين/فروع مصدره قاعدة البيانات         | `/reports/summary` مع entitlement                                   | منفذ أساسي               |
-| Audit              | سجل عمليات لكل المسارات الحساسة الجديدة                                   | `audit_logs` و`recordAudit`                                         | منفذ                     |
-| Payment providers  | provider adapter لا يعلن نجاحاً بلا credential/contract                   | `server/payment.ts` وwebhook                                        | يحتاج إعداد خارجي        |
-| AI/RAG/Agents      | lexical tenant-scoped fallback وpolicy؛ لا يوجد vector provider حقيقي     | `server/platform.ts`                                                | منفذ جزئياً              |
-| Redis/queues       | غير مربوط                                                                 | لا يوجد connector داخل المستودع                                     | متبقٍ                    |
-| Object storage/CDN | غير مربوط                                                                 | لا يوجد provider فعلي                                               | متبقٍ                    |
-| Email/SMS/Push     | abstraction/REQUIRES_SETUP فقط                                            | `server/notifications.ts`                                           | يحتاج إعداد خارجي        |
+## Verification commands
 
-## اختبارات هذه الدفعة
-
-تم تشغيل الأوامر التالية بنجاح:
-
-```text
+```bash
+pnpm install --frozen-lockfile
 pnpm check
 pnpm test
+pnpm build
+pnpm test:e2e
+pnpm test:smoke
+LOAD_CONCURRENCY=10 LOAD_REQUESTS=10 pnpm test:load
+pnpm test:security
 ```
 
-النتيجة المثبتة: **7 ملفات اختبار، 29 اختباراً ناجحاً**. يختبر `server/businessOs.test.ts` دورة شراء وتحديث مخزون وCRM وطلب وPOS ومصروف ومراجعة ومفضلة وتقرير، إضافة إلى رفض التقرير قبل وجود entitlement.
+كل الأوامر أعلاه نجحت محليًا بعد الإصلاح. هذا لا يساوي PostgreSQL staging أو production readiness؛ تلك تتطلب موارد خارجية حقيقية.
 
-## نقطة التحقق المطلوبة قبل الإنتاج
+## Rules
 
-لم تُنفذ مطالبة PostgreSQL staging داخل هذه البيئة لعدم توفر `DATABASE_URL` قابل للوصول. لذلك يجب قبل الإنتاج تشغيل migration على قاعدة staging، ثم تشغيل contract/integration tests نفسها على PostgreSQL، والتحقق من `GET /api/readiness`، وbackup/restore، وtenant isolation، وfinancial balance. هذه ليست فجوة في wiring البرمجي؛ إنها خطوة تحقق تشغيلية خارجية.
+- `IMPLEMENTED` تعني أن wiring والاختبار المحلي موجودان، لا أنها شهادة تشغيل إنتاجي خارجي.
+- `REQUIRES_SETUP` تعني أن الكود/العقد موجود لكن credentials أو service provisioning ناقص.
+- `BLOCKED_EXTERNAL_DEPENDENCY` تعني أن الدليل لا يمكن تحصيله من هذه البيئة دون خدمة أو تنسيق خارجي.
+- لا تُستخدم `COMPLETE` أو `PRODUCTION READY` دون evidence مستقل قابل لإعادة الإنتاج.
+
+## References
+
+[1]: https://github.com/mahmoudbkeer/Ai-digital-sinai "AI DIGITAL SINAI GitHub repository"

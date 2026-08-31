@@ -79,3 +79,6 @@ jobs:
 
       - name: Load smoke test
         run: LOAD_CONCURRENCY=10 LOAD_REQUESTS=10 pnpm test:load
+
+      - name: Application security smoke test
+        run: BASE_URL=http://127.0.0.1:3000 pnpm test:security
