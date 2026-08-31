@@ -14,7 +14,7 @@ const assert = (name, condition, detail) => {
 
 try {
   const tracked = execFileSync("git", ["ls-files"], { encoding: "utf8" }).split("\n").filter(Boolean);
-  assert("secret files are not tracked", !tracked.some(file => /(^|\/)(\.env($|\.)|.*\.pem$|.*\.key$)/i.test(file)), "no tracked secret-like files");
+  assert("secret files are not tracked", !tracked.some(file => /(^|\/)(\.env(?!\.example$)($|\.)|.*\.pem$|.*\.key$)/i.test(file)), "no tracked secret-like files");
   assert("production env example is documented", existsSync(".env.example"), ".env.example exists");
 
   if (!process.env.BASE_URL) {

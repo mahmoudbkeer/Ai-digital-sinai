@@ -61,6 +61,15 @@ describe("runtime integration contracts", () => {
     expect(await redis.set("key", "value")).toBe("REQUIRES_SETUP");
   });
 
+  it("does not silently use process memory when Redis is configured but unreachable", async () => {
+    vi.stubEnv("NODE_ENV", "staging");
+    vi.stubEnv("REDIS_URL", "redis://127.0.0.1:1/0");
+    const redis = resolveRedisProvider();
+    expect(redis.status).toBe("configured");
+    expect(await redis.set("key", "value")).toBe("REQUIRES_SETUP");
+    expect(await redis.get("key")).toBeNull();
+  });
+
   it("reports unconfigured AI gateway without fabricating a result", async () => {
     vi.stubEnv("AI_PROVIDER_API_KEY", "");
     vi.stubEnv("AI_PROVIDER_API_URL", "");

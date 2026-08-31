@@ -30,3 +30,9 @@
 ## References
 
 [1]: https://github.com/mahmoudbkeer/Ai-digital-sinai "AI DIGITAL SINAI GitHub repository"
+
+## 31 أغسطس 2026 — Redis وBackup integrity hardening
+
+تم إغلاق fallback غير الآمن في Redis: عند ضبط `REDIS_URL` يستخدم provider اتصال Redis فعليًا عبر RESP مع دعم `redis://` و`rediss://` وAUTH/SELECT وTTL، وعند فشل الاتصال يعيد `REQUIRES_SETUP` بدل الكتابة إلى process memory. يظل memory fallback متاحًا للتطوير فقط عندما لا يكون Redis configured، وممنوعًا في production/staging configured paths.
+
+أضيف SHA-256 manifest لكل نسخة SQLite أو PostgreSQL. يرفض `restore` النسخ التي لا تملك manifest إلا مع `ALLOW_LEGACY_BACKUP=1` صراحة، ويرفض checksum mismatch قبل الاستعادة. تم تنفيذ backup/restore محليًا بنجاح مع manifest وتحقق checksum.

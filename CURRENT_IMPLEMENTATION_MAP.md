@@ -48,3 +48,13 @@ pnpm test:security
 ## References
 
 [1]: https://github.com/mahmoudbkeer/Ai-digital-sinai "AI DIGITAL SINAI GitHub repository"
+
+## V5.1.1 hardening update
+
+| المجال | الحالة | الدليل الجديد |
+|---|---|---|
+| Redis abstraction | PARTIALLY_IMPLEMENTED | `server/integrations.ts` يدعم Redis RESP فعليًا مع TTL وAUTH/SELECT؛ لا يوجد managed Redis في البيئة |
+| Backup integrity | IMPLEMENTED محليًا | `scripts/backup.mjs` ينشئ SHA-256 manifest و`scripts/restore.mjs` يتحقق منه قبل الاستعادة |
+| Restore drill | PARTIALLY_IMPLEMENTED | SQLite checksum/restore PASS محليًا؛ PostgreSQL offsite drill ما زال REQUIRES_SETUP |
+
+لا يغيّر هذا الحكم الخارجي: لا تزال PostgreSQL staging وRedis المدار ومزودات الدفع/الإشعارات/AI وAndroid وpentest متطلبات خارجية قبل اعتماد الإنتاج.

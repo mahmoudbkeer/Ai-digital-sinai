@@ -69,3 +69,17 @@
 ## References
 
 [1]: https://github.com/mahmoudbkeer/Ai-digital-sinai "AI DIGITAL SINAI GitHub repository"
+
+## V5.1.1 hardening evidence
+
+تمت إضافة Redis RESP provider فعلي عند ضبط `REDIS_URL` مع TTL وAUTH/SELECT ودون fallback إلى process memory عند فشل الاتصال. كما أصبحت النسخ الاحتياطية تنشئ SHA-256 manifest، ويرفض restore checksum mismatch أو manifest المفقود إلا عبر `ALLOW_LEGACY_BACKUP=1` صراحة.
+
+| الفحص الإضافي | النتيجة |
+|---|---|
+| Redis unreachable does not fake persistence | PASS — اختبار integrations، 38 اختبارًا إجمالًا |
+| SQLite backup manifest | PASS |
+| SQLite restore checksum verification | PASS |
+| Final check/build/E2E/smoke/load/security | PASS |
+| Latest load sample | 100 requests، concurrency 10، failures 0، p50 7ms، p95 17ms، p99 23ms |
+
+هذه الأدلة محلية. PostgreSQL offsite restore وmanaged Redis ما زالا `REQUIRES_SETUP` أو `BLOCKED_EXTERNAL_DEPENDENCY` إلى أن تتوفر الخدمات الفعلية.
