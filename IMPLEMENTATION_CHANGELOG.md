@@ -36,3 +36,7 @@
 تم إغلاق fallback غير الآمن في Redis: عند ضبط `REDIS_URL` يستخدم provider اتصال Redis فعليًا عبر RESP مع دعم `redis://` و`rediss://` وAUTH/SELECT وTTL، وعند فشل الاتصال يعيد `REQUIRES_SETUP` بدل الكتابة إلى process memory. يظل memory fallback متاحًا للتطوير فقط عندما لا يكون Redis configured، وممنوعًا في production/staging configured paths.
 
 أضيف SHA-256 manifest لكل نسخة SQLite أو PostgreSQL. يرفض `restore` النسخ التي لا تملك manifest إلا مع `ALLOW_LEGACY_BACKUP=1` صراحة، ويرفض checksum mismatch قبل الاستعادة. تم تنفيذ backup/restore محليًا بنجاح مع manifest وتحقق checksum.
+
+## V5.2 — PostgreSQL staging verification gate
+
+أضيف `scripts/postgres-staging-smoke.mjs` وأمر `pnpm test:staging` لتنفيذ فحص حقيقي على PostgreSQL عند توفر `DATABASE_URL`. يشمل الفحص الاتصال، تطبيق migrations 1–3، وجود الجداول الأساسية، foreign keys، tenant composite constraints، اتزان كل قيود ledger، وrollback transaction probe. أضيف workflow يدوي `.github/workflows/staging.yml` يستخدم GitHub Secrets ولا يمرر SQLite كبديل. في البيئة الحالية أعاد الأمر `BLOCKED_EXTERNAL_DEPENDENCY` مع exit code 78 بسبب غياب PostgreSQL staging، وهو السلوك المقصود.

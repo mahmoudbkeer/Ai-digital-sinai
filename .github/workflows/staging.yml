@@ -1,0 +1,35 @@
+name: PostgreSQL Staging Verification
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [staging]
+
+permissions:
+  contents: read
+
+jobs:
+  postgres-staging:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      DATABASE_URL: ${{ secrets.STAGING_DATABASE_URL }}
+      NODE_ENV: staging
+      PG_SSL: require
+      COMMAND_CONTEXT_SECRET: ${{ secrets.STAGING_COMMAND_CONTEXT_SECRET }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Verify PostgreSQL staging
+        run: pnpm test:staging
+      - name: Verify source integrity
+        run: git diff --check

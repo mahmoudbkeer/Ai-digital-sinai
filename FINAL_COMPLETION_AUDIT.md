@@ -83,3 +83,7 @@
 | Latest load sample | 100 requests، concurrency 10، failures 0، p50 7ms، p95 17ms، p99 23ms |
 
 هذه الأدلة محلية. PostgreSQL offsite restore وmanaged Redis ما زالا `REQUIRES_SETUP` أو `BLOCKED_EXTERNAL_DEPENDENCY` إلى أن تتوفر الخدمات الفعلية.
+
+## V5.2 staging verification gate
+
+أضيف `pnpm test:staging` وworkflow يدوي `.github/workflows/staging.yml`. عند توفر `STAGING_DATABASE_URL` حقيقيًا، يقوم gate بتطبيق migrations 1–3، ويتحقق من الاتصال والجداول والـforeign keys والـtenant composite constraints وتوازن كل journals، ثم ينفذ rollback transaction probe. عند غياب الرابط لا يختلق نجاحًا ويخرج بحالة `BLOCKED_EXTERNAL_DEPENDENCY` وبـexit code 78.

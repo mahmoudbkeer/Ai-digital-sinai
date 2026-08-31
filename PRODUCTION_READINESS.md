@@ -63,3 +63,7 @@ curl -i http://127.0.0.1:3000/api/readiness
 ## References
 
 [1]: https://github.com/mahmoudbkeer/Ai-digital-sinai "AI DIGITAL SINAI GitHub repository"
+
+## Staging gate implementation
+
+أصبح فحص PostgreSQL staging قابلاً للتشغيل رسميًا عبر `pnpm test:staging`. يفحص gate الاتصال الحقيقي، migrations 1–3، الجداول الأساسية، foreign keys، tenant composite constraints، financial journal balance، وtransaction rollback. تم توفير `.github/workflows/staging.yml` لتشغيله يدويًا أو على فرع `staging` باستخدام `STAGING_DATABASE_URL` و`STAGING_COMMAND_CONTEXT_SECRET` من GitHub Secrets. في البيئة الحالية، غياب PostgreSQL حقيقي يصنف النتيجة `BLOCKED_EXTERNAL_DEPENDENCY` بدلًا من تمرير SQLite.

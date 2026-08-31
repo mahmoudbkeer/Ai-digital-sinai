@@ -58,3 +58,12 @@ pnpm test:security
 | Restore drill | PARTIALLY_IMPLEMENTED | SQLite checksum/restore PASS محليًا؛ PostgreSQL offsite drill ما زال REQUIRES_SETUP |
 
 لا يغيّر هذا الحكم الخارجي: لا تزال PostgreSQL staging وRedis المدار ومزودات الدفع/الإشعارات/AI وAndroid وpentest متطلبات خارجية قبل اعتماد الإنتاج.
+
+## V5.2 staging gate
+
+| المجال | الحالة | الدليل |
+|---|---|---|
+| PostgreSQL staging verification | IMPLEMENTED كـgate قابل للتشغيل | `scripts/postgres-staging-smoke.mjs` و`.github/workflows/staging.yml` |
+| PostgreSQL staging evidence | BLOCKED_EXTERNAL_DEPENDENCY | لا توجد `STAGING_DATABASE_URL` متاحة في البيئة الحالية |
+
+عند توفير secret حقيقي، يفشل gate عند migration أو foreign key أو tenant composite constraint أو ledger imbalance أو rollback failure، ولا يقبل SQLite كبديل.
