@@ -75,3 +75,7 @@ curl -i http://127.0.0.1:3000/api/readiness
 نجحت migrations 1–3، ووجود 10 جداول أساسية، و184 foreign keys، و52 tenant composite constraints، وfinancial balance، وrollback probe. كما نجح `pnpm test:staging:api` في identity، tenant tampering، inventory، order، cross-tenant AI search، وpayment setup boundary.
 
 أضيف critical-path workflow إلى `.github/workflows/staging.yml`. تبقى قاعدة production/offsite وTLS وencrypted restore وmanaged Redis وexternal providers متطلبات مستقلة.
+
+## V5.4 identity hardening
+
+تم تنفيذ server-side MFA/TOTP عبر migration 4 في SQLite وPostgreSQL، مع setup/enable/disable endpoints، OTP validation، منع إنشاء session قبل OTP الصحيح، وaudit events. اختبار `server/platform.test.ts` يثبت enrollment، رفض login بلا OTP، وقبول login بـOTP صحيح. النتيجة: MFA core `PASS` محليًا؛ مزود البريد/OTP الخارجي وdevice verification وrecovery production policy ما زالت `REQUIRES_SETUP`.

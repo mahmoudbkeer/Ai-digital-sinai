@@ -109,3 +109,7 @@
 | Payment without credentials | PASS — `REQUIRES_SETUP` |
 
 هذه الشهادة تخص PostgreSQL المحلي staging داخل البيئة الحالية. لا تزال production/offsite PostgreSQL وTLS وbackup restore الخارجي وprovider sandboxes متطلبات منفصلة.
+
+## V5.4 identity hardening evidence
+
+تم تنفيذ MFA/TOTP server-enforced: إنشاء secret، إصدار `otpauth://` URI، تفعيل لا يتم إلا بعد OTP صحيح، منع login بعد التفعيل دون OTP أو عند OTP خاطئ، وتعطيل MFA يتطلب OTP صالحًا. تمت إضافة audit events ومسار migration 4 لكل من SQLite وPostgreSQL. نجح اختبار MFA الجديد، وأصبح إجمالي suite المحلي 39 اختبارًا ناجحًا. تم تحديث PostgreSQL staging إلى migration 4 ونجحت فحوص schema وcritical API paths.

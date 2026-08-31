@@ -46,3 +46,7 @@
 تم تشغيل PostgreSQL 16 وRedis 7 محليًا، وإنشاء قاعدة staging مستقلة. كشف `pnpm test:staging` overflow حقيقيًا في epoch milliseconds؛ تم إصلاح كل حقول الوقت في PostgreSQL migrations 1–3 من `INTEGER` إلى `BIGINT`. بعد الإصلاح نجحت migration consistency، foreign keys، tenant composite constraints، ledger balance، وtransaction rollback.
 
 أضيف `scripts/postgres-critical-smoke.mjs` و`pnpm test:staging:api` لاختبار identity، tenant ID tampering، inventory، order totals، cross-tenant AI search، ورفض payment false success على PostgreSQL الحقيقي. تم إدراج الفحص في GitHub staging workflow.
+
+## V5.4 — Server-enforced MFA/TOTP
+
+أضيفت وحدة `server/mfa.ts` بدون اعتماد خارجي لتوليد secrets وTOTP/otpauth URI والتحقق بزمن سماح محدود. أضيف migration 0004 لمساري SQLite وPostgreSQL، وتم فرض OTP قبل إنشاء session عند تفعيل MFA، مع audit events للتمكين والتعطيل. أضيف اختبار adversarial يثبت أن login بلا OTP مرفوض وأن OTP الصحيح مقبول.

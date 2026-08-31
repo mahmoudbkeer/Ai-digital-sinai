@@ -22,6 +22,7 @@ import {
   type NotificationChannel,
 } from "./notificationProviders";
 import { resolveAIProvider } from "./aiProviders";
+import { createTotpSecret, createTotpUri, verifyTotp } from "./mfa";
 
 export const ROLES = [
   "SUPER_ADMIN",
@@ -1030,6 +1031,11 @@ export function createPlatformRouter(): Router {
           "UPDATE users SET failed_login_count = 0, locked_until = NULL, updated_at = ? WHERE id = ?"
         )
         .run(now(), user.id);
+      const security = (await db
+        .prepare("SELECT mfa_status, mfa_secret FROM user_security WHERE user_id = ?")
+        .get(user.id)) as { mfa_status: string; mfa_secret: string | null } | undefined;
+      if (security?.mfa_status === "ENABLED" && !verifyTotp(security.mfa_secret ?? "", req.body?.otp))
+        throw httpError(401, "mfa-required", "رمز MFA صالح مطلوب لإكمال تسجيل الدخول.");
       const token = await createSession(db, user.id);
       const memberships = (await db
         .prepare(
@@ -1047,6 +1053,36 @@ export function createPlatformRouter(): Router {
     }
   });
 
+  router.post("/auth/mfa/setup", authenticate, async (req: AuthenticatedRequest, res, next) => {
+    try {
+      const context = currentContext(req);
+      const db = getDataPlane();
+      const secret = createTotpSecret();
+      await db.prepare("UPDATE user_security SET mfa_pending_secret = ?, updated_at = ? WHERE user_id = ?").run(secret, now(), context.userId);
+      const user = (await db.prepare("SELECT email FROM users WHERE id = ?").get(context.userId)) as { email: string };
+      return res.json({ ok: true, status: "PENDING_VERIFICATION", secret, otpauthUri: createTotpUri(secret, user.email) });
+    } catch (error) { next(error); }
+  });
+  router.post("/auth/mfa/enable", authenticate, async (req: AuthenticatedRequest, res, next) => {
+    try {
+      const context = currentContext(req); const db = getDataPlane();
+      const security = (await db.prepare("SELECT mfa_pending_secret FROM user_security WHERE user_id = ?").get(context.userId)) as { mfa_pending_secret: string | null } | undefined;
+      if (!security?.mfa_pending_secret || !verifyTotp(security.mfa_pending_secret, req.body?.otp)) throw httpError(400, "invalid-mfa", "رمز MFA غير صالح أو لم يتم بدء الإعداد.");
+      await db.prepare("UPDATE user_security SET mfa_status = 'ENABLED', mfa_secret = ?, mfa_pending_secret = NULL, mfa_verified_at = ?, updated_at = ? WHERE user_id = ?").run(security.mfa_pending_secret, now(), now(), context.userId);
+      await recordAudit(db, context, "auth.mfa.enable", "user_security", context.userId, req.requestId, {});
+      return res.json({ ok: true, status: "ENABLED" });
+    } catch (error) { next(error); }
+  });
+  router.post("/auth/mfa/disable", authenticate, async (req: AuthenticatedRequest, res, next) => {
+    try {
+      const context = currentContext(req); const db = getDataPlane();
+      const security = (await db.prepare("SELECT mfa_secret FROM user_security WHERE user_id = ?").get(context.userId)) as { mfa_secret: string | null } | undefined;
+      if (!security?.mfa_secret || !verifyTotp(security.mfa_secret, req.body?.otp)) throw httpError(403, "invalid-mfa", "يلزم رمز MFA صالح لتعطيل MFA.");
+      await db.prepare("UPDATE user_security SET mfa_status = 'NOT_CONFIGURED', mfa_secret = NULL, mfa_pending_secret = NULL, mfa_verified_at = NULL, updated_at = ? WHERE user_id = ?").run(now(), context.userId);
+      await recordAudit(db, context, "auth.mfa.disable", "user_security", context.userId, req.requestId, {});
+      return res.json({ ok: true, status: "DISABLED" });
+    } catch (error) { next(error); }
+  });
   router.post("/auth/password-reset/request", async (req, res, next) => {
     try {
       if (!allowAuthBurst(`password-reset:${req.ip}`, 5))

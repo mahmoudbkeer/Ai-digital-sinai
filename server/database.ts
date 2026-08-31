@@ -749,6 +749,17 @@ export function getDatabase(): AppDatabase {
       )
       .run(3, Date.now());
   }
+  const appliedMfa = database
+    .prepare("SELECT version FROM schema_migrations WHERE version = 4")
+    .get() as { version?: number } | undefined;
+  if (!appliedMfa) {
+    database.exec(
+      readFileSync(path.resolve(process.cwd(), "migrations/0004_mfa.sql"), "utf8")
+    );
+    database
+      .prepare("INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)")
+      .run(4, Date.now());
+  }
   const planInsert = database.prepare(
     "INSERT OR IGNORE INTO plans (code, name, price_cents, trial_days, active, created_at) VALUES (?, ?, ?, ?, 1, ?)"
   );

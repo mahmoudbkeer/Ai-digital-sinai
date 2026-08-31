@@ -14,15 +14,18 @@ try {
     if (!health.ok) fail("postgres connectivity", health.error ?? "connection failed");
     pass("postgres connectivity", `${health.latencyMs ?? 0}ms`);
     await migratePostgres();
-    pass("versioned migrations", "migrations 1, 2 and 3 applied or already present");
+    pass("versioned migrations", "migrations 1, 2, 3 and 4 applied or already present");
 
     const pool = getPostgresPool();
-    const tables = await pool.query(`SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_name = ANY($1::text[])`, [["users", "tenants", "tenant_members", "orders", "payment_intents", "ledger_journals", "ledger_entries", "ai_documents", "audit_logs", "schema_migrations"]]);
+    const tables = await pool.query(`SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_name = ANY($1::text[])`, [["users", "tenants", "tenant_members", "user_security", "orders", "payment_intents", "ledger_journals", "ledger_entries", "ai_documents", "audit_logs", "schema_migrations"]]);
     const tableNames = new Set(tables.rows.map(row => row.table_name));
-    const expected = ["users", "tenants", "tenant_members", "orders", "payment_intents", "ledger_journals", "ledger_entries", "ai_documents", "audit_logs", "schema_migrations"];
+    const expected = ["users", "tenants", "tenant_members", "user_security", "orders", "payment_intents", "ledger_journals", "ledger_entries", "ai_documents", "audit_logs", "schema_migrations"];
     const missing = expected.filter(table => !tableNames.has(table));
     if (missing.length) fail("required tables", `missing: ${missing.join(", ")}`);
     pass("required tables", `${expected.length} tables present`);
+    const mfaColumns = await pool.query(`SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'user_security' AND column_name = ANY($1::text[])`, [["mfa_secret", "mfa_pending_secret", "mfa_verified_at"]]);
+    if (mfaColumns.rowCount !== 3) fail("MFA schema", `only ${mfaColumns.rowCount ?? 0}/3 columns present`);
+    pass("MFA schema", "secret, pending secret and verification timestamp present");
 
     const migrationRows = await pool.query("SELECT version FROM schema_migrations ORDER BY version");
     const versions = migrationRows.rows.map(row => Number(row.version));

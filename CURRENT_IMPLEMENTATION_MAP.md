@@ -79,3 +79,12 @@ pnpm test:security
 | PostgreSQL timestamp compatibility | IMPLEMENTED | epoch millisecond columns corrected to BIGINT |
 
 Production/offsite PostgreSQL evidence remains separate from this local staging evidence.
+
+## V5.4 identity hardening
+
+| المجال | الحالة | الدليل |
+|---|---|---|
+| MFA/TOTP enrollment | PASS | `/auth/mfa/setup` و`/auth/mfa/enable` واختبار platform |
+| MFA login enforcement | PASS | لا session بدون OTP صالح |
+| MFA disable authorization | PASS | `/auth/mfa/disable` يتطلب OTP صالحًا وaudit |
+| Device verification / recovery | REQUIRES_SETUP | لا provider خارجي أو recovery service مضبوط |
