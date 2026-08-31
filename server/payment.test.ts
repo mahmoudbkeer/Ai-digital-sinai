@@ -17,4 +17,13 @@ describe("payment webhook signature", () => {
     expect(verifyWebhookSignature(`${payload}x`, signature, secret)).toBe(false);
     expect(verifyWebhookSignature(payload, "bad", secret)).toBe(false);
   });
+
+  it("accepts the provider-style sha256 prefix and rejects empty inputs", () => {
+    const payload = "{\"event\":\"payment.updated\"}";
+    const secret = "test-secret";
+    const signature = createHmac("sha256", secret).update(payload).digest("hex");
+    expect(verifyWebhookSignature(payload, `sha256=${signature}`, secret)).toBe(true);
+    expect(verifyWebhookSignature("", signature, secret)).toBe(false);
+    expect(verifyWebhookSignature(payload, "", secret)).toBe(false);
+  });
 });

@@ -65,6 +65,34 @@ describe("command prepare endpoint authorization", () => {
     expect(serverErrorLogs).not.toContain("do-not-log");
   });
 
+  it("requires an idempotency key after context validation", async () => {
+    const signature = signCommandContext({ userId: "user-a", workspaceId: "workspace-a" }, secret);
+    const response = await prepare({ "x-command-user": "user-a", "x-workspace-id": "workspace-a", "x-command-context-signature": signature });
+    expect(response.status).toBe(428);
+    await expect(response.json()).resolves.toMatchObject({ status: "requires-idempotency-key" });
+  });
+
+  it("replays the same idempotent response and rejects a conflicting context", async () => {
+    const key = `idem-${Date.now()}`;
+    const signatureA = signCommandContext({ userId: "user-a", workspaceId: "workspace-a" }, secret);
+    const first = await prepare({ "x-command-user": "user-a", "x-workspace-id": "workspace-a", "x-command-context-signature": signatureA, "idempotency-key": key });
+    const replay = await prepare({ "x-command-user": "user-a", "x-workspace-id": "workspace-a", "x-command-context-signature": signatureA, "idempotency-key": key });
+    expect(first.status).toBe(202);
+    expect(replay.status).toBe(200);
+    await expect(replay.json()).resolves.toMatchObject({ status: "verified-pending", userId: "user-a", workspaceId: "workspace-a" });
+
+    const signatureB = signCommandContext({ userId: "user-a", workspaceId: "workspace-b" }, secret);
+    const conflict = await prepare({ "x-command-user": "user-a", "x-workspace-id": "workspace-b", "x-command-context-signature": signatureB, "idempotency-key": key });
+    expect(conflict.status).toBe(409);
+    await expect(conflict.json()).resolves.toMatchObject({ status: "idempotency-conflict" });
+  });
+
+  it("returns degraded readiness when payment is not configured", async () => {
+    const response = await fetch(`${baseUrl}/api/readiness`);
+    expect(response.status).toBe(503);
+    await expect(response.json()).resolves.toMatchObject({ ok: false, status: "degraded", checks: { commandContext: true, paymentWebhook: false } });
+  });
+
   it("returns 401 when the signed command context is absent", async () => {
     const response = await prepare();
     expect(response.status).toBe(401);

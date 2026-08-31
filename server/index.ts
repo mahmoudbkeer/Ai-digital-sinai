@@ -25,6 +25,7 @@ async function startServer() {
     next();
   });
   const requestWindows = new Map<string, { startedAt: number; count: number }>();
+  const commandIdempotency = new Map<string, { fingerprint: string; response: Record<string, unknown>; expiresAt: number }>();
   const allowBurst = (key: string, limit = 30) => {
     const now = Date.now();
     const current = requestWindows.get(key);
@@ -72,9 +73,24 @@ async function startServer() {
     const contextSecret = process.env.COMMAND_CONTEXT_SECRET ?? process.env.JWT_SECRET;
     if (!contextSecret) return res.status(503).json({ accepted: false, status: "unconfigured", message: "سياق الأوامر غير مهيأ؛ لم يتم تنفيذ أي معاملة." });
     if (!verifyCommandContext({ userId, workspaceId }, signature, contextSecret)) return res.status(403).json({ accepted: false, status: "invalid-context", message: "سياق المستخدم أو مساحة العمل غير صالح." });
-    return res.status(202).json({ accepted: true, status: "verified-pending", sectorId, moduleId, operationId, userId, workspaceId, message: "تم التحقق من سياق الأمر؛ التنفيذ الإنتاجي ما زال متوقفاً حتى ربط العملية وقاعدة البيانات وسجل التدقيق." });
+    const idempotencyKey = req.header("idempotency-key") ?? "";
+    if (!/^[A-Za-z0-9._:-]{8,200}$/.test(idempotencyKey)) return res.status(428).json({ accepted: false, status: "requires-idempotency-key", message: "يلزم مفتاح Idempotency صالح قبل تجهيز أمر حساس." });
+    const fingerprint = [userId, workspaceId, sectorId, moduleId, operationId].join("|");
+    const previous = commandIdempotency.get(idempotencyKey);
+    if (previous && previous.expiresAt > Date.now()) {
+      if (previous.fingerprint !== fingerprint) return res.status(409).json({ accepted: false, status: "idempotency-conflict", message: "مفتاح Idempotency مستخدم مع سياق أو أمر مختلف." });
+      return res.status(200).json(previous.response);
+    }
+    const response = { accepted: true, status: "verified-pending", sectorId, moduleId, operationId, userId, workspaceId, message: "تم التحقق من سياق الأمر؛ التنفيذ الإنتاجي ما زال متوقفاً حتى ربط العملية وقاعدة البيانات وسجل التدقيق." };
+    commandIdempotency.set(idempotencyKey, { fingerprint, response, expiresAt: Date.now() + 10 * 60_000 });
+    return res.status(202).json(response);
   });
   app.get("/api/health", (_req, res) => res.json({ ok: true, service: "ai-digital-sinai-web", timestamp: new Date().toISOString() }));
+  app.get("/api/readiness", (_req, res) => {
+    const checks = { commandContext: Boolean(process.env.COMMAND_CONTEXT_SECRET ?? process.env.JWT_SECRET), paymentWebhook: Boolean(process.env.PAYMENT_WEBHOOK_SECRET) };
+    const ready = Object.values(checks).every(Boolean);
+    return res.status(ready ? 200 : 503).json({ ok: ready, status: ready ? "ready" : "degraded", checks, message: ready ? "الخدمات الأساسية مهيأة." : "الخدمات الأساسية غير مهيأة بالكامل؛ لم يتم تفعيل أي معاملة تلقائياً." });
+  });
   app.get("/api/observability", (_req, res) => res.json({ status: "ok", runtime: "node", uptimeSeconds: Math.floor(process.uptime()), version: process.env.npm_package_version ?? "1.0.0" }));
   app.get("/api/app-data", (_req, res) => res.json({
     mode: "app",
