@@ -12,6 +12,7 @@ const tabs = [
 type TabId = (typeof tabs)[number]["id"];
 type InstallPromptEvent = Event & { prompt: () => Promise<void>; userChoice: Promise<{ outcome: "accepted" | "dismissed" }> };
 type RoadmapItem = { id: string; phase: string; title: string; status: "ready" | "requires-setup" | "deferred"; detail: string };
+type ServiceState = { health: "loading" | "ok" | "error"; readiness: "loading" | "ready" | "degraded"; observability: "loading" | "ok" | "error"; uptimeSeconds: number | null };
 
 export default function MobileApp() {
   const [tab, setTab] = useState<TabId>("home");
@@ -23,6 +24,7 @@ export default function MobileApp() {
   const [activeModule, setActiveModule] = useState<SectorModule | null>(null);
   const [selectedOperation, setSelectedOperation] = useState<Operation | null>(null);
   const [commandMessage, setCommandMessage] = useState("");
+  const [serviceState, setServiceState] = useState<ServiceState>({ health: "loading", readiness: "loading", observability: "loading", uptimeSeconds: null });
 
   const loadApi = () => {
     setApiState("loading");
@@ -30,14 +32,22 @@ export default function MobileApp() {
     Promise.all([
       fetch("/api/health", { signal: controller.signal }),
       fetch("/api/app-data", { signal: controller.signal }),
-    ]).then(async ([health, appData]) => {
+      fetch("/api/readiness", { signal: controller.signal }),
+      fetch("/api/observability", { signal: controller.signal }),
+    ]).then(async ([health, appData, readiness, observability]) => {
       if (!health.ok || !appData.ok) throw new Error("api check failed");
       const payload = await appData.json() as { businessData?: string; roadmap?: RoadmapItem[] };
+      const readinessPayload = await readiness.json() as { status?: "ready" | "degraded" };
+      const observabilityPayload = await observability.json() as { uptimeSeconds?: number };
       setDataMode(payload.businessData === "connected" ? "connected" : "not-connected");
       setRoadmap(payload.roadmap ?? []);
+      setServiceState({ health: "ok", readiness: readinessPayload.status ?? (readiness.ok ? "ready" : "degraded"), observability: observability.ok ? "ok" : "error", uptimeSeconds: observabilityPayload.uptimeSeconds ?? null });
       setApiState("ready");
     }).catch((error: unknown) => {
-      if ((error as { name?: string }).name !== "AbortError") setApiState("error");
+      if ((error as { name?: string }).name !== "AbortError") {
+        setApiState("error");
+        setServiceState((current) => ({ ...current, health: "error", observability: "error" }));
+      }
     });
     return () => controller.abort();
   };
@@ -66,9 +76,15 @@ export default function MobileApp() {
     if (!activeSector || !activeModule) return;
     setCommandMessage("جارٍ تجهيز الأمر والتحقق من مدخلاته...");
     try {
-      const response = await fetch("/api/commands/prepare", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sectorId: activeSector.id, moduleId: activeModule.id, operationId: operation.id }) });
-      const result = await response.json() as { message?: string };
-      setCommandMessage(result.message ?? "تم استقبال الأمر دون تنفيذ إجراء حساس.");
+      const idempotencyKey = `cmd-${Date.now()}-${window.crypto?.randomUUID?.() ?? Math.random().toString(36).slice(2)}`;
+      const response = await fetch("/api/commands/prepare", { method: "POST", headers: { "Content-Type": "application/json", "Idempotency-Key": idempotencyKey }, body: JSON.stringify({ sectorId: activeSector.id, moduleId: activeModule.id, operationId: operation.id }) });
+      const result = await response.json() as { message?: string; status?: string; requestId?: string };
+      if (response.status === 401) setCommandMessage("يتطلب هذا الأمر تسجيل الدخول وسياق مساحة عمل مصادقاً عليه.");
+      else if (response.status === 428) setCommandMessage("تم رفض الأمر: يلزم مفتاح حماية فريد، وقد أرسله التطبيق تلقائياً عند المحاولة.");
+      else if (response.status === 403) setCommandMessage("تم رفض سياق الأمر أمنياً؛ لم يتم تنفيذ أي تغيير.");
+      else if (response.status === 409) setCommandMessage("تم منع التكرار: مفتاح الأمر مرتبط بسياق مختلف.");
+      else if (response.status === 503) setCommandMessage("الخدمة غير مهيأة بعد؛ لم يتم تنفيذ أي معاملة.");
+      else setCommandMessage(result.message ?? `حالة الخادم: ${result.status ?? response.status}.`);
     } catch {
       setCommandMessage("تعذر الوصول إلى مركز الأوامر. أعد المحاولة بعد عودة الاتصال.");
     }
@@ -84,6 +100,7 @@ export default function MobileApp() {
         <div className="mobile-section-heading"><div><small>نقطة البداية</small><h2>ماذا تريد أن تنجز؟</h2></div><button onClick={() => go("market")}>عرض الكل</button></div>
         <div className="mobile-action-grid"><button onClick={() => go("market")} aria-label="اكتشف السوق، خدمات ومنتجات محلية"><Search size={19} /><b>اكتشف السوق</b><small>خدمات ومنتجات محلية</small></button><button onClick={() => go("work")} aria-label="أدر عملك، طلبات ومساحة تشغيل"><LayoutDashboard size={19} /><b>أدر عملك</b><small>طلبات ومساحة تشغيل</small></button></div>
         <div className={`mobile-trust-note api-${apiState}`}>{apiState === "loading" ? "جارٍ التحقق من اتصال التطبيق بالخادم..." : apiState === "ready" ? (dataMode === "connected" ? "التطبيق متصل بالخادم وبيانات مساحة العمل متاحة." : "التطبيق متصل بالخادم، وبيانات مساحة العمل بانتظار الربط الإنتاجي.") : <><span>تعذر الاتصال بالخادم حالياً.</span><button onClick={loadApi}>إعادة المحاولة</button></>}</div>
+        <section className="mobile-readiness-card" aria-label="حالة الخدمات"><div><small>لوحة الثقة التشغيلية</small><h2>حالة المنصة الآن</h2></div><div className="mobile-readiness-grid"><span><b>الخدمة</b><strong className={`readiness-${serviceState.health}`}>{serviceState.health === "ok" ? "تعمل" : serviceState.health === "loading" ? "فحص" : "خطأ"}</strong></span><span><b>الجاهزية</b><strong className={`readiness-${serviceState.readiness}`}>{serviceState.readiness === "ready" ? "جاهزة" : serviceState.readiness === "loading" ? "فحص" : "تحتاج إعداداً"}</strong></span><span><b>التتبع</b><strong className={`readiness-${serviceState.observability}`}>{serviceState.observability === "ok" ? "نشط" : serviceState.observability === "loading" ? "فحص" : "متوقف"}</strong></span></div><p>{serviceState.readiness === "ready" ? "الاعتماديات الأساسية مهيأة." : "المنصة حية، لكن بعض الاعتماديات لم تُربط بعد؛ لا توجد تسوية تلقائية."}{serviceState.uptimeSeconds !== null ? ` · مدة التشغيل ${serviceState.uptimeSeconds} ث` : ""}</p></section>
         <section className="mobile-plan-card"><small>خارطة التنفيذ الاحترافية</small><h2>من الفكرة إلى الإصدار</h2>{roadmap.length ? roadmap.map((item) => <div key={item.id}><b>{item.phase}</b><span><strong>{item.title}</strong><small>{item.status === "ready" ? "جاهز" : item.status === "requires-setup" ? "يتطلب إعداداً" : "مؤجل"} · {item.detail}</small></span></div>) : <div><b>—</b><span>جارٍ تحميل خارطة التنفيذ...</span></div>}</section>
       </>}
       {tab === "market" && <><div className="mobile-page-title"><small>دليل السوق</small><h1>اكتشف ما حولك.</h1><p>كتالوج الخدمات والمنتجات المحلية سيظهر هنا بعد الربط بالبيانات.</p></div><div className="mobile-chip-row"><span>خدمات</span><span>منتجات</span><span>مطاعم</span><span>وظائف</span><span>عقارات</span></div><div className="mobile-empty"><Search size={22} /><b>السوق في انتظار أول نشر</b><span>لن نعرض بطاقات أو تقييمات تجريبية. سجّل الدخول لبدء النشر الحقيقي.</span><button onClick={login}>تسجيل الدخول ←</button></div></>}
