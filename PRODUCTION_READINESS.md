@@ -54,7 +54,7 @@ curl -i http://127.0.0.1:3000/api/readiness
 
 ## V5.1 verification addendum
 
-الـbaseline المعتمد لهذا التدقيق هو `7e3fbe9c559fd4f29324d52d1e4afdbe91b1ba57`، وليس `38d8f52`. في هذه الجولة أصبح `pnpm test:load` self-contained؛ يبدأ خادمًا محليًا مع test-only SQLite bypass عند غياب `BASE_URL`، ويسجل p50/p95/p99. كما أضيف `pnpm test:security` إلى Quality Gate لفحص الأسرار المتتبعة، `.env.example`، security headers، request ID، وhealth/readiness contract.
+الـbaseline المعتمد لهذا التدقيق هو `235d17c69be44f4b85d2fe0f406885397fc3cf35`، وليس `38d8f52`. في هذه الجولة أصبح `pnpm test:load` self-contained؛ يبدأ خادمًا محليًا مع test-only SQLite bypass عند غياب `BASE_URL`، ويسجل p50/p95/p99. كما أضيف `pnpm test:security` إلى Quality Gate لفحص الأسرار المتتبعة، `.env.example`، security headers، request ID، وhealth/readiness contract.
 
 النتيجة المحلية المثبتة: `pnpm check` و`pnpm test` (37 اختبارًا) و`pnpm build` و`pnpm test:e2e` و`pnpm test:smoke` و`pnpm test:load` و`pnpm test:security` كلها **PASS**. نتيجة load هي 100 طلبًا، concurrency 10، failures 0، p50 5ms، p95 16ms، p99 22ms. هذه نتيجة local verification وليست staging load test.
 

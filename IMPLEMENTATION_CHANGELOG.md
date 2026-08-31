@@ -1,6 +1,6 @@
 # Implementation Changelog — V5.1 Verification Hardening
 
-## 31 أغسطس 2026 — فوق baseline `7e3fbe9`
+## 31 أغسطس 2026 — فوق baseline `235d17c`
 
 تم تنفيذ دفعة صغيرة عالية العائد دون إعادة بناء المشروع أو تكرار الميزات الموجودة. أُصلح `scripts/load-smoke.mjs` ليبدأ خادم production المحلي تلقائيًا عندما لا يمرر المستخدم `BASE_URL`، مع test-only SQLite bypass صريح، health wait، قياس p50/p95/p99، وإغلاق آمن للخادم. بذلك أصبح `pnpm test:load` أمرًا مستقلًا قابلًا للتشغيل في CI أو محليًا.
 
