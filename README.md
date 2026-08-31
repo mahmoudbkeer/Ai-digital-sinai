@@ -10,6 +10,10 @@
 
 يتطلب المشروع Node.js 22 وpnpm 10. بعد تثبيت الاعتماديات شغّل `pnpm install --frozen-lockfile`، ثم `pnpm dev` لتشغيل Express وVite معاً. للفحوص استخدم `pnpm check` و`pnpm test` و`pnpm build`، ويمكن تشغيل `pnpm test:e2e` و`pnpm test:smoke` لفحوص المتصفح والـAPI.
 
+## فحص Smoke والبيئة
+
+يشغل `pnpm test:smoke` فحصاً سريعاً للصحة و`app-data` وواجهة HTML. عند عدم تمرير `BASE_URL`، يبني السكربت خادم إنتاج مؤقتاً على منفذ محلي ويغلقه بعد الفحص. لا يحتاج الفحص إلى أسرار أو قاعدة بيانات أو تسجيل دخول؛ وإذا كان الخادم يعمل مسبقاً فاستخدم `BASE_URL=http://127.0.0.1:3000 pnpm test:smoke` لتوجيهه إلى ذلك الخادم. يستخدم Playwright قيمة `BASE_URL` عند تمريرها، وإلا يعتمد عنوان التطوير المحلي الافتراضي.
+
 ## الجودة والحوكمة
 
 يحتوي المستودع على GitHub Actions في `.github/workflows/quality.yml` لتشغيل TypeScript والاختبارات الوحدوية والبناء عند كل push أو Pull Request إلى `main`. إعدادات حماية الفرع المقترحة موثقة في `.github/BRANCH_PROTECTION.md`، ولا تُفرض تلقائياً على حساب GitHub.

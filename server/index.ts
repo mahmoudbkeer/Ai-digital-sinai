@@ -1,10 +1,12 @@
 import express from "express";
 import { createServer } from "http";
+import { randomUUID } from "node:crypto";
 import path from "path";
 import { fileURLToPath } from "url";
 import { verifyWebhookSignature } from "./payment";
 import { isValidCommand } from "./commandPolicy";
 import { verifyCommandContext } from "./commandAuth";
+import { createSafeErrorLog } from "./observability";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -12,6 +14,16 @@ const __dirname = path.dirname(__filename);
 async function startServer() {
   const app = express();
   const server = createServer(app);
+  app.use((req, res, next) => {
+    const incoming = req.header("x-request-id");
+    const requestId = incoming && /^[A-Za-z0-9._-]{1,100}$/.test(incoming) ? incoming : randomUUID();
+    const startedAt = Date.now();
+    res.setHeader("X-Request-ID", requestId);
+    res.on("finish", () => {
+      console.log(JSON.stringify({ event: "http_request", requestId, method: req.method, path: req.path, status: res.statusCode, durationMs: Date.now() - startedAt }));
+    });
+    next();
+  });
   const requestWindows = new Map<string, { startedAt: number; count: number }>();
   const allowBurst = (key: string, limit = 30) => {
     const now = Date.now();
@@ -41,6 +53,10 @@ async function startServer() {
     res.setHeader("X-Content-Type-Options", "nosniff");
     res.setHeader("X-Frame-Options", "DENY");
     res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+    if (process.env.NODE_ENV === "production") {
+      res.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
+      res.setHeader("Content-Security-Policy", "default-src 'self'; base-uri 'self'; frame-ancestors 'none'; object-src 'none'; img-src 'self' data: https:; font-src 'self' data: https:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self' https:; form-action 'self'");
+    }
     next();
   });
   app.use(express.json({ limit: "128kb" }));
@@ -74,6 +90,15 @@ async function startServer() {
     ],
   }));
   app.use(express.static(staticPath));
+
+  app.use((error: unknown, req: express.Request, res: express.Response, _next: express.NextFunction) => {
+    const status = typeof error === "object" && error && "status" in error && typeof error.status === "number" ? error.status : 500;
+    const requestId = String(res.getHeader("X-Request-ID") ?? "unknown");
+    const message = error instanceof Error ? error.message : "Unhandled request error";
+    console.error(JSON.stringify(createSafeErrorLog({ requestId, method: req.method, path: req.path, status, error: message })));
+    if (res.headersSent) return;
+    res.status(status >= 400 && status < 600 ? status : 500).json({ ok: false, error: "internal-error", requestId });
+  });
 
   // Handle client-side routing - serve index.html for all routes
   app.get("*", (_req, res) => {

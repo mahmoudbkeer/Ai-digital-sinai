@@ -25,7 +25,7 @@
 
 ## نتائج الاعتماديات
 
-أظهر `pnpm audit --prod` في الفحص الحالي 71 تنبيهاً (منها 16 عالية و47 متوسطة و8 منخفضة) في تبعيات مباشرة أو غير مباشرة، ومن بينها `mdast-util-to-hast` و`lodash-es` و`follow-redirects` و`uuid` و`mermaid` و`dompurify` و`lodash`. لم يتم تحديثها تلقائياً داخل هذه الحزمة لأن ذلك قد يغيّر شجرة الاعتماديات أو سلوك العرض دون اختبار توافق. يحفظ GitHub Actions تقرير الفحص كـartifact ولا يخفيه، بينما تبقى بوابة البناء والاختبارات حاجبة. قبل الإنتاج، نفّذ تحديثاً مقيداً مع مراجعة lockfile ثم شغّل `pnpm check`, `pnpm test`, `pnpm test:e2e`, و`pnpm build`.
+أظهر `pnpm audit --prod` تحديثات مقترحة في تبعيات غير مباشرة، من بينها `mdast-util-to-hast` و`lodash-es` و`follow-redirects` و`uuid` و`mermaid` و`dompurify` و`lodash`. لم يتم تحديثها تلقائياً داخل هذه الحزمة لأن ذلك قد يغيّر شجرة الاعتماديات أو سلوك العرض دون اختبار توافق. قبل الإنتاج، نفّذ تحديثاً مقيداً مع مراجعة lockfile ثم شغّل `pnpm check`, `pnpm test`, `pnpm test:e2e`, و`pnpm build`.
 
 ## المخاطر المتبقية
 
