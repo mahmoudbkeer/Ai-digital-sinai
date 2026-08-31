@@ -38,3 +38,7 @@
 ## المخاطر المتبقية
 
 لم يعد business router مربوطاً بـSQLite synchronous فقط؛ بل يمر عبر `AsyncDataPlane` ويختار PostgreSQL عند ضبط `DATABASE_URL`. الخطر المتبقي هو عدم تشغيل PostgreSQL staging فعلي داخل هذه البيئة، إضافة إلى Redis للتحكم الموزع والqueues، object storage/file scanning، MFA، providers الخارجية، WAF، واختبار اختراق مستقل. لذلك حالة النظام **ليست Production Ready** حتى تُنفذ هذه الاعتماديات والاختبارات التشغيلية.
+
+## V6 security evidence
+
+تم التحقق من HSTS في production smoke، وCORS allowlist، CSP، security headers، request ID، secret scan، وMFA/TOTP server enforcement. Object Storage يرفض traversal ويصدر مفاتيح tenant-scoped فقط مع signed access عند تهيئة المزود. `pnpm audit --audit-level high` ما زال `FAILED` بسبب 56 vulnerability؛ لا يعتبر المشروع أمنيًا مكتملًا قبل تحديث lockfile/dependencies ومراجعة أثر التحديثات.

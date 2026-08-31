@@ -88,3 +88,13 @@ Production/offsite PostgreSQL evidence remains separate from this local staging 
 | MFA login enforcement | PASS | لا session بدون OTP صالح |
 | MFA disable authorization | PASS | `/auth/mfa/disable` يتطلب OTP صالحًا وaudit |
 | Device verification / recovery | REQUIRES_SETUP | لا provider خارجي أو recovery service مضبوط |
+
+## V6 execution update
+
+| المجال | الحالة | الدليل |
+|---|---|---|
+| Object Storage signed access | IMPLEMENTED | tenant-scoped upload/download signing، size/type validation، traversal rejection، اختبارات integrations |
+| MFA/TOTP | VERIFIED | setup/enable/disable وlogin enforcement، 40 اختبارًا محليًا |
+| PostgreSQL staging | VERIFIED | migration 1–4، schema، FK، composite tenant، ledger، rollback، critical API |
+| Dependency security audit | FAILED | `pnpm audit --audit-level high`: 56 vulnerabilities، منها 27 high و2 critical |
+| Secret scan | VERIFIED | لا مفاتيح private أو AWS-like keys متتبعة |

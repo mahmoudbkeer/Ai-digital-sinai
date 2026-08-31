@@ -13,7 +13,7 @@
 | Tenant Context | `x-tenant-id` + membership lookup + tenant-aware queries | IMPLEMENTED على SQLite وPostgreSQL عبر AsyncDataPlane |
 | RBAC/ABAC | Roles، permissions، `assertScope`، subscription entitlements، tool/policy checks للـAgents | IMPLEMENTED جزئياً |
 | Data plane | `AsyncDataPlane` فوق SQLite و`pg`، parameter binding، foreign keys، transactions، pooling | IMPLEMENTED |
-| Production DB adapter | `pg` Pool، health check، advisory-lock migration runner، PostgreSQL schema versions 1 و2 | IMPLEMENTED برمجياً؛ يحتاج staging verification |
+| Production DB adapter | `pg` Pool، health check، advisory-lock migration runner، PostgreSQL schema versions 1–4 | IMPLEMENTED برمجياً؛ يحتاج staging verification |
 | Business OS | Businesses، branches، customers، employees، CRM، suppliers، purchases، expenses، products، inventory، orders، POS، reports | IMPLEMENTED جزئياً |
 | Commerce | Marketplace catalog، cart، checkout، invoice، refund request، offers، reviews، favorites | IMPLEMENTED جزئياً؛ provider settlement خارجي |
 | Finance | Balanced journals، sale/cancellation/purchase/expense/POS payment، accounts per tenant | IMPLEMENTED جزئياً؛ لا توجد محاسبة شاملة لكل الحالات |
@@ -42,3 +42,7 @@ PostgreSQL، مزود الدفع، مزودات البريد/SMS/Push، vector e
 ## 7. حالة data plane والإنتاج
 
 مسارات المنصة وwebhook تستخدم الآن `server/dataPlane.ts`، وتختار PostgreSQL تلقائياً عندما يكون `DATABASE_URL` رابطاً صالحاً، مع انتظار migration قبل استقبال الطلبات. لا يُعد تبديل المتغير وحده دليلاً على الجاهزية: يجب تطبيق migrations على staging وتشغيل اختبارات العقد والتحقق من العزل والتوازن المالي. ما زالت Redis/queues وobject storage/CDN ومزودات الدفع والإشعارات وخدمات vector/embedding متطلبات خارجية قبل تصنيف الخدمة production-ready بالكامل.
+
+## V6 implementation note
+
+أضيفت هوية MFA/TOTP server-enforced عبر migration 4، وObjectStorageProvider يدعم tenant-scoped signed upload/download URLs مع منع traversal والتحقق من النوع والحجم. PostgreSQL staging يطبق migrations 1–4 داخل transaction مع critical-path API smoke. لا تعتبر هذه العقود بديلًا عن provider credentials أو production verification.

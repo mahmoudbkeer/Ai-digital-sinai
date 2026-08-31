@@ -50,3 +50,7 @@
 ## V5.4 — Server-enforced MFA/TOTP
 
 أضيفت وحدة `server/mfa.ts` بدون اعتماد خارجي لتوليد secrets وTOTP/otpauth URI والتحقق بزمن سماح محدود. أضيف migration 0004 لمساري SQLite وPostgreSQL، وتم فرض OTP قبل إنشاء session عند تفعيل MFA، مع audit events للتمكين والتعطيل. أضيف اختبار adversarial يثبت أن login بلا OTP مرفوض وأن OTP الصحيح مقبول.
+
+## V6 — Object Storage and security gate hardening
+
+تم تنفيذ signed Object Storage access مع tenant prefix، منع traversal، signed upload/download URLs، وتغطية اختبارية. أضيف HSTS verification إلى security smoke. تم تشغيل dependency audit فعليًا؛ النتيجة FAILED بسبب 56 vulnerability، منها 27 high و2 critical، وتم رفض auto-fix لأنه ولّد overrides غير مدعومة في إعداد pnpm الحالي. لا يتم إخفاء النتيجة.

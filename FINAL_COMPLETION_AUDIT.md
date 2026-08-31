@@ -113,3 +113,7 @@
 ## V5.4 identity hardening evidence
 
 تم تنفيذ MFA/TOTP server-enforced: إنشاء secret، إصدار `otpauth://` URI، تفعيل لا يتم إلا بعد OTP صحيح، منع login بعد التفعيل دون OTP أو عند OTP خاطئ، وتعطيل MFA يتطلب OTP صالحًا. تمت إضافة audit events ومسار migration 4 لكل من SQLite وPostgreSQL. نجح اختبار MFA الجديد، وأصبح إجمالي suite المحلي 39 اختبارًا ناجحًا. تم تحديث PostgreSQL staging إلى migration 4 ونجحت فحوص schema وcritical API paths.
+
+## V6 execution update
+
+تم تنفيذ دفعة V6 قابلة للإثبات: MFA/TOTP server-enforcement، PostgreSQL migration 4، critical-path staging API، وObject Storage signed URL contract مع tenant-scoped keys ومنع path traversal. أضيف اختبار HSTS إلى security smoke في production mode. فحص `pnpm audit --audit-level high` فشل بشكل صريح بوجود 56 vulnerability (27 high و2 critical)، لذلك لم يتم تصنيفه PASS ولم تُستخدم ترقيات آلية غير متوافقة.

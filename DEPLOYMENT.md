@@ -35,7 +35,7 @@ NODE_ENV=production pnpm start
 
 ## الهجرة
 
-نسخ SQLite الموثقة هي `migrations/0001_core.sql` و`migrations/0002_business_os.sql`، ونسخ PostgreSQL المقابلة هي `migrations/postgres/0001_core.sql` و`migrations/postgres/0002_business_os.sql`. يقوم `server/postgres.ts` باستخدام advisory transaction lock ويطبق كل إصدار غير موجود في `schema_migrations` داخل transaction، ثم يزرع خطط الاشتراك والـentitlements بشكل idempotent. في بيئة production يجب أخذ backup، تطبيق migration في staging، تشغيل اختبارات العزل والدفتر، ثم الترقية التدريجية. لا تُعدّل migration مطبقة؛ أضف migration جديدة. ملفات rollback موجودة للإجراءات المنضبطة فقط ولا تُشغّل على إنتاج دون backup واختبار استعادة.
+نسخ SQLite الموثقة هي `migrations/0001_core.sql` إلى `migrations/0004_mfa.sql`، ونسخ PostgreSQL المقابلة هي `migrations/postgres/0001_core.sql` إلى `migrations/postgres/0004_mfa.sql`. يقوم `server/postgres.ts` باستخدام advisory transaction lock ويطبق كل إصدار غير موجود في `schema_migrations` داخل transaction، ثم يزرع خطط الاشتراك والـentitlements بشكل idempotent. في بيئة production يجب أخذ backup، تطبيق migration في staging، تشغيل اختبارات العزل والدفتر، ثم الترقية التدريجية. لا تُعدّل migration مطبقة؛ أضف migration جديدة. ملفات rollback موجودة للإجراءات المنضبطة فقط ولا تُشغّل على إنتاج دون backup واختبار استعادة.
 
 ## Backup وRestore
 
@@ -65,3 +65,7 @@ DATABASE_URL=postgresql://... pnpm restore /secure/backups/ai-digital-sinai-<tim
 | Email/SMS/Push | REQUIRES_SETUP |
 | Automated backup scheduler | يحتاج scheduler خارج العملية |
 | Restore drill | سكربت منفذ، اختبار production يتطلب backup فعلي |
+
+## V6 release evidence
+
+Migration 4 يضيف MFA/TOTP، و`pnpm test:staging` يثبت PostgreSQL migrations 1–4 والقيود والتوازن والrollback على staging حقيقي. استخدم `pnpm test:staging:api` بعد `pnpm build` لاختبار identity والعزل والمخزون والطلبات وpayment boundary. Object Storage يحتاج endpoint/bucket/access/secret، وعند توفرها تنتج المنصة signed tenant-scoped URLs؛ بدونها الحالة `REQUIRES_SETUP`. نتيجة `pnpm audit --audit-level high` الحالية `FAILED` وتمنع release security gate حتى معالجة 56 vulnerability.

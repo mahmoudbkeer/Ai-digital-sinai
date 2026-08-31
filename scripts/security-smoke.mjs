@@ -35,6 +35,8 @@ try {
   for (const header of ["x-content-type-options", "x-frame-options", "referrer-policy", "content-security-policy", "x-request-id"]) {
     assert(`security header ${header}`, Boolean(health.headers.get(header)), "header present");
   }
+  if (!process.env.BASE_URL)
+    assert("production HSTS", Boolean(health.headers.get("strict-transport-security")), "strict transport security header present");
   const readiness = await fetch(new URL("/api/readiness", baseUrl));
   assert("readiness endpoint", [200, 503].includes(readiness.status), `HTTP ${readiness.status} is an allowed readiness result`);
   const body = await readiness.json();

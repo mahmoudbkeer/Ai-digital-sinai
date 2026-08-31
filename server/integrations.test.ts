@@ -70,6 +70,17 @@ describe("runtime integration contracts", () => {
     expect(await redis.get("key")).toBeNull();
   });
 
+  it("creates tenant-scoped signed storage URLs and rejects traversal", async () => {
+    vi.stubEnv("NODE_ENV", "staging");
+    vi.stubEnv("OBJECT_STORAGE_ENDPOINT", "https://objects.example.test");
+    vi.stubEnv("OBJECT_STORAGE_BUCKET", "sinai");
+    vi.stubEnv("OBJECT_STORAGE_ACCESS_KEY", "access");
+    vi.stubEnv("OBJECT_STORAGE_SECRET_KEY", "secret");
+    const storage = resolveObjectStorageProvider();
+    await expect(storage.createUploadIntent({ tenantId: "tenant-a", objectKey: "docs/file.pdf", contentType: "application/pdf", sizeBytes: 100 })).resolves.toMatchObject({ status: "READY", objectKey: "tenant-a/docs/file.pdf", uploadUrl: expect.stringContaining("signature=") });
+    await expect(storage.createDownloadUrl({ tenantId: "tenant-a", objectKey: "../tenant-b/private.pdf" })).resolves.toMatchObject({ status: "REQUIRES_SETUP" });
+  });
+
   it("reports unconfigured AI gateway without fabricating a result", async () => {
     vi.stubEnv("AI_PROVIDER_API_KEY", "");
     vi.stubEnv("AI_PROVIDER_API_URL", "");

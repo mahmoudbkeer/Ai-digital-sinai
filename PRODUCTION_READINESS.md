@@ -79,3 +79,9 @@ curl -i http://127.0.0.1:3000/api/readiness
 ## V5.4 identity hardening
 
 تم تنفيذ server-side MFA/TOTP عبر migration 4 في SQLite وPostgreSQL، مع setup/enable/disable endpoints، OTP validation، منع إنشاء session قبل OTP الصحيح، وaudit events. اختبار `server/platform.test.ts` يثبت enrollment، رفض login بلا OTP، وقبول login بـOTP صحيح. النتيجة: MFA core `PASS` محليًا؛ مزود البريد/OTP الخارجي وdevice verification وrecovery production policy ما زالت `REQUIRES_SETUP`.
+
+## V6 execution update
+
+تم التحقق من MFA/TOTP وPostgreSQL migrations 1–4 وcritical API paths على PostgreSQL حقيقي محلي. تم توسيع Object Storage contract ليشمل tenant-scoped signed upload/download URLs، منع traversal، والتحقق من الحجم والنوع. تم توسيع security smoke للتحقق من HSTS في production mode.
+
+نتيجة `pnpm audit --audit-level high` الحالية **FAILED**: 56 ثغرة، منها 27 high و2 critical. لذلك لا يوجد ادعاء أمني كامل، وتحتاج dependencies إلى معالجة واعتماد lockfile متوافق قبل Release Candidate. secret scan الحالي **VERIFIED** بلا مفاتيح خاصة أو AWS-like keys متتبعة.

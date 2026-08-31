@@ -1,6 +1,7 @@
 import { isPostgresUrl } from "./postgres";
 import { connect as connectTls } from "node:tls";
 import { connect as connectTcp, type Socket } from "node:net";
+import { createHmac } from "node:crypto";
 
 export type IntegrationStatus = "configured" | "requires_setup" | "blocked";
 
@@ -95,6 +96,7 @@ export type ObjectStorageProvider = {
     objectKey?: string;
     uploadUrl?: string;
   }>;
+  createDownloadUrl(input: { tenantId: string; objectKey: string; expiresInSeconds?: number }): Promise<{ status: "READY" | "REQUIRES_SETUP"; url?: string }>;
 };
 
 export function resolveObjectStorageProvider(): ObjectStorageProvider {
@@ -102,6 +104,18 @@ export function resolveObjectStorageProvider(): ObjectStorageProvider {
   const maxBytes = Number(
     process.env.OBJECT_STORAGE_MAX_BYTES ?? 10 * 1024 * 1024
   );
+  const endpoint = process.env.OBJECT_STORAGE_ENDPOINT?.replace(/\/$/, "");
+  const bucket = process.env.OBJECT_STORAGE_BUCKET;
+  const secret = process.env.OBJECT_STORAGE_SECRET_KEY;
+  const scopedKey = (tenantId: string, objectKey: string) => {
+    if (!/^[A-Za-z0-9_-]{8,100}$/.test(tenantId) || !/^[A-Za-z0-9][A-Za-z0-9._/-]{0,240}$/.test(objectKey) || objectKey.includes("..")) return null;
+    return `${tenantId}/${objectKey}`;
+  };
+  const signedUrl = (key: string, expiresInSeconds: number) => {
+    const expires = Math.floor(Date.now() / 1000) + Math.min(Math.max(expiresInSeconds, 60), 3600);
+    const signature = createHmac("sha256", secret ?? "").update(`${bucket}/${key}:${expires}`).digest("hex");
+    return `${endpoint}/${bucket}/${key}?expires=${expires}&signature=${signature}`;
+  };
   return {
     status: readiness.objectStorage,
     validateUpload(input) {
@@ -117,13 +131,19 @@ export function resolveObjectStorageProvider(): ObjectStorageProvider {
     },
     async createUploadIntent(input) {
       const validation = this.validateUpload({ ...input });
-      if (!validation.ok || readiness.objectStorage !== "configured")
+      const key = scopedKey(input.tenantId, input.objectKey);
+      if (!validation.ok || !key || readiness.objectStorage !== "configured")
         return { status: "REQUIRES_SETUP", objectKey: input.objectKey };
       return {
         status: "READY",
-        objectKey: `${input.tenantId}/${input.objectKey}`,
-        uploadUrl: undefined,
+        objectKey: key,
+        uploadUrl: signedUrl(key, 900),
       };
+    },
+    async createDownloadUrl(input) {
+      const key = scopedKey(input.tenantId, input.objectKey);
+      if (!key || readiness.objectStorage !== "configured") return { status: "REQUIRES_SETUP" };
+      return { status: "READY", url: signedUrl(key, input.expiresInSeconds ?? 300) };
     },
   };
 }
