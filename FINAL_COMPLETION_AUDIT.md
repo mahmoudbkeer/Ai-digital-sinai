@@ -121,3 +121,5 @@
 ## V6 weighted matrix
 
 المصفوفة الشاملة للحالات والنسب والأدلة والفجوات موجودة في [`V6_FINAL_COMPLETION_MATRIX.md`](./V6_FINAL_COMPLETION_MATRIX.md). التقدير weighted التقريبي الحالي 67%، والتصنيف الصحيح `RELEASE CANDIDATE` مع بقاء dependency audit في حالة `FAILED`.
+
+**Current verified commit:** `0e41219faad07ec7518d3102176422857ce1f335`

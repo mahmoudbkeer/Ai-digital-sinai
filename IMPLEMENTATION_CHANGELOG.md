@@ -54,3 +54,5 @@
 ## V6 — Object Storage and security gate hardening
 
 تم تنفيذ signed Object Storage access مع tenant prefix، منع traversal، signed upload/download URLs، وتغطية اختبارية. أضيف HSTS verification إلى security smoke. تم تشغيل dependency audit فعليًا؛ النتيجة FAILED بسبب 56 vulnerability، منها 27 high و2 critical، وتم رفض auto-fix لأنه ولّد overrides غير مدعومة في إعداد pnpm الحالي. لا يتم إخفاء النتيجة.
+
+**Current verified commit:** `0e41219faad07ec7518d3102176422857ce1f335`

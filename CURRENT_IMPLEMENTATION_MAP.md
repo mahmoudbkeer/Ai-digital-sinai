@@ -98,3 +98,5 @@ Production/offsite PostgreSQL evidence remains separate from this local staging 
 | PostgreSQL staging | VERIFIED | migration 1–4، schema، FK، composite tenant، ledger، rollback، critical API |
 | Dependency security audit | FAILED | `pnpm audit --audit-level high`: 56 vulnerabilities، منها 27 high و2 critical |
 | Secret scan | VERIFIED | لا مفاتيح private أو AWS-like keys متتبعة |
+
+**Current verified commit:** `0e41219faad07ec7518d3102176422857ce1f335`

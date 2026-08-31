@@ -30,3 +30,5 @@ The audit must not use `COMPLETE`, `100%`, or `PRODUCTION READY` until external 
 ## References
 
 [1]: https://github.com/mahmoudbkeer/Ai-digital-sinai "AI DIGITAL SINAI GitHub repository"
+
+**Current verified commit:** `0e41219faad07ec7518d3102176422857ce1f335`

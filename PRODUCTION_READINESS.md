@@ -85,3 +85,5 @@ curl -i http://127.0.0.1:3000/api/readiness
 تم التحقق من MFA/TOTP وPostgreSQL migrations 1–4 وcritical API paths على PostgreSQL حقيقي محلي. تم توسيع Object Storage contract ليشمل tenant-scoped signed upload/download URLs، منع traversal، والتحقق من الحجم والنوع. تم توسيع security smoke للتحقق من HSTS في production mode.
 
 نتيجة `pnpm audit --audit-level high` الحالية **FAILED**: 56 ثغرة، منها 27 high و2 critical. لذلك لا يوجد ادعاء أمني كامل، وتحتاج dependencies إلى معالجة واعتماد lockfile متوافق قبل Release Candidate. secret scan الحالي **VERIFIED** بلا مفاتيح خاصة أو AWS-like keys متتبعة.
+
+**Current verified commit:** `0e41219faad07ec7518d3102176422857ce1f335`
