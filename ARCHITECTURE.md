@@ -10,13 +10,13 @@
 |---|---|---|
 | HTTP | Express مع JSON limits وrequest IDs ومعالج أخطاء | IMPLEMENTED |
 | Identity | Users، scrypt password hashing، sessions ذات token hash، revoke، recovery token | IMPLEMENTED |
-| Tenant Context | `x-tenant-id` + membership lookup + tenant-aware queries | IMPLEMENTED على SQLite |
-| RBAC/ABAC | Roles، permissions، `assertScope`، tool/policy checks للـAgents | IMPLEMENTED جزئياً |
-| Data plane | SQLite عبر `node:sqlite`، schema bootstrap، foreign keys، transactions | IMPLEMENTED للتطوير والاختبارات |
-| Production DB adapter | `pg` Pool، health check، advisory-lock migration runner، PostgreSQL schema | REQUIRES_SETUP؛ business router ما زال sync/SQLite |
-| Business OS | Businesses، branches، customers، products، services، inventory، orders | IMPLEMENTED جزئياً |
-| Commerce | Marketplace catalog، cart، checkout، invoice، refund request | IMPLEMENTED جزئياً؛ provider settlement خارجي |
-| Finance | Balanced journals، sale/cancellation reversal، accounts per tenant | IMPLEMENTED جزئياً؛ لا توجد محاسبة شاملة لكل الحالات |
+| Tenant Context | `x-tenant-id` + membership lookup + tenant-aware queries | IMPLEMENTED على SQLite وPostgreSQL عبر AsyncDataPlane |
+| RBAC/ABAC | Roles، permissions، `assertScope`، subscription entitlements، tool/policy checks للـAgents | IMPLEMENTED جزئياً |
+| Data plane | `AsyncDataPlane` فوق SQLite و`pg`، parameter binding، foreign keys، transactions، pooling | IMPLEMENTED |
+| Production DB adapter | `pg` Pool، health check، advisory-lock migration runner، PostgreSQL schema versions 1 و2 | IMPLEMENTED برمجياً؛ يحتاج staging verification |
+| Business OS | Businesses، branches، customers، employees، CRM، suppliers، purchases، expenses، products، inventory، orders، POS، reports | IMPLEMENTED جزئياً |
+| Commerce | Marketplace catalog، cart، checkout، invoice، refund request، offers، reviews، favorites | IMPLEMENTED جزئياً؛ provider settlement خارجي |
+| Finance | Balanced journals، sale/cancellation/purchase/expense/POS payment، accounts per tenant | IMPLEMENTED جزئياً؛ لا توجد محاسبة شاملة لكل الحالات |
 | AI | Isolated requests، lexical tenant-scoped RAG fallback، agent policy preparation، usage schema | IMPLEMENTED جزئياً |
 | Logistics | Drivers، vehicles، deliveries، state machine، proof of delivery، events | IMPLEMENTED جزئياً |
 | Operations | Ads، Geo nearby، notifications abstraction، admin APIs، feature flags | IMPLEMENTED جزئياً |
@@ -39,6 +39,6 @@
 
 PostgreSQL، مزود الدفع، مزودات البريد/SMS/Push، vector embeddings، Redis، object storage/CDN، monitoring وsecrets manager وAndroid signing كلها adapters أو متطلبات تشغيل. لا توجد fake success؛ عدم وجود credential يعيد `REQUIRES_SETUP` أو يجعل readiness `degraded`.
 
-## 7. مسارات التوسع
+## 7. حالة data plane والإنتاج
 
-المسار الآمن للإنتاج هو توحيد repository layer على async SQL، تطبيق PostgreSQL migration، إضافة Redis للـrate limits/queues، إضافة object storage للملفات، ثم تشغيل provider contract tests قبل تحويل readiness إلى `ready`. لا يكفي تبديل `DATABASE_URL` وحده، لأن business router الحالي يعتمد على SQLite synchronous API.
+مسارات المنصة وwebhook تستخدم الآن `server/dataPlane.ts`، وتختار PostgreSQL تلقائياً عندما يكون `DATABASE_URL` رابطاً صالحاً، مع انتظار migration قبل استقبال الطلبات. لا يُعد تبديل المتغير وحده دليلاً على الجاهزية: يجب تطبيق migrations على staging وتشغيل اختبارات العقد والتحقق من العزل والتوازن المالي. ما زالت Redis/queues وobject storage/CDN ومزودات الدفع والإشعارات وخدمات vector/embedding متطلبات خارجية قبل تصنيف الخدمة production-ready بالكامل.

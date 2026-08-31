@@ -1,91 +1,99 @@
-# Final Completion Audit — V3 Professional Hardening
+# AI DIGITAL SINAI — Final Completion Audit
 
 **تاريخ التدقيق:** 31 أغسطس 2026
 **المستودع:** `mahmoudbkeer/Ai-digital-sinai`
-**خط الأساس:** `8e52dc9`
+**الفرع:** `main`
+**خط الأساس:** `38d8f52` — `Harden enterprise core for V3 operations`
 
 ## الحكم التنفيذي
 
-تم تنفيذ وتقوية نواة Enterprise Core داخل المستودع الحالي. لم تعد النسخة واجهة فقط؛ توجد قاعدة SQLite تشغيلية، هوية وجلسات، Tenant isolation، RBAC/ABAC، منتجات وخدمات وMarketplace catalog، Cart/Checkout، مخزون transaction-safe، Orders وstate machines، Ledger مزدوج، Invoice وcancellation reversal، اشتراكات server-controlled، Payment Intent صادق، Webhook replay protection، AI request isolation، lexical tenant-scoped RAG fallback، Agent policy preparation، Usage accounting schema، Deliveries وProof-of-Delivery، Notifications preferences/retry، Geo nearby، Ads budget checks، Admin controls، migrations، backups، CI quality gate، واختبارات تشغيلية.
+تم استكمال الجزء القابل للتنفيذ داخل المستودع من أعلى فجوة محددة في التدقيق السابق: أصبحت مسارات الأعمال وWebhook تمر عبر `AsyncDataPlane` موحدة، وتستخدم SQLite في التطوير والاختبار وPostgreSQL Pool عند ضبط `DATABASE_URL`. أضيفت migration version 2 ووحدات Business OS الأساسية، مع معاملات وقيود tenant وidempotency وقيود مالية متوازنة واختبارات تكاملية.
 
-> **الحكم المهني:** Core foundation منفذ وقابل للاختبار محلياً. Enterprise production completion غير متحقق بعد، ولا يجوز تصنيف النظام Production Ready قبل توصيل PostgreSQL business data plane ومزودات الدفع/الإشعارات/AI والتخزين وRedis وتنفيذ اختبارات التشغيل والأمن والاستعادة على staging حقيقي.
+> **الحكم المهني:** الحالة الحالية هي **Business Core Implemented / Production Verification Pending**. لا أُعلن `PRODUCTION READY` لأن PostgreSQL staging، Redis، Object Storage، مزودات الدفع والإشعارات والـAI، restore drill، load test، والاختبار الأمني المستقل لم تُنفذ داخل هذه البيئة أو لم تُربط بعد. لا توجد فجوة مخفية أو نجاحات وهمية في هذه البنود.
 
-## ما تم إنجازه في الجولة الحالية
+## التغييرات المنفذة في هذه الجولة
 
 | المجال | الدليل | الحالة |
 |---|---|---|
-| Subscription lifecycle | `POST /subscriptions`، `PATCH /subscription`، `POST /subscription/renew`، `PENDING_PAYMENT` للخطط المدفوعة | IMPLEMENTED جزئياً |
-| Logistics | `CREATED`، state machine، `delivery_proofs`، `/deliveries/:id/proof`، منع `DELIVERED` بلا proof | IMPLEMENTED جزئياً |
-| Admin | users/tenants status، audit feed، AI usage، feature flags | IMPLEMENTED جزئياً |
-| AI Agents | `ai_agent_runs`، policy، permissions، tenant scope، tool allowlist، `BLOCKED_POLICY` | PREPARE-ONLY |
-| AI Usage | `ai_usage` وendpoint idempotent لتسجيل model/tokens/latency/cost | IMPLEMENTED كـtelemetry boundary |
-| Notifications | channel preferences وretry limit 5 وحالات provider صادقة | IMPLEMENTED جزئياً |
-| Security middleware | headers، Permissions-Policy، production CSP/HSTS، CORS allowlist، OPTIONS policy | IMPLEMENTED جزئياً |
-| Dependencies | Express 5.2.1، nanoid 5.1.16، Recharts 3.10.1، streamdown 2.6.0، إزالة axios غير المستخدم | IMPLEMENTED |
-| Operations | `backup.mjs` و`restore.mjs`، SQLite safety copy، PostgreSQL pg_dump/pg_restore | IMPLEMENTED كأداة تشغيل |
-| CI | check/test/build/E2E/smoke/audit/secret scan | IMPLEMENTED |
-| Documentation | Architecture/Deployment/Security/Changelog | IMPLEMENTED |
+| PostgreSQL business data plane | `server/dataPlane.ts`، `server/index.ts`، `server/postgres.ts` | IMPLEMENTED برمجياً |
+| Startup migration gate | `ensureDataPlaneReady()` قبل إنشاء Express | IMPLEMENTED |
+| Migration version 2 | employees، suppliers، purchases، expenses، CRM، POS، offers | IMPLEMENTED |
+| Business OS | مسارات employees، customers/history، suppliers، purchases، expenses، reports | PARTIALLY_IMPLEMENTED |
+| Procurement/inventory | receiving يحدّث stock ويسجل movement ويقيد AP مع idempotency | IMPLEMENTED |
+| POS | open/list/close، cash movements، sale-to-order، payment-to-invoice، ledger | PARTIALLY_IMPLEMENTED |
+| CRM | customer history، interactions، tags، tenant scope | IMPLEMENTED |
+| Marketplace extensions | offers، reviews، favorites | PARTIALLY_IMPLEMENTED |
+| Reports | مبيعات، مصروفات، ربح، مخزون، عملاء، موظفون، فروع من DB | IMPLEMENTED |
+| Subscription entitlements | plans/entitlements seed وserver-side gate للتقارير والتحليلات | IMPLEMENTED |
+| Financial correctness | sale، cancellation، purchase، expense، POS payment journals | PARTIALLY_IMPLEMENTED |
+| Async correctness | إكمال `await` للـtransactions والجلسات والفواتير والقيود | IMPLEMENTED |
+| Documentation | README، ARCHITECTURE، DEPLOYMENT، SECURITY، CHANGELOG، READINESS | IMPLEMENTED |
 
-## الأساس المعماري
-
-نقطة الدخول `server/index.ts` تبني Express API وتخدم React/Vite، بينما `server/platform.ts` يحتوي المسارات الخادمية الحساسة. `server/database.ts` يشغل SQLite native مع foreign keys وtransactions وcomposite tenant constraints. `server/postgres.ts` يوفّر Pool وhealth check وmigration lock، لكن Business Logic الحالية synchronous/SQLite؛ لذلك تبديل `DATABASE_URL` وحده لا ينقل data plane إلى PostgreSQL.
-
-كل كيان تشغيلي يحمل `tenant_id` أو يرتبط بعلاقة tenant-aware. الاستعلامات الحساسة تستخدم tenant predicates، والعلاقات المركبة تستخدم `(tenant_id, id)` حيث يلزم. الجلسة لا تكفي وحدها؛ إذ تُتحقق عضوية المستخدم والدور والنطاق قبل تنفيذ العمليات.
-
-## الاختبارات والأدلة
+## نتائج الاختبارات المنفذة فعلياً
 
 | الفحص | النتيجة |
 |---|---|
 | `pnpm check` | PASS |
-| `pnpm test` | PASS — 6 ملفات / 27 اختباراً |
-| `pnpm build` | PASS |
-| `pnpm test:e2e` | PASS — 1 browser test |
-| `pnpm test:smoke` | PASS — 3 checks |
-| `pnpm audit --prod --audit-level=high` | PASS بعد ترقيات Express/nanoid/Recharts/streamdown وإزالة axios |
-| `git diff --check` | PASS |
-| Secret scan | PASS — لم تظهر أنماط مفاتيح معروفة |
-| `node scripts/backup.mjs` | PASS على SQLite persistent test file |
-| Express production startup | PASS بعد إصلاح `/{*splat}` |
+| `pnpm test` | PASS — 7 ملفات / 29 اختباراً |
+| `server/businessOs.test.ts` | PASS — دورة شراء ومخزون وCRM وPOS ومصروف ومراجعة ومفضلة وتقرير، ورفض entitlement |
+| Financial balance assertion | PASS محلياً — `SUM(debit_cents) = SUM(credit_cents)` للمستأجر المختبر |
+| Tenant scope regression | PASS محلياً ضمن اختبارات المنصة وBusiness OS |
+| Payment intent/webhook/replay | PASS ضمن الاختبارات الحالية، دون fake settlement |
+| PostgreSQL staging | BLOCKED_EXTERNAL_DEPENDENCY — لا يوجد `DATABASE_URL` staging قابل للوصول |
+| Security/pentest | لم يُنفذ اختبار اختراق مستقل؛ مراجعة الكود وquality gate فقط |
+| Backup/restore drill | لم يُنفذ على PostgreSQL staging؛ tooling موجود |
+| Load testing | لم يُنفذ داخل هذه الجولة |
+| Android/APK/signing | NOT_IMPLEMENTED / REQUIRES_SETUP |
 
-## مصفوفة الإكمال المستقلة
+## Final Audit Matrix
 
-| الوحدة | الحالة | النسبة التقديرية | الدليل | المتبقي |
-|---|---|---:|---|---|
-| Identity | PARTIAL | 70% | scrypt، sessions، revoke، lockout، reset token storage | MFA/OTP/device verification/email delivery |
-| Multi-Tenant | CORE IMPLEMENTED | 80% | membership، scoped queries، composite constraints، tests | كل الموارد على PostgreSQL وcoverage أوسع |
-| RBAC/ABAC | CORE IMPLEMENTED | 70% | role matrix، permission checks، admin/agent policies | مصفوفة كاملة لكل موارد المواصفة |
-| Business OS | PARTIAL | 50% | businesses/branches/products/customers/services | CRM/employees/suppliers/expenses/reports |
-| Marketplace | PARTIAL | 45% | catalog، products، services، categories، cart | jobs/real estate/food/offers/reviews/onboarding |
-| Commerce | PARTIAL | 60% | cart، atomic checkout، orders، invoice، cancellation reversal | taxes/discount policy/refund settlement الكامل |
-| Inventory | CORE IMPLEMENTED | 70% | movements، idempotency، negative guard، atomic decrement | purchases/transfers/variants/alerts |
-| POS | PARTIAL | 35% | order checkout وledger sale | sessions/receipts/cashier workflow |
-| Finance | CORE IMPLEMENTED | 55% | accounts، balanced journal، sale/reversal | full accounting cycles/tax/payment reconciliation |
-| Payments | PARTIAL | 40% | intent، provider contract، HMAC webhook، replay store | provider-specific create/capture/refund/settlement |
-| Subscriptions | PARTIAL | 60% | plans، trials، pending payment، cancel/renew routes | billing provider، entitlements enforcement، grace/webhook lifecycle |
-| Logistics | PARTIAL | 65% | drivers/vehicles/delivery states/events/proof | zones/dispatch/GPS/provider integration |
-| AI Search/RAG | FOUNDATION | 35% | scoped documents/chunks، lexical fallback | embeddings/vector provider/semantic ranking |
-| AI Advisor | NOT IMPLEMENTED | 10% | AI request/usage boundary فقط | data-backed insights/alerts/forecasting |
-| AI Marketing | NOT IMPLEMENTED | 10% | permission boundary فقط | campaigns/audience/generation/analytics |
-| Recommendation | NOT IMPLEMENTED | 10% | catalog/geo foundations | intent/history/quality ranking |
-| Forecasting | NOT IMPLEMENTED | 5% | KPI source فقط | validated model and evaluation |
-| AI Agents | FOUNDATION | 30% | policy/permissions/tool allowlist/blocking | provider execution/confirmation/rollback/audit of tools |
-| Advertising | PARTIAL | 25% | campaign/ad/event tables وbudget checks | creatives/billing/analytics/provider |
-| Analytics | FOUNDATION | 30% | DB-backed KPI، admin AI usage/audit | DAU/MAU/MRR/CAC/LTV/churn/retention |
-| Admin | PARTIAL | 55% | users/tenants/status/audit/flags/AI usage | Super Admin UI، policy/experiments/billing center |
-| Notifications | PARTIAL | 50% | in-app، preferences، retry abstraction | provider adapters/templates/queue delivery |
-| Security | CORE IMPLEMENTED | 75% | headers/CSP/CORS/HMAC/isolation/lockout/secret scan | pentest، WAF، Redis controls، CSP deployment review |
-| Mobile | FOUNDATION | 20% | PWA/App Mode وE2E | native Android/Expo/APK/signing/release |
-| PostgreSQL | ADAPTER ONLY | 30% | pool/health/migration lock/schema | async repository/data plane migration وstaging test |
-| Operations/DR | TOOLING | 45% | backup/restore scripts، deployment runbook | encrypted offsite backup، restore drill، scheduler/monitoring |
+| Module | Status | % | Evidence | Tests | Remaining |
+|---|---|---:|---|---|---|
+| PostgreSQL | IMPLEMENTED | 75% | AsyncDataPlane، Pool، migrations 1/2، lock، startup gate | check؛ SQLite integration | staging migration/contract test |
+| Identity | PARTIALLY_IMPLEMENTED | 75% | scrypt، sessions، recovery، lockout | auth/platform | MFA/OTP، device/email verification |
+| Multi-Tenant | PARTIALLY_IMPLEMENTED | 85% | tenant predicates، composite FKs، membership | isolation tests محلية | PostgreSQL matrix وfile isolation |
+| RBAC/ABAC | PARTIALLY_IMPLEMENTED | 75% | role matrix، assertScope، agent policy | command/platform | full resource matrix وprivilege fuzzing |
+| Business OS | PARTIALLY_IMPLEMENTED | 75% | employees، CRM، procurement، expenses، POS، reports | `businessOs.test.ts` | payroll، scheduling، deeper CRUD |
+| CRM | IMPLEMENTED | 70% | history، interactions، tags | integration test | segments، follow-up automation، campaigns |
+| Marketplace | PARTIALLY_IMPLEMENTED | 60% | products/services/catalog، offers، reviews، favorites | platform/business OS | jobs، real estate، food، bookings، onboarding/verification |
+| Commerce | PARTIALLY_IMPLEMENTED | 65% | cart، checkout، orders، invoices، cancellation | platform/payment tests | tax configuration، coupons، settlement/reconciliation |
+| Inventory | PARTIALLY_IMPLEMENTED | 75% | sale/purchase movements، negative guard، idempotency | platform/business OS | transfers، variants، reorder alerts، returns/adjustments |
+| POS | PARTIALLY_IMPLEMENTED | 70% | session، cash movement، sale، invoice، ledger، close | business OS | receipts، returns، cashier identity hardening |
+| Finance | PARTIALLY_IMPLEMENTED | 65% | chart، balanced journals، AR/AP entries | balance assertion + platform | reconciliation، tax، historical correction workflows |
+| Payments | PARTIALLY_IMPLEMENTED | 45% | intent، provider boundary، HMAC/replay | payment/webhook tests | Paymob/Fawry/Vodafone adapters، capture/refund/settlement |
+| Subscriptions | PARTIALLY_IMPLEMENTED | 70% | plans، trial، lifecycle، entitlement gate | entitlement test | provider webhook، grace، failure/expiration automation |
+| Logistics | PARTIALLY_IMPLEMENTED | 65% | deliveries، states، proof | existing platform tests | zones، dispatch، GPS/provider integration |
+| AI Gateway | FOUNDATION | 40% | isolated request، usage، policy boundary | command/platform tests | real provider adapter، model routing، output validation |
+| AI Search | PARTIALLY_IMPLEMENTED | 45% | lexical search، geo/filters foundations | platform tests | intent parsing، semantic ranking، availability |
+| RAG | FOUNDATION | 35% | tenant-scoped documents/chunks، lexical fallback | AI isolation tests | embeddings/vector store/pgvector |
+| AI Advisor | NOT_IMPLEMENTED | 10% | data sources/report summary only | none | grounded insights/alerts/recommendations/forecast evaluation |
+| AI Marketing | FOUNDATION | 20% | offers/ads permissions foundation | policy tests | campaigns، audience، content، analytics |
+| Recommendations | FOUNDATION | 20% | catalog/geo/history data sources | none | deterministic ranking service and evaluation |
+| Forecasting | NOT_IMPLEMENTED | 5% | KPI source only | none | evaluated model، confidence، metrics، fallback |
+| AI Agents | FOUNDATION | 35% | policy، tools، permissions، BLOCKED_POLICY | command policy tests | approval/execution/result/rollback boundary |
+| Advertising | PARTIALLY_IMPLEMENTED | 30% | campaign/ad/event tables وbudget checks | existing tests | creatives، billing، conversion analytics |
+| Analytics | PARTIALLY_IMPLEMENTED | 45% | KPI وreports من DB مع entitlement | business OS test | DAU/MAU/MRR/CAC/LTV/churn/retention definitions |
+| Notifications | PARTIALLY_IMPLEMENTED | 50% | preferences، retry، provider status | existing platform tests | queue/templates/provider delivery |
+| Admin | PARTIALLY_IMPLEMENTED | 60% | users/tenants/status/audit/flags/AI usage | existing tests | full Super Admin UI والسياسات |
+| Security | PARTIALLY_IMPLEMENTED | 70% | headers، CSP/CORS، HMAC، isolation، secret scan | local quality/security tests | pentest، WAF، distributed rate limits، MFA |
+| Redis | REQUIRES_SETUP | 10% | configuration/documented boundary فقط | none | rate limit/queue/cache/idempotency adapter |
+| Object Storage | REQUIRES_SETUP | 15% | storage-ref boundary فقط | none | signed storage، malware scanning، tenant file tests |
+| Backup/DR | PARTIALLY_IMPLEMENTED | 50% | backup/restore scripts، runbook، rollback files | SQLite tooling only | encrypted offsite PostgreSQL drill، RPO/RTO |
+| Android | NOT_IMPLEMENTED | 10% | PWA/App Mode فقط | browser E2E | native app، build، signing، release |
 
-## ما لم يُدّعَ اكتماله
+## External Dependencies
 
-لا يوجد مزود دفع حقيقي أو settlement، ولا Email/SMS/Push فعلي، ولا vector embedding provider، ولا تنفيذ Agent لأفعال خارجية، ولا PostgreSQL business data plane مكتمل، ولا Redis/queue/object storage/CDN/WAF/secrets manager مربوط في هذا المستودع. كما لا توجد APK أو signing أو تطبيق Android native. هذه البنود معلنة كـ`REQUIRES_SETUP` أو فجوات، وليس كميزات ناجحة.
-
-## مخاطر الإنتاج المتبقية
-
-أكبر خطر تقني هو أن adapter PostgreSQL منفصل عن synchronous SQLite business router؛ يجب إكمال repository abstraction async قبل الإنتاج. يلزم أيضاً تفعيل rate limiting موزع وqueues، تخزين ملفات آمن مع malware scanning، إدارة أسرار، مراقبة مركزية، TLS وCORS allowlist صحيحة، backup مشفر خارج الخادم، restore drills، اختبارات حمل، واختبار اختراق مستقل. كما يجب تنفيذ مراجعة قانونية/مالية للضرائب والفواتير والدفع قبل التفعيل التجاري.
+| Dependency | Classification | شرط الإغلاق |
+|---|---|---|
+| PostgreSQL staging | BLOCKED_EXTERNAL_DEPENDENCY | `DATABASE_URL`، TLS، migration/contract tests |
+| Payment provider | REQUIRES_SETUP | credentials، sandbox، capture/refund/webhook contract |
+| AI provider/embeddings | REQUIRES_SETUP | provider key، model policy، vector service |
+| Redis/queue | REQUIRES_SETUP | managed Redis، retry/worker/limiter tests |
+| Object storage/CDN | REQUIRES_SETUP | signed URLs، scanning، retention، tenant ACL |
+| Email/SMS/Push | REQUIRES_SETUP | provider credentials، templates، delivery/retry tests |
+| Secrets manager/WAF/monitoring | REQUIRES_SETUP | environment separation، TLS، edge controls، alerts |
+| Android signing | REQUIRES_SETUP | keystore، CI signing، release configuration |
 
 ## الخلاصة
 
-تم تنفيذ إصلاحات جوهرية ورفع الجودة إلى مستوى **Core Implemented / Enterprise Platform Incomplete**. النتيجة قابلة للتشغيل والاختبار المحلي، والـQuality Gate يمر محلياً، لكن الحكم الصادق هو **NOT READY FOR PRODUCTION** إلى أن تُغلق الاعتماديات والاختبارات التشغيلية المبينة أعلاه.
+تم رفع المستودع من حالة **PostgreSQL adapter only + Business OS gap** إلى **Async PostgreSQL-ready business core + Business OS basic implementation** فوق نفس repository والـbaseline. لا توجد إعادة بناء للمشروع ولا fake data أو fake payment أو fake AI. البنود المتبقية موثقة بحالتها، وأكبر خطوة تالية هي توفير staging credentials ثم تنفيذ migration/tenant/financial/security/backup/restore/load gates على PostgreSQL الحقيقي قبل أي إعلان إنتاجي.

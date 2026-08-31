@@ -1,11 +1,22 @@
 import { mkdirSync } from "node:fs";
 import { createRequire } from "node:module";
+import { readFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import path from "node:path";
 
-type SqliteStatement = { get: (...parameters: unknown[]) => unknown; all: (...parameters: unknown[]) => unknown[]; run: (...parameters: unknown[]) => unknown };
-export type AppDatabase = { exec: (sql: string) => void; prepare: (sql: string) => SqliteStatement; close: () => void };
-const { DatabaseSync } = createRequire(import.meta.url)("node:sqlite") as { DatabaseSync: new (location: string) => AppDatabase };
+type SqliteStatement = {
+  get: (...parameters: unknown[]) => unknown;
+  all: (...parameters: unknown[]) => unknown[];
+  run: (...parameters: unknown[]) => unknown;
+};
+export type AppDatabase = {
+  exec: (sql: string) => void;
+  prepare: (sql: string) => SqliteStatement;
+  close: () => void;
+};
+const { DatabaseSync } = createRequire(import.meta.url)("node:sqlite") as {
+  DatabaseSync: new (location: string) => AppDatabase;
+};
 
 const schema = `
 CREATE TABLE IF NOT EXISTS schema_migrations (
@@ -680,20 +691,92 @@ let database: AppDatabase | undefined;
 export function getDatabase(): AppDatabase {
   if (database) return database;
   const configured = process.env.DATABASE_URL;
-  if (configured && /^(postgres|postgresql|mysql|mariadb):\/\//i.test(configured) && !process.env.SQLITE_PATH) throw new Error("A production DATABASE_URL was provided; use the PostgreSQL adapter or set SQLITE_PATH explicitly for local development.");
+  if (
+    configured &&
+    /^(postgres|postgresql|mysql|mariadb):\/\//i.test(configured) &&
+    !process.env.SQLITE_PATH
+  )
+    throw new Error(
+      "A production DATABASE_URL was provided; use the PostgreSQL adapter or set SQLITE_PATH explicitly for local development."
+    );
   const dbPath = configured?.startsWith("sqlite://")
     ? configured.slice("sqlite://".length)
-    : process.env.SQLITE_PATH ?? path.resolve(process.cwd(), ".data", "ai-digital-sinai.sqlite");
-  if (dbPath !== ":memory:") mkdirSync(path.dirname(dbPath), { recursive: true });
+    : (process.env.SQLITE_PATH ??
+      path.resolve(process.cwd(), ".data", "ai-digital-sinai.sqlite"));
+  if (dbPath !== ":memory:")
+    mkdirSync(path.dirname(dbPath), { recursive: true });
   database = new DatabaseSync(dbPath);
   database.exec("PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000;");
   database.exec(schema);
-  const applied = database.prepare("SELECT version FROM schema_migrations WHERE version = 1").get() as { version?: number } | undefined;
-  if (!applied) database.prepare("INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)").run(1, Date.now());
-  const planInsert = database.prepare("INSERT OR IGNORE INTO plans (code, name, price_cents, trial_days, active, created_at) VALUES (?, ?, ?, ?, 1, ?)");
-  for (const plan of [["trial", "التجربة", 0, 14], ["starter", "الأساسية", 49900, 0], ["growth", "النمو", 99900, 0], ["business", "الأعمال", 199900, 0], ["enterprise", "المؤسسات", 499900, 0]] as const) planInsert.run(...plan, Date.now());
-  const accountInsert = database.prepare("INSERT OR IGNORE INTO ledger_accounts (id, tenant_id, code, name, account_type, created_at) VALUES (?, ?, ?, ?, ?, ?)");
-  for (const tenant of database.prepare("SELECT id FROM tenants").all() as Array<{ id: string }>) for (const account of [["1000", "النقدية", "ASSET"], ["1100", "المخزون", "ASSET"], ["1200", "الذمم المدينة", "ASSET"], ["4000", "المبيعات", "REVENUE"], ["5000", "تكلفة المبيعات", "EXPENSE"]] as const) accountInsert.run(randomUUID(), tenant.id, ...account, Date.now());
+  const applied = database
+    .prepare("SELECT version FROM schema_migrations WHERE version = 1")
+    .get() as { version?: number } | undefined;
+  if (!applied)
+    database
+      .prepare(
+        "INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)"
+      )
+      .run(1, Date.now());
+  const appliedBusinessOs = database
+    .prepare("SELECT version FROM schema_migrations WHERE version = 2")
+    .get() as { version?: number } | undefined;
+  if (!appliedBusinessOs) {
+    database.exec(
+      readFileSync(
+        path.resolve(process.cwd(), "migrations/0002_business_os.sql"),
+        "utf8"
+      )
+    );
+    database
+      .prepare(
+        "INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)"
+      )
+      .run(2, Date.now());
+  }
+  const planInsert = database.prepare(
+    "INSERT OR IGNORE INTO plans (code, name, price_cents, trial_days, active, created_at) VALUES (?, ?, ?, ?, 1, ?)"
+  );
+  for (const plan of [
+    ["trial", "التجربة", 0, 14],
+    ["starter", "الأساسية", 49900, 0],
+    ["growth", "النمو", 99900, 0],
+    ["business", "الأعمال", 199900, 0],
+    ["enterprise", "المؤسسات", 499900, 0],
+  ] as const)
+    planInsert.run(...plan, Date.now());
+  const entitlementInsert = database.prepare(
+    "INSERT OR IGNORE INTO entitlements (plan_code, feature, limit_value) VALUES (?, ?, ?)"
+  );
+  for (const entitlement of [
+    ["trial", "catalog.read", null],
+    ["trial", "analytics.read", null],
+    ["starter", "catalog.read", null],
+    ["growth", "catalog.read", null],
+    ["growth", "analytics.read", null],
+    ["business", "catalog.read", null],
+    ["business", "analytics.read", null],
+    ["business", "inventory.manage", null],
+    ["enterprise", "catalog.read", null],
+    ["enterprise", "analytics.read", null],
+    ["enterprise", "inventory.manage", null],
+    ["enterprise", "ai.advanced", null],
+  ] as const)
+    entitlementInsert.run(...entitlement);
+  const accountInsert = database.prepare(
+    "INSERT OR IGNORE INTO ledger_accounts (id, tenant_id, code, name, account_type, created_at) VALUES (?, ?, ?, ?, ?, ?)"
+  );
+  for (const tenant of database
+    .prepare("SELECT id FROM tenants")
+    .all() as Array<{ id: string }>)
+    for (const account of [
+      ["1000", "النقدية", "ASSET"],
+      ["1100", "المخزون", "ASSET"],
+      ["1200", "الذمم المدينة", "ASSET"],
+      ["2000", "الدائنون", "LIABILITY"],
+      ["4000", "المبيعات", "REVENUE"],
+      ["5000", "تكلفة المبيعات", "EXPENSE"],
+    ] as const)
+      accountInsert.run(randomUUID(), tenant.id, ...account, Date.now());
   return database;
 }
 

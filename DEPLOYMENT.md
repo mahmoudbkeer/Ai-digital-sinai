@@ -2,7 +2,7 @@
 
 ## قبل النشر
 
-يجب توفير Node.js 22، تثبيت الاعتماديات من `pnpm-lock.yaml`، وإبقاء الأسرار خارج المستودع. للتطوير والاختبارات يمكن استخدام `SQLITE_PATH=:memory:` أو ملف SQLite مستمر. لا يُسمح بتمرير `postgres://` إلى business router الحالي على أنه SQLite؛ عند استخدام PostgreSQL يجب تشغيل adapter والهجرة والتحقق من جاهزية data plane قبل استقبال المعاملات.
+يجب توفير Node.js 22، تثبيت الاعتماديات من `pnpm-lock.yaml`، وإبقاء الأسرار خارج المستودع. للتطوير والاختبارات يمكن استخدام `SQLITE_PATH=:memory:` أو ملف SQLite مستمر. عند ضبط `DATABASE_URL` إلى رابط PostgreSQL صالح يختار الخادم AsyncDataPlane وPool PostgreSQL تلقائياً، ويوقف بدء استقبال HTTP حتى تنجح migrations والتحقق الأولي من الاتصال.
 
 ## متغيرات البيئة
 
@@ -31,11 +31,11 @@ pnpm build
 NODE_ENV=production pnpm start
 ```
 
-يتحقق `/api/health` من حياة العملية فقط. أما `/api/readiness` فيفحص سياق الأوامر وWebhook وقاعدة البيانات وbusiness data plane. عند وجود PostgreSQL حالياً قد يكون اتصال pool سليماً مع بقاء `businessDataPlane=false`؛ وهذا مقصود حتى لا تُعلن المنصة جاهزية قبل اكتمال نقل repository layer إلى async PostgreSQL.
+يتحقق `/api/health` من حياة العملية فقط. أما `/api/readiness` فيفحص سياق الأوامر وWebhook وقاعدة البيانات وbusiness data plane. عند اختيار PostgreSQL، يمر business data plane عبر `server/dataPlane.ts` بعد نجاح `ensureDataPlaneReady()`؛ وإذا فشلت migration أو قاعدة البيانات يفشل startup بدلاً من تشغيل API على مخزن مختلف بصمت.
 
 ## الهجرة
 
-نسخة SQLite الموثقة هي `migrations/0001_core.sql`، ونسخة PostgreSQL المتوافقة هي `migrations/postgres/0001_core.sql`. يقوم `server/postgres.ts` باستخدام advisory transaction lock ويكتب إلى `schema_migrations`. في بيئة production يجب أخذ backup، تطبيق migration في بيئة staging، تشغيل اختبارات العزل والدفتر، ثم الترقية التدريجية. لا تُعدّل migration مطبقة؛ أضف migration جديدة.
+نسخ SQLite الموثقة هي `migrations/0001_core.sql` و`migrations/0002_business_os.sql`، ونسخ PostgreSQL المقابلة هي `migrations/postgres/0001_core.sql` و`migrations/postgres/0002_business_os.sql`. يقوم `server/postgres.ts` باستخدام advisory transaction lock ويطبق كل إصدار غير موجود في `schema_migrations` داخل transaction، ثم يزرع خطط الاشتراك والـentitlements بشكل idempotent. في بيئة production يجب أخذ backup، تطبيق migration في staging، تشغيل اختبارات العزل والدفتر، ثم الترقية التدريجية. لا تُعدّل migration مطبقة؛ أضف migration جديدة. ملفات rollback موجودة للإجراءات المنضبطة فقط ولا تُشغّل على إنتاج دون backup واختبار استعادة.
 
 ## Backup وRestore
 
@@ -58,7 +58,7 @@ DATABASE_URL=postgresql://... pnpm restore /secure/backups/ai-digital-sinai-<tim
 |---|---|
 | Build/check/unit | منفذ |
 | E2E/smoke | منفذ محلياً |
-| PostgreSQL business data plane | REQUIRES_SETUP |
+| PostgreSQL business data plane | منفذ برمجياً؛ staging verification مطلوب |
 | Redis queue/rate-limit | REQUIRES_SETUP |
 | Object storage/CDN | REQUIRES_SETUP |
 | External payment settlement | REQUIRES_SETUP |

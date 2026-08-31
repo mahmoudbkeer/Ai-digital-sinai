@@ -11,7 +11,7 @@
 | Authentication | scrypt salted password hashes، جلسات تحفظ token hash، expiry وrevoke | `server/platform.ts`، اختبارات auth | IMPLEMENTED |
 | Password recovery | token hash، expiry، one-time use، revoke للجلسات | `server/platform.ts`، `database.ts` | IMPLEMENTED جزئياً؛ إرسال البريد adapter |
 | Authorization | role permissions + `assertScope` + tenant membership | `server/platform.ts` | IMPLEMENTED جزئياً |
-| Tenant isolation | tenant predicates، composite foreign keys، اختبارات تغيير tenant header | `server/platform.test.ts` | IMPLEMENTED على SQLite |
+| Tenant isolation | tenant predicates، composite foreign keys، اختبارات تغيير tenant header، AsyncDataPlane provider selection | `server/platform.test.ts` و`server/businessOs.test.ts` | IMPLEMENTED محلياً؛ PostgreSQL staging مطلوب |
 | Session security | bearer/session token غير مخزن خاماً، انتهاء الجلسة، حالة user | `server/platform.ts` | IMPLEMENTED |
 | Input validation | حدود طول، أرقام صحيحة، money/coordinate، enum/state checks | `server/platform.ts` | IMPLEMENTED جزئياً |
 | SQL injection | prepared statements وparameter binding | مسارات المنصة | IMPLEMENTED جزئياً؛ يجب استمرار المراجعة |
@@ -20,12 +20,12 @@
 | SSRF | لا يوجد fetch proxy عام في النواة | current routes | NOT_APPLICABLE حالياً |
 | File upload | لا توجد واجهة رفع عامة؛ Proof يستخدم storage ref فقط | current routes | REQUIRES_SETUP |
 | Webhook replay | signature verification، event id وpayload hash وعدم إعادة المعالجة | `server/index.ts`، `paymentEndpoint.test.ts` | IMPLEMENTED |
-| Idempotency | payment، inventory، cart/order، refund، journal، ad event | schema + routes | IMPLEMENTED جزئياً |
+| Idempotency | payment، inventory، cart/order، refund، purchase، journal، POS sale، ad event | schema + routes + `businessOs.test.ts` | IMPLEMENTED جزئياً |
 | Prompt injection | رفض patterns واضحة وتسجيل input hash ونطاق البيانات | `server/platform.ts` | IMPLEMENTED جزئياً؛ يلزم classifier/policy evaluation أعمق |
 | AI data leakage | tenant-scoped RAG، allowed scope، منع إعادة permission scope | AI routes | IMPLEMENTED جزئياً؛ vector/RAG provider غير موصول |
 | Agent safety | policy، permissions، tenant scope، tool allowlist، BLOCKED_POLICY للأفعال الحساسة | `/ai/agents/prepare` | IMPLEMENTED كـprepare-only |
 | Secrets | لا تُحفظ الأسرار، workflow secret scan | `.github/workflows/quality.yml` | IMPLEMENTED جزئياً |
-| Rate limiting | command burst وlogin throttling موجودان في النواة | `server/index.ts`، `platform.ts` | IMPLEMENTED جزئياً؛ Redis غير موصول |
+| Rate limiting | command burst وlogin throttling موجودان في النواة | `server/index.ts`، `platform.ts` | IMPLEMENTED جزئياً؛ Redis غير موصول للتوزيع |
 
 ## قواعد الأفعال الحساسة
 
@@ -37,4 +37,4 @@
 
 ## المخاطر المتبقية
 
-أكبر المخاطر المتبقية هي أن business router synchronous/SQLite ولا يستخدم PostgreSQL pool بعد، وأن Redis غير موجود لتوحيد rate limit والqueues، وأن object storage/file scanning وMFA وproviders الخارجية غير موصولة. لذلك حالة النظام **ليست Production Ready** حتى تُستكمل هذه الاعتماديات ويُنفذ اختبار اختراق ومراجعة تشغيلية.
+لم يعد business router مربوطاً بـSQLite synchronous فقط؛ بل يمر عبر `AsyncDataPlane` ويختار PostgreSQL عند ضبط `DATABASE_URL`. الخطر المتبقي هو عدم تشغيل PostgreSQL staging فعلي داخل هذه البيئة، إضافة إلى Redis للتحكم الموزع والqueues، object storage/file scanning، MFA، providers الخارجية، WAF، واختبار اختراق مستقل. لذلك حالة النظام **ليست Production Ready** حتى تُنفذ هذه الاعتماديات والاختبارات التشغيلية.

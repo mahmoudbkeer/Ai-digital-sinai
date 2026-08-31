@@ -2,7 +2,7 @@
 
 ## النطاق
 
-تم تنفيذ الجولة على المستودع `mahmoudbkeer/Ai-digital-sinai` فوق commit `8e52dc9`. الهدف كان رفع جودة Enterprise Core دون ادعاء اكتمال مزودات خارجية أو data plane غير موصول.
+تم تنفيذ هذه الجولة على المستودع `mahmoudbkeer/Ai-digital-sinai` فوق baseline `38d8f52` على `main`. الهدف كان إغلاق فجوة PostgreSQL business data plane وإضافة الوحدات القابلة للتنفيذ من Business OS دون إعادة بناء Enterprise Core أو ادعاء اكتمال مزودات خارجية.
 
 ## التنفيذ التراكمي
 
@@ -11,6 +11,18 @@
 أضيفت المنتجات والخدمات والكتالوج والسلة وCheckout والطلبات وحالات الطلبات وحركات المخزون ومنع المخزون السالب وIdempotency. أضيف دفتر قيود مزدوج يمنع القيد غير المتوازن ويسجل مبيعات الطلبات داخل transaction. أضيفت الخطط والاشتراكات والتجربة المضبوطة من الخادم، السائقون والمركبات والتسليمات وآلة الحالات والإشعارات الداخلية ومؤشرات KPI.
 
 ## الجولة الحالية
+
+| المجال | التنفيذ |
+|---|---|
+| Async data plane | `server/dataPlane.ts` يوحد SQLite وPostgreSQL، ويحوّل الاستعلامات إلى async مع parameter binding وtransactions وaffected-row semantics صحيحة |
+| PostgreSQL startup | `ensureDataPlaneReady()` يطبق migrations 1 و2 تحت advisory lock قبل إنشاء Express، وwebhook يستخدم نفس data plane |
+| Business OS migration | migration version 2 لجداول employees، suppliers، purchases، purchase_items، expenses، CRM interactions/tags، POS sessions/cash/sales، offers |
+| Employees/CRM | employee registry مع PIN hash، customers/history، interactions، tags |
+| Procurement/Finance | supplier CRUD، purchase receiving يحدّث inventory ويقيد AP، expenses تقيد cash/expense، idempotency للمشتريات |
+| POS | session open/list/close، cash movements، POS sale يربط order/payment/invoice/ledger |
+| Marketplace | offers، reviews مرتبطة بعميل، favorites |
+| Reports/Entitlements | report summary مصدره DB، plans/entitlements seeded، gate server-side للتقارير، endpoint لعرض features |
+| Verification | `server/businessOs.test.ts` يختبر الدورة التشغيلية ورفض feature غير مصرح بها |
 
 | المجال | التنفيذ |
 |---|---|
@@ -31,21 +43,24 @@
 - `server/platform.ts`: lifecycle وAdmin وAI وLogistics وNotifications.
 - `server/database.ts`: schema SQLite، composite constraints، AI usage/agents، delivery proofs.
 - `server/index.ts`: Express 5، headers، CORS، Webhook، readiness.
-- `server/postgres.ts`: pool/health/migration-lock adapter.
+- `server/postgres.ts`: pool/health/migration-lock/multi-version migration runner.
+- `server/dataPlane.ts`: async repository/data-plane seam لـSQLite وPostgreSQL.
+- `server/businessOs.test.ts`: اختبارات Business OS وentitlements.
+- `migrations/0002_business_os.sql` و`migrations/postgres/0002_business_os.sql`: توسعة domain schema.
 - `migrations/postgres/0001_core.sql`: مخطط PostgreSQL الموثق.
 - `.github/workflows/quality.yml`: بوابة الجودة.
 - `scripts/backup.mjs` و`scripts/restore.mjs`: إجراءات التعافي.
 
 ## قرارات الصدق التشغيلي
 
-لا يعلن النظام Payment settlement أو Refund أو Email/SMS/Push أو AI provider result عند غياب الاعتماد. كما أن PostgreSQL adapter موجود ويجتاز type/build، لكن business router الحالي يعتمد synchronous SQLite؛ لذلك لا يُصنّف data plane الإنتاجي PostgreSQL مكتملًا حتى تتم مواءمة repository layer async واختبار migration على قاعدة حقيقية.
+لا يعلن النظام Payment settlement أو Refund أو Email/SMS/Push أو AI provider result عند غياب الاعتماد. PostgreSQL أصبح مسار business data فعلياً عبر `AsyncDataPlane`، لكن لا تزال مطالبة staging الحقيقية واختبارات provider/restore الخارجية مطلوبة قبل تصنيف الخدمة Production Ready.
 
 ## نتيجة الجودة
 
 | الفحص | النتيجة |
 |---|---|
 | `pnpm check` | PASS |
-| `pnpm test` | PASS — 6 files / 27 tests |
+| `pnpm test` | PASS — 7 files / 29 tests |
 | `pnpm build` | PASS |
 | `pnpm test:e2e` | PASS — 1 browser test |
 | `pnpm test:smoke` | PASS — 3 checks |
@@ -55,4 +70,4 @@
 
 ## الحدود المتبقية
 
-ما زالت مزودات الدفع الفعلية والتسوية، MFA/OTP الفعلي، قنوات البريد وSMS وPush، vector embeddings/RAG provider، Redis للـqueues/rate limits، object storage/CDN، قاعدة PostgreSQL business data plane، وبعض وحدات المشتريات والضرائب والموارد البشرية والعقارات وتطبيق Android/APK تحتاج تنفيذ adapters واختبارات وتهيئة تشغيلية. تم إبقاء هذه الحالات معلنة كـ`REQUIRES_SETUP` أو فجوات، لا كميزات مكتملة.
+ما زالت مزودات الدفع الفعلية والتسوية، MFA/OTP الفعلي، قنوات البريد وSMS وPush، vector embeddings/RAG provider، Redis للـqueues/rate limits، object storage/CDN، اختبارات PostgreSQL staging/restore، وبعض وحدات الضرائب والموارد البشرية المتقدمة والعقارات وتطبيق Android/APK تحتاج adapters واختبارات وتهيئة تشغيلية. تم إبقاء هذه الحالات معلنة كـ`REQUIRES_SETUP` أو `BLOCKED_EXTERNAL_DEPENDENCY` أو فجوات، لا كميزات مكتملة.

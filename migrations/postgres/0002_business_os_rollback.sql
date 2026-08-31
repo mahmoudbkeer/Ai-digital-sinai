@@ -1,0 +1,11 @@
+DROP TABLE IF EXISTS pos_sales;
+DROP TABLE IF EXISTS pos_cash_movements;
+DROP TABLE IF EXISTS pos_sessions;
+DROP TABLE IF EXISTS customer_tag_links;
+DROP TABLE IF EXISTS customer_tags;
+DROP TABLE IF EXISTS customer_interactions;
+DROP TABLE IF EXISTS expenses;
+DROP TABLE IF EXISTS purchase_items;
+DROP TABLE IF EXISTS purchases;
+DROP TABLE IF EXISTS suppliers;
+DROP TABLE IF EXISTS employees;
