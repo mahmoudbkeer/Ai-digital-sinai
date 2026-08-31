@@ -40,3 +40,9 @@
 ## V5.2 — PostgreSQL staging verification gate
 
 أضيف `scripts/postgres-staging-smoke.mjs` وأمر `pnpm test:staging` لتنفيذ فحص حقيقي على PostgreSQL عند توفر `DATABASE_URL`. يشمل الفحص الاتصال، تطبيق migrations 1–3، وجود الجداول الأساسية، foreign keys، tenant composite constraints، اتزان كل قيود ledger، وrollback transaction probe. أضيف workflow يدوي `.github/workflows/staging.yml` يستخدم GitHub Secrets ولا يمرر SQLite كبديل. في البيئة الحالية أعاد الأمر `BLOCKED_EXTERNAL_DEPENDENCY` مع exit code 78 بسبب غياب PostgreSQL staging، وهو السلوك المقصود.
+
+## V5.3 — Real PostgreSQL staging execution
+
+تم تشغيل PostgreSQL 16 وRedis 7 محليًا، وإنشاء قاعدة staging مستقلة. كشف `pnpm test:staging` overflow حقيقيًا في epoch milliseconds؛ تم إصلاح كل حقول الوقت في PostgreSQL migrations 1–3 من `INTEGER` إلى `BIGINT`. بعد الإصلاح نجحت migration consistency، foreign keys، tenant composite constraints، ledger balance، وtransaction rollback.
+
+أضيف `scripts/postgres-critical-smoke.mjs` و`pnpm test:staging:api` لاختبار identity، tenant ID tampering، inventory، order totals، cross-tenant AI search، ورفض payment false success على PostgreSQL الحقيقي. تم إدراج الفحص في GitHub staging workflow.

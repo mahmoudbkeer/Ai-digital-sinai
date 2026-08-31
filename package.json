@@ -15,6 +15,7 @@
     "test:load": "node scripts/load-smoke.mjs",
     "test:security": "node scripts/security-smoke.mjs",
     "test:staging": "node --import tsx scripts/postgres-staging-smoke.mjs",
+    "test:staging:api": "node scripts/postgres-critical-smoke.mjs",
     "backup": "node scripts/backup.mjs",
     "restore": "node scripts/restore.mjs",
     "format": "prettier --write ."

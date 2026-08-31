@@ -6,7 +6,7 @@ CREATE TABLE IF NOT EXISTS tenant_configurations (
   tax_registration_number TEXT,
   invoice_prefix TEXT NOT NULL DEFAULT 'INV',
   business_name TEXT,
-  updated_at INTEGER NOT NULL
+  updated_at BIGINT NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS ai_insights (
@@ -19,7 +19,7 @@ CREATE TABLE IF NOT EXISTS ai_insights (
   evidence_json TEXT NOT NULL,
   recommendation TEXT NOT NULL,
   as_of INTEGER NOT NULL,
-  created_at INTEGER NOT NULL,
+  created_at BIGINT NOT NULL,
   UNIQUE (tenant_id, id)
 );
 CREATE INDEX IF NOT EXISTS idx_ai_insights_scope ON ai_insights(tenant_id, insight_type, created_at);
@@ -35,7 +35,7 @@ CREATE TABLE IF NOT EXISTS forecast_outputs (
   method TEXT NOT NULL CHECK (method IN ('MOVING_AVERAGE','INSUFFICIENT_DATA')),
   training_window_days INTEGER NOT NULL CHECK (training_window_days >= 0),
   evaluation_json TEXT NOT NULL,
-  created_at INTEGER NOT NULL,
+  created_at BIGINT NOT NULL,
   UNIQUE (tenant_id, id)
 );
 CREATE INDEX IF NOT EXISTS idx_forecast_scope ON forecast_outputs(tenant_id, metric, created_at);
@@ -48,7 +48,7 @@ CREATE TABLE IF NOT EXISTS recommendation_events (
   resource_id TEXT NOT NULL,
   score REAL NOT NULL CHECK (score >= 0),
   factors_json TEXT NOT NULL,
-  created_at INTEGER NOT NULL,
+  created_at BIGINT NOT NULL,
   UNIQUE (tenant_id, id)
 );
 CREATE INDEX IF NOT EXISTS idx_recommendation_scope ON recommendation_events(tenant_id, user_id, created_at);
@@ -60,7 +60,7 @@ CREATE TABLE IF NOT EXISTS marketing_campaign_actions (
   action TEXT NOT NULL CHECK (action IN ('SUBMIT','APPROVE','PAUSE','RESUME','END')),
   actor_user_id TEXT NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
   reason TEXT,
-  created_at INTEGER NOT NULL,
+  created_at BIGINT NOT NULL,
   UNIQUE (tenant_id, id),
   FOREIGN KEY (tenant_id, campaign_id) REFERENCES ad_campaigns(tenant_id, id)
 );

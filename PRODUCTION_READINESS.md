@@ -67,3 +67,11 @@ curl -i http://127.0.0.1:3000/api/readiness
 ## Staging gate implementation
 
 أصبح فحص PostgreSQL staging قابلاً للتشغيل رسميًا عبر `pnpm test:staging`. يفحص gate الاتصال الحقيقي، migrations 1–3، الجداول الأساسية، foreign keys، tenant composite constraints، financial journal balance، وtransaction rollback. تم توفير `.github/workflows/staging.yml` لتشغيله يدويًا أو على فرع `staging` باستخدام `STAGING_DATABASE_URL` و`STAGING_COMMAND_CONTEXT_SECRET` من GitHub Secrets. في البيئة الحالية، غياب PostgreSQL حقيقي يصنف النتيجة `BLOCKED_EXTERNAL_DEPENDENCY` بدلًا من تمرير SQLite.
+
+## V5.3 PostgreSQL execution result
+
+تم تشغيل PostgreSQL 16 محليًا كـstaging حقيقي، وليس SQLite، مع قاعدة `sinai_staging`. فشل التشغيل الأول بسبب overflow في حقول epoch milliseconds المعرفة كـ`INTEGER`؛ تم إصلاح PostgreSQL migrations 1–3 إلى `BIGINT` ثم نجح الفحص.
+
+نجحت migrations 1–3، ووجود 10 جداول أساسية، و184 foreign keys، و52 tenant composite constraints، وfinancial balance، وrollback probe. كما نجح `pnpm test:staging:api` في identity، tenant tampering، inventory، order، cross-tenant AI search، وpayment setup boundary.
+
+أضيف critical-path workflow إلى `.github/workflows/staging.yml`. تبقى قاعدة production/offsite وTLS وencrypted restore وmanaged Redis وexternal providers متطلبات مستقلة.

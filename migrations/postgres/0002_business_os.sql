@@ -9,8 +9,8 @@ CREATE TABLE IF NOT EXISTS employees (
   pin_hash TEXT,
   status TEXT NOT NULL DEFAULT 'ACTIVE' CHECK (status IN ('ACTIVE','INACTIVE')),
   permissions_json TEXT NOT NULL DEFAULT '[]',
-  created_at INTEGER NOT NULL,
-  updated_at INTEGER NOT NULL,
+  created_at BIGINT NOT NULL,
+  updated_at BIGINT NOT NULL,
   UNIQUE (tenant_id, id),
   UNIQUE (tenant_id, employee_code),
   FOREIGN KEY (tenant_id, branch_id) REFERENCES branches(tenant_id, id)
@@ -25,8 +25,8 @@ CREATE TABLE IF NOT EXISTS suppliers (
   phone TEXT,
   email TEXT,
   status TEXT NOT NULL DEFAULT 'ACTIVE' CHECK (status IN ('ACTIVE','INACTIVE')),
-  created_at INTEGER NOT NULL,
-  updated_at INTEGER NOT NULL,
+  created_at BIGINT NOT NULL,
+  updated_at BIGINT NOT NULL,
   UNIQUE (tenant_id, id),
   UNIQUE (tenant_id, name),
   FOREIGN KEY (tenant_id, business_id) REFERENCES businesses(tenant_id, id)
@@ -45,8 +45,8 @@ CREATE TABLE IF NOT EXISTS purchases (
   total_cents INTEGER NOT NULL CHECK (total_cents >= 0),
   idempotency_key TEXT NOT NULL,
   created_by TEXT NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
-  created_at INTEGER NOT NULL,
-  updated_at INTEGER NOT NULL,
+  created_at BIGINT NOT NULL,
+  updated_at BIGINT NOT NULL,
   UNIQUE (tenant_id, id),
   UNIQUE (tenant_id, idempotency_key),
   FOREIGN KEY (tenant_id, business_id) REFERENCES businesses(tenant_id, id),
@@ -79,8 +79,8 @@ CREATE TABLE IF NOT EXISTS expenses (
   description TEXT NOT NULL,
   status TEXT NOT NULL DEFAULT 'POSTED' CHECK (status IN ('POSTED','CANCELLED')),
   created_by TEXT NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
-  created_at INTEGER NOT NULL,
-  updated_at INTEGER NOT NULL,
+  created_at BIGINT NOT NULL,
+  updated_at BIGINT NOT NULL,
   UNIQUE (tenant_id, id),
   FOREIGN KEY (tenant_id, business_id) REFERENCES businesses(tenant_id, id),
   FOREIGN KEY (tenant_id, branch_id) REFERENCES branches(tenant_id, id)
@@ -94,7 +94,7 @@ CREATE TABLE IF NOT EXISTS customer_interactions (
   user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
   interaction_type TEXT NOT NULL,
   note TEXT NOT NULL,
-  created_at INTEGER NOT NULL,
+  created_at BIGINT NOT NULL,
   UNIQUE (tenant_id, id),
   FOREIGN KEY (tenant_id, customer_id) REFERENCES customers(tenant_id, id)
 );
@@ -104,7 +104,7 @@ CREATE TABLE IF NOT EXISTS customer_tags (
   id TEXT PRIMARY KEY,
   tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
   name TEXT NOT NULL,
-  created_at INTEGER NOT NULL,
+  created_at BIGINT NOT NULL,
   UNIQUE (tenant_id, id),
   UNIQUE (tenant_id, name)
 );
@@ -112,7 +112,7 @@ CREATE TABLE IF NOT EXISTS customer_tag_links (
   tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
   customer_id TEXT NOT NULL,
   tag_id TEXT NOT NULL,
-  created_at INTEGER NOT NULL,
+  created_at BIGINT NOT NULL,
   PRIMARY KEY (tenant_id, customer_id, tag_id),
   FOREIGN KEY (tenant_id, customer_id) REFERENCES customers(tenant_id, id),
   FOREIGN KEY (tenant_id, tag_id) REFERENCES customer_tags(tenant_id, id)
@@ -127,8 +127,8 @@ CREATE TABLE IF NOT EXISTS pos_sessions (
   status TEXT NOT NULL DEFAULT 'OPEN' CHECK (status IN ('OPEN','CLOSED')),
   opening_balance_cents INTEGER NOT NULL CHECK (opening_balance_cents >= 0),
   closing_balance_cents INTEGER,
-  opened_at INTEGER NOT NULL,
-  closed_at INTEGER,
+  opened_at BIGINT NOT NULL,
+  closed_at BIGINT,
   UNIQUE (tenant_id, id),
   FOREIGN KEY (tenant_id, branch_id) REFERENCES branches(tenant_id, id),
   FOREIGN KEY (tenant_id, employee_id) REFERENCES employees(tenant_id, id)
@@ -142,7 +142,7 @@ CREATE TABLE IF NOT EXISTS pos_cash_movements (
   amount_cents INTEGER NOT NULL CHECK (amount_cents > 0),
   reason TEXT NOT NULL,
   created_by TEXT NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
-  created_at INTEGER NOT NULL,
+  created_at BIGINT NOT NULL,
   UNIQUE (tenant_id, id),
   FOREIGN KEY (tenant_id, session_id) REFERENCES pos_sessions(tenant_id, id) ON DELETE RESTRICT
 );
@@ -154,7 +154,7 @@ CREATE TABLE IF NOT EXISTS pos_sales (
   order_id TEXT NOT NULL,
   amount_cents INTEGER NOT NULL CHECK (amount_cents >= 0),
   payment_method TEXT NOT NULL CHECK (payment_method IN ('CASH','CARD','WALLET','OTHER')),
-  created_at INTEGER NOT NULL,
+  created_at BIGINT NOT NULL,
   UNIQUE (tenant_id, id),
   UNIQUE (tenant_id, session_id, order_id),
   FOREIGN KEY (tenant_id, session_id) REFERENCES pos_sessions(tenant_id, id) ON DELETE RESTRICT,
@@ -171,9 +171,9 @@ CREATE TABLE IF NOT EXISTS offers (
   discount_type TEXT NOT NULL CHECK (discount_type IN ('PERCENT','FIXED')),
   discount_value INTEGER NOT NULL CHECK (discount_value > 0),
   status TEXT NOT NULL DEFAULT 'DRAFT' CHECK (status IN ('DRAFT','ACTIVE','ENDED')),
-  starts_at INTEGER,
-  ends_at INTEGER,
-  created_at INTEGER NOT NULL,
+  starts_at BIGINT,
+  ends_at BIGINT,
+  created_at BIGINT NOT NULL,
   UNIQUE (tenant_id, id),
   UNIQUE (tenant_id, code),
   FOREIGN KEY (tenant_id, business_id) REFERENCES businesses(tenant_id, id)

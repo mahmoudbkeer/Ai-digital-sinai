@@ -1,6 +1,6 @@
 CREATE TABLE IF NOT EXISTS schema_migrations (
   version INTEGER PRIMARY KEY,
-  applied_at INTEGER NOT NULL
+  applied_at BIGINT NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS users (
@@ -10,18 +10,18 @@ CREATE TABLE IF NOT EXISTS users (
   password_hash TEXT,
   status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'locked', 'disabled')),
   failed_login_count INTEGER NOT NULL DEFAULT 0 CHECK (failed_login_count >= 0),
-  locked_until INTEGER,
-  created_at INTEGER NOT NULL,
-  updated_at INTEGER NOT NULL
+  locked_until BIGINT,
+  created_at BIGINT NOT NULL,
+  updated_at BIGINT NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS password_reset_tokens (
   id TEXT PRIMARY KEY,
   user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   token_hash TEXT NOT NULL UNIQUE,
-  expires_at INTEGER NOT NULL,
-  used_at INTEGER,
-  created_at INTEGER NOT NULL
+  expires_at BIGINT NOT NULL,
+  used_at BIGINT,
+  created_at BIGINT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_password_reset_user ON password_reset_tokens(user_id, expires_at);
 
@@ -30,16 +30,16 @@ CREATE TABLE IF NOT EXISTS user_security (
   mfa_status TEXT NOT NULL DEFAULT 'NOT_CONFIGURED' CHECK (mfa_status IN ('NOT_CONFIGURED','ENABLED','REQUIRED')),
   otp_status TEXT NOT NULL DEFAULT 'READY' CHECK (otp_status IN ('READY','ENABLED','DISABLED')),
   device_verification_status TEXT NOT NULL DEFAULT 'READY' CHECK (device_verification_status IN ('READY','VERIFIED','REQUIRED')),
-  updated_at INTEGER NOT NULL
+  updated_at BIGINT NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS sessions (
   id TEXT PRIMARY KEY,
   user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   token_hash TEXT NOT NULL UNIQUE,
-  expires_at INTEGER NOT NULL,
-  revoked_at INTEGER,
-  created_at INTEGER NOT NULL
+  expires_at BIGINT NOT NULL,
+  revoked_at BIGINT,
+  created_at BIGINT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id, expires_at);
 
@@ -48,8 +48,8 @@ CREATE TABLE IF NOT EXISTS tenants (
   name TEXT NOT NULL,
   slug TEXT NOT NULL UNIQUE,
   status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'suspended')),
-  created_at INTEGER NOT NULL,
-  updated_at INTEGER NOT NULL
+  created_at BIGINT NOT NULL,
+  updated_at BIGINT NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS tenant_members (
@@ -57,7 +57,7 @@ CREATE TABLE IF NOT EXISTS tenant_members (
   user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   role TEXT NOT NULL CHECK (role IN ('SUPER_ADMIN','PLATFORM_ADMIN','TENANT_OWNER','TENANT_ADMIN','MANAGER','ACCOUNTANT','SALES','INVENTORY_MANAGER','HR','MARKETING','EMPLOYEE','SERVICE_PROVIDER','DRIVER','CUSTOMER')),
   permissions_json TEXT NOT NULL DEFAULT '[]',
-  created_at INTEGER NOT NULL,
+  created_at BIGINT NOT NULL,
   PRIMARY KEY (tenant_id, user_id)
 );
 CREATE INDEX IF NOT EXISTS idx_tenant_members_user ON tenant_members(user_id, tenant_id);
@@ -68,8 +68,8 @@ CREATE TABLE IF NOT EXISTS businesses (
   name TEXT NOT NULL,
   category TEXT,
   status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'suspended')),
-  created_at INTEGER NOT NULL,
-  updated_at INTEGER NOT NULL,
+  created_at BIGINT NOT NULL,
+  updated_at BIGINT NOT NULL,
   UNIQUE (tenant_id, name),
   UNIQUE (tenant_id, id)
 );
@@ -85,7 +85,7 @@ CREATE TABLE IF NOT EXISTS branches (
   latitude REAL,
   longitude REAL,
   status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'inactive')),
-  created_at INTEGER NOT NULL,
+  created_at BIGINT NOT NULL,
   UNIQUE (tenant_id, business_id, name),
   UNIQUE (tenant_id, id),
   FOREIGN KEY (tenant_id, business_id) REFERENCES businesses(tenant_id, id)
@@ -98,7 +98,7 @@ CREATE TABLE IF NOT EXISTS customers (
   name TEXT NOT NULL,
   phone TEXT,
   email TEXT,
-  created_at INTEGER NOT NULL,
+  created_at BIGINT NOT NULL,
   UNIQUE (tenant_id, email),
   UNIQUE (tenant_id, id)
 );
@@ -115,8 +115,8 @@ CREATE TABLE IF NOT EXISTS products (
   price_cents INTEGER NOT NULL CHECK (price_cents >= 0),
   currency TEXT NOT NULL DEFAULT 'EGP',
   status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'draft', 'archived')),
-  created_at INTEGER NOT NULL,
-  updated_at INTEGER NOT NULL,
+  created_at BIGINT NOT NULL,
+  updated_at BIGINT NOT NULL,
   UNIQUE (tenant_id, sku),
   UNIQUE (tenant_id, id),
   FOREIGN KEY (tenant_id, business_id) REFERENCES businesses(tenant_id, id)
@@ -133,8 +133,8 @@ CREATE TABLE IF NOT EXISTS services (
   price_cents INTEGER NOT NULL CHECK (price_cents >= 0),
   duration_minutes INTEGER CHECK (duration_minutes IS NULL OR duration_minutes > 0),
   status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active','draft','archived')),
-  created_at INTEGER NOT NULL,
-  updated_at INTEGER NOT NULL,
+  created_at BIGINT NOT NULL,
+  updated_at BIGINT NOT NULL,
   UNIQUE (tenant_id, id),
   FOREIGN KEY (tenant_id, business_id) REFERENCES businesses(tenant_id, id)
 );
@@ -146,8 +146,8 @@ CREATE TABLE IF NOT EXISTS carts (
   user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   branch_id TEXT REFERENCES branches(id) ON DELETE RESTRICT,
   status TEXT NOT NULL DEFAULT 'ACTIVE' CHECK (status IN ('ACTIVE','CHECKED_OUT','ABANDONED')),
-  created_at INTEGER NOT NULL,
-  updated_at INTEGER NOT NULL,
+  created_at BIGINT NOT NULL,
+  updated_at BIGINT NOT NULL,
   UNIQUE (tenant_id, user_id, status),
   FOREIGN KEY (tenant_id, branch_id) REFERENCES branches(tenant_id, id)
 );
@@ -158,7 +158,7 @@ CREATE TABLE IF NOT EXISTS cart_items (
   product_id TEXT NOT NULL REFERENCES products(id) ON DELETE RESTRICT,
   quantity INTEGER NOT NULL CHECK (quantity > 0),
   unit_price_cents INTEGER NOT NULL CHECK (unit_price_cents >= 0),
-  created_at INTEGER NOT NULL,
+  created_at BIGINT NOT NULL,
   UNIQUE (cart_id, product_id),
   FOREIGN KEY (tenant_id, product_id) REFERENCES products(tenant_id, id)
 );
@@ -170,7 +170,7 @@ CREATE TABLE IF NOT EXISTS categories (
   parent_id TEXT REFERENCES categories(id) ON DELETE SET NULL,
   name TEXT NOT NULL,
   offering_type TEXT NOT NULL CHECK (offering_type IN ('PRODUCT','SERVICE','FOOD','JOB','REAL_ESTATE','PROFESSIONAL','OFFER')),
-  created_at INTEGER NOT NULL,
+  created_at BIGINT NOT NULL,
   UNIQUE (tenant_id, name),
   UNIQUE (tenant_id, id),
   FOREIGN KEY (tenant_id, parent_id) REFERENCES categories(tenant_id, id)
@@ -184,7 +184,7 @@ CREATE TABLE IF NOT EXISTS reviews (
   customer_id TEXT NOT NULL REFERENCES customers(id) ON DELETE RESTRICT,
   rating INTEGER NOT NULL CHECK (rating BETWEEN 1 AND 5),
   body TEXT,
-  created_at INTEGER NOT NULL,
+  created_at BIGINT NOT NULL,
   CHECK ((product_id IS NOT NULL) OR (service_id IS NOT NULL)),
   FOREIGN KEY (tenant_id, product_id) REFERENCES products(tenant_id, id),
   FOREIGN KEY (tenant_id, service_id) REFERENCES services(tenant_id, id)
@@ -194,7 +194,7 @@ CREATE TABLE IF NOT EXISTS favorites (
   user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   product_id TEXT REFERENCES products(id) ON DELETE CASCADE,
   service_id TEXT REFERENCES services(id) ON DELETE CASCADE,
-  created_at INTEGER NOT NULL,
+  created_at BIGINT NOT NULL,
   CHECK ((product_id IS NOT NULL) OR (service_id IS NOT NULL)),
   UNIQUE (tenant_id, user_id, product_id, service_id),
   FOREIGN KEY (tenant_id, product_id) REFERENCES products(tenant_id, id),
@@ -206,7 +206,7 @@ CREATE TABLE IF NOT EXISTS inventory_stock (
   branch_id TEXT NOT NULL REFERENCES branches(id) ON DELETE CASCADE,
   product_id TEXT NOT NULL REFERENCES products(id) ON DELETE CASCADE,
   quantity INTEGER NOT NULL DEFAULT 0 CHECK (quantity >= 0),
-  updated_at INTEGER NOT NULL,
+  updated_at BIGINT NOT NULL,
   PRIMARY KEY (tenant_id, branch_id, product_id),
   FOREIGN KEY (tenant_id, branch_id) REFERENCES branches(tenant_id, id),
   FOREIGN KEY (tenant_id, product_id) REFERENCES products(tenant_id, id)
@@ -221,7 +221,7 @@ CREATE TABLE IF NOT EXISTS inventory_movements (
   reason TEXT NOT NULL,
   idempotency_key TEXT NOT NULL,
   created_by TEXT NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
-  created_at INTEGER NOT NULL,
+  created_at BIGINT NOT NULL,
   UNIQUE (tenant_id, idempotency_key),
   FOREIGN KEY (tenant_id, branch_id) REFERENCES branches(tenant_id, id),
   FOREIGN KEY (tenant_id, product_id) REFERENCES products(tenant_id, id)
@@ -241,8 +241,8 @@ CREATE TABLE IF NOT EXISTS orders (
   total_cents INTEGER NOT NULL CHECK (total_cents >= 0),
   currency TEXT NOT NULL DEFAULT 'EGP',
   created_by TEXT NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
-  created_at INTEGER NOT NULL,
-  updated_at INTEGER NOT NULL,
+  created_at BIGINT NOT NULL,
+  updated_at BIGINT NOT NULL,
   UNIQUE (tenant_id, id),
   FOREIGN KEY (tenant_id, business_id) REFERENCES businesses(tenant_id, id),
   FOREIGN KEY (tenant_id, branch_id) REFERENCES branches(tenant_id, id),
@@ -268,7 +268,7 @@ CREATE TABLE IF NOT EXISTS ledger_accounts (
   code TEXT NOT NULL,
   name TEXT NOT NULL,
   account_type TEXT NOT NULL CHECK (account_type IN ('ASSET','LIABILITY','EQUITY','REVENUE','EXPENSE')),
-  created_at INTEGER NOT NULL,
+  created_at BIGINT NOT NULL,
   UNIQUE (tenant_id, code),
   UNIQUE (tenant_id, id)
 );
@@ -281,7 +281,7 @@ CREATE TABLE IF NOT EXISTS ledger_journals (
   memo TEXT NOT NULL,
   idempotency_key TEXT NOT NULL,
   created_by TEXT NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
-  created_at INTEGER NOT NULL,
+  created_at BIGINT NOT NULL,
   UNIQUE (tenant_id, idempotency_key)
 );
 CREATE INDEX IF NOT EXISTS idx_ledger_journals_scope ON ledger_journals(tenant_id, created_at);
@@ -294,7 +294,7 @@ CREATE TABLE IF NOT EXISTS ledger_entries (
   line_no INTEGER NOT NULL,
   debit_cents INTEGER NOT NULL DEFAULT 0 CHECK (debit_cents >= 0),
   credit_cents INTEGER NOT NULL DEFAULT 0 CHECK (credit_cents >= 0),
-  created_at INTEGER NOT NULL,
+  created_at BIGINT NOT NULL,
   CHECK ((debit_cents > 0 AND credit_cents = 0) OR (credit_cents > 0 AND debit_cents = 0)),
   UNIQUE (journal_id, line_no),
   FOREIGN KEY (tenant_id, account_id) REFERENCES ledger_accounts(tenant_id, id)
@@ -308,8 +308,8 @@ CREATE TABLE IF NOT EXISTS payment_webhook_events (
   payload_hash TEXT NOT NULL,
   signature_hash TEXT NOT NULL,
   status TEXT NOT NULL CHECK (status IN ('VERIFIED_PENDING','PROCESSED','REJECTED')),
-  received_at INTEGER NOT NULL,
-  processed_at INTEGER,
+  received_at BIGINT NOT NULL,
+  processed_at BIGINT,
   UNIQUE (provider, event_id)
 );
 CREATE INDEX IF NOT EXISTS idx_payment_webhooks_event ON payment_webhook_events(provider, event_id, received_at);
@@ -325,8 +325,8 @@ CREATE TABLE IF NOT EXISTS payment_intents (
   provider_reference TEXT,
   idempotency_key TEXT NOT NULL,
   created_by TEXT NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
-  created_at INTEGER NOT NULL,
-  updated_at INTEGER NOT NULL,
+  created_at BIGINT NOT NULL,
+  updated_at BIGINT NOT NULL,
   UNIQUE (tenant_id, idempotency_key),
   FOREIGN KEY (tenant_id, order_id) REFERENCES orders(tenant_id, id)
 );
@@ -337,7 +337,7 @@ CREATE TABLE IF NOT EXISTS plans (
   price_cents INTEGER NOT NULL CHECK (price_cents >= 0),
   trial_days INTEGER NOT NULL DEFAULT 0 CHECK (trial_days BETWEEN 0 AND 90),
   active INTEGER NOT NULL DEFAULT 1 CHECK (active IN (0,1)),
-  created_at INTEGER NOT NULL
+  created_at BIGINT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS entitlements (
   plan_code TEXT NOT NULL REFERENCES plans(code) ON DELETE CASCADE,
@@ -354,8 +354,8 @@ CREATE TABLE IF NOT EXISTS subscriptions (
   current_period_start INTEGER NOT NULL,
   current_period_end INTEGER NOT NULL,
   cancel_at_period_end INTEGER NOT NULL DEFAULT 0 CHECK (cancel_at_period_end IN (0,1)),
-  created_at INTEGER NOT NULL,
-  updated_at INTEGER NOT NULL,
+  created_at BIGINT NOT NULL,
+  updated_at BIGINT NOT NULL,
   UNIQUE (tenant_id)
 );
 
@@ -367,7 +367,7 @@ CREATE TABLE IF NOT EXISTS ai_requests (
   input_hash TEXT NOT NULL,
   allowed_data_scope TEXT NOT NULL,
   provider_status TEXT NOT NULL CHECK (provider_status IN ('REQUIRES_SETUP','QUEUED','COMPLETED','FAILED')),
-  created_at INTEGER NOT NULL
+  created_at BIGINT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_ai_requests_scope ON ai_requests(tenant_id, user_id, created_at);
 
@@ -377,7 +377,7 @@ CREATE TABLE IF NOT EXISTS drivers (
   user_id TEXT NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
   license_number TEXT,
   status TEXT NOT NULL DEFAULT 'AVAILABLE' CHECK (status IN ('AVAILABLE','ASSIGNED','OFFLINE','SUSPENDED')),
-  created_at INTEGER NOT NULL,
+  created_at BIGINT NOT NULL,
   UNIQUE (tenant_id, user_id),
   UNIQUE (tenant_id, id)
 );
@@ -387,7 +387,7 @@ CREATE TABLE IF NOT EXISTS vehicles (
   plate_number TEXT NOT NULL,
   kind TEXT NOT NULL,
   status TEXT NOT NULL DEFAULT 'ACTIVE' CHECK (status IN ('ACTIVE','MAINTENANCE','INACTIVE')),
-  created_at INTEGER NOT NULL,
+  created_at BIGINT NOT NULL,
   UNIQUE (tenant_id, plate_number),
   UNIQUE (tenant_id, id)
 );
@@ -399,8 +399,8 @@ CREATE TABLE IF NOT EXISTS deliveries (
   vehicle_id TEXT REFERENCES vehicles(id) ON DELETE SET NULL,
   state TEXT NOT NULL DEFAULT 'CREATED' CHECK (state IN ('CREATED','PENDING','ASSIGNED','PICKED_UP','IN_TRANSIT','DELIVERED','FAILED','CANCELLED')),
   delivery_fee_cents INTEGER NOT NULL DEFAULT 0 CHECK (delivery_fee_cents >= 0),
-  created_at INTEGER NOT NULL,
-  updated_at INTEGER NOT NULL,
+  created_at BIGINT NOT NULL,
+  updated_at BIGINT NOT NULL,
   UNIQUE (tenant_id, order_id),
   UNIQUE (tenant_id, id),
   FOREIGN KEY (tenant_id, order_id) REFERENCES orders(tenant_id, id),
@@ -414,7 +414,7 @@ CREATE TABLE IF NOT EXISTS delivery_events (
   state TEXT NOT NULL,
   note TEXT,
   created_by TEXT NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
-  created_at INTEGER NOT NULL,
+  created_at BIGINT NOT NULL,
   FOREIGN KEY (tenant_id, delivery_id) REFERENCES deliveries(tenant_id, id)
 );
 CREATE INDEX IF NOT EXISTS idx_deliveries_scope ON deliveries(tenant_id, state, updated_at);
@@ -427,7 +427,7 @@ CREATE TABLE IF NOT EXISTS delivery_proofs (
   content_hash TEXT NOT NULL,
   recipient_name TEXT,
   captured_by TEXT NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
-  captured_at INTEGER NOT NULL,
+  captured_at BIGINT NOT NULL,
   UNIQUE (tenant_id, delivery_id),
   FOREIGN KEY (tenant_id, delivery_id) REFERENCES deliveries(tenant_id, id)
 );
@@ -440,7 +440,7 @@ CREATE TABLE IF NOT EXISTS notifications (
   title TEXT NOT NULL,
   body TEXT NOT NULL,
   status TEXT NOT NULL DEFAULT 'QUEUED' CHECK (status IN ('QUEUED','SENT','FAILED','READ')),
-  created_at INTEGER NOT NULL,
+  created_at BIGINT NOT NULL,
   UNIQUE (tenant_id, id)
 );
 
@@ -462,7 +462,7 @@ CREATE TABLE IF NOT EXISTS invoices (
   tax_cents INTEGER NOT NULL CHECK (tax_cents >= 0),
   total_cents INTEGER NOT NULL CHECK (total_cents >= 0),
   currency TEXT NOT NULL DEFAULT 'EGP',
-  issued_at INTEGER NOT NULL,
+  issued_at BIGINT NOT NULL,
   UNIQUE (tenant_id, invoice_number),
   UNIQUE (tenant_id, order_id),
   UNIQUE (tenant_id, id),
@@ -478,8 +478,8 @@ CREATE TABLE IF NOT EXISTS refunds (
   reason TEXT NOT NULL,
   idempotency_key TEXT NOT NULL,
   created_by TEXT NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
-  created_at INTEGER NOT NULL,
-  updated_at INTEGER NOT NULL,
+  created_at BIGINT NOT NULL,
+  updated_at BIGINT NOT NULL,
   UNIQUE (tenant_id, idempotency_key),
   FOREIGN KEY (tenant_id, order_id) REFERENCES orders(tenant_id, id)
 );
@@ -493,8 +493,8 @@ CREATE TABLE IF NOT EXISTS ai_documents (
   title TEXT NOT NULL,
   permission_scope_json TEXT NOT NULL DEFAULT '{}',
   status TEXT NOT NULL DEFAULT 'ACTIVE' CHECK (status IN ('ACTIVE','ARCHIVED','PENDING')),
-  created_at INTEGER NOT NULL,
-  updated_at INTEGER NOT NULL,
+  created_at BIGINT NOT NULL,
+  updated_at BIGINT NOT NULL,
   UNIQUE (tenant_id, source_type, source_ref),
   UNIQUE (tenant_id, id)
 );
@@ -508,7 +508,7 @@ CREATE TABLE IF NOT EXISTS ai_chunks (
   embedding_provider TEXT,
   embedding_ref TEXT,
   metadata_json TEXT NOT NULL DEFAULT '{}',
-  created_at INTEGER NOT NULL,
+  created_at BIGINT NOT NULL,
   UNIQUE (tenant_id, document_id, chunk_index),
   FOREIGN KEY (tenant_id, document_id) REFERENCES ai_documents(tenant_id, id)
 );
@@ -526,7 +526,7 @@ CREATE TABLE IF NOT EXISTS ai_usage (
   total_tokens INTEGER NOT NULL DEFAULT 0 CHECK (total_tokens >= 0),
   latency_ms INTEGER NOT NULL DEFAULT 0 CHECK (latency_ms >= 0),
   cost_cents INTEGER CHECK (cost_cents IS NULL OR cost_cents >= 0),
-  created_at INTEGER NOT NULL,
+  created_at BIGINT NOT NULL,
   UNIQUE (tenant_id, request_id)
 );
 CREATE INDEX IF NOT EXISTS idx_ai_usage_scope ON ai_usage(tenant_id, user_id, feature, created_at);
@@ -540,7 +540,7 @@ CREATE TABLE IF NOT EXISTS ai_agent_runs (
   tenant_scope TEXT NOT NULL,
   tool_allowlist_json TEXT NOT NULL,
   status TEXT NOT NULL CHECK (status IN ('VERIFIED_PENDING','BLOCKED_POLICY','REQUIRES_SETUP','COMPLETED','FAILED')),
-  created_at INTEGER NOT NULL,
+  created_at BIGINT NOT NULL,
   UNIQUE (tenant_id, id)
 );
 
@@ -554,8 +554,8 @@ CREATE TABLE IF NOT EXISTS geo_places (
   latitude REAL NOT NULL CHECK (latitude BETWEEN -90 AND 90),
   longitude REAL NOT NULL CHECK (longitude BETWEEN -180 AND 180),
   radius_meters INTEGER CHECK (radius_meters IS NULL OR radius_meters > 0),
-  created_at INTEGER NOT NULL,
-  updated_at INTEGER NOT NULL,
+  created_at BIGINT NOT NULL,
+  updated_at BIGINT NOT NULL,
   UNIQUE (tenant_id, entity_type, entity_id)
 );
 CREATE INDEX IF NOT EXISTS idx_geo_places_scope ON geo_places(tenant_id, entity_type, city, district);
@@ -566,7 +566,7 @@ CREATE TABLE IF NOT EXISTS advertisers (
   business_id TEXT NOT NULL REFERENCES businesses(id) ON DELETE RESTRICT,
   status TEXT NOT NULL DEFAULT 'ACTIVE' CHECK (status IN ('ACTIVE','SUSPENDED','PENDING')),
   billing_account_ref TEXT,
-  created_at INTEGER NOT NULL,
+  created_at BIGINT NOT NULL,
   UNIQUE (tenant_id, id),
   FOREIGN KEY (tenant_id, business_id) REFERENCES businesses(tenant_id, id)
 );
@@ -579,10 +579,10 @@ CREATE TABLE IF NOT EXISTS ad_campaigns (
   budget_cents INTEGER NOT NULL CHECK (budget_cents >= 0),
   spent_cents INTEGER NOT NULL DEFAULT 0 CHECK (spent_cents >= 0),
   targeting_json TEXT NOT NULL DEFAULT '{}',
-  starts_at INTEGER,
-  ends_at INTEGER,
-  created_at INTEGER NOT NULL,
-  updated_at INTEGER NOT NULL,
+  starts_at BIGINT,
+  ends_at BIGINT,
+  created_at BIGINT NOT NULL,
+  updated_at BIGINT NOT NULL,
   UNIQUE (tenant_id, id),
   FOREIGN KEY (tenant_id, advertiser_id) REFERENCES advertisers(tenant_id, id),
   CHECK (spent_cents <= budget_cents)
@@ -595,7 +595,7 @@ CREATE TABLE IF NOT EXISTS ad_creatives (
   body TEXT,
   asset_ref TEXT,
   status TEXT NOT NULL DEFAULT 'DRAFT' CHECK (status IN ('DRAFT','APPROVED','REJECTED')),
-  created_at INTEGER NOT NULL,
+  created_at BIGINT NOT NULL,
   FOREIGN KEY (tenant_id, campaign_id) REFERENCES ad_campaigns(tenant_id, id)
 );
 CREATE TABLE IF NOT EXISTS ad_events (
@@ -605,7 +605,7 @@ CREATE TABLE IF NOT EXISTS ad_events (
   event_type TEXT NOT NULL CHECK (event_type IN ('IMPRESSION','CLICK','CONVERSION')),
   user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
   event_key TEXT NOT NULL,
-  created_at INTEGER NOT NULL,
+  created_at BIGINT NOT NULL,
   UNIQUE (tenant_id, event_key),
   FOREIGN KEY (tenant_id, campaign_id) REFERENCES ad_campaigns(tenant_id, id)
 );
@@ -618,7 +618,7 @@ CREATE TABLE IF NOT EXISTS notification_templates (
   subject_template TEXT NOT NULL,
   body_template TEXT NOT NULL,
   active INTEGER NOT NULL DEFAULT 1 CHECK (active IN (0,1)),
-  created_at INTEGER NOT NULL,
+  created_at BIGINT NOT NULL,
   UNIQUE (tenant_id, code, channel)
 );
 CREATE TABLE IF NOT EXISTS notification_deliveries (
@@ -629,8 +629,8 @@ CREATE TABLE IF NOT EXISTS notification_deliveries (
   status TEXT NOT NULL CHECK (status IN ('QUEUED','SENT','FAILED','REQUIRES_SETUP')),
   attempts INTEGER NOT NULL DEFAULT 0 CHECK (attempts >= 0),
   last_error TEXT,
-  next_attempt_at INTEGER,
-  updated_at INTEGER NOT NULL,
+  next_attempt_at BIGINT,
+  updated_at BIGINT NOT NULL,
   UNIQUE (tenant_id, notification_id, provider),
   FOREIGN KEY (tenant_id, notification_id) REFERENCES notifications(tenant_id, id)
 );
@@ -641,14 +641,14 @@ CREATE TABLE IF NOT EXISTS feature_flags (
   rollout_percent INTEGER NOT NULL DEFAULT 0 CHECK (rollout_percent BETWEEN 0 AND 100),
   metadata_json TEXT NOT NULL DEFAULT '{}',
   updated_by TEXT REFERENCES users(id) ON DELETE SET NULL,
-  updated_at INTEGER NOT NULL
+  updated_at BIGINT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS platform_settings (
   key TEXT PRIMARY KEY,
   value_json TEXT NOT NULL,
   is_secret INTEGER NOT NULL DEFAULT 0 CHECK (is_secret IN (0,1)),
   updated_by TEXT REFERENCES users(id) ON DELETE SET NULL,
-  updated_at INTEGER NOT NULL
+  updated_at BIGINT NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS audit_logs (
@@ -660,6 +660,6 @@ CREATE TABLE IF NOT EXISTS audit_logs (
   resource_id TEXT,
   request_id TEXT,
   metadata_json TEXT NOT NULL DEFAULT '{}',
-  created_at INTEGER NOT NULL
+  created_at BIGINT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_audit_scope ON audit_logs(tenant_id, created_at);

@@ -67,3 +67,15 @@ pnpm test:security
 | PostgreSQL staging evidence | BLOCKED_EXTERNAL_DEPENDENCY | لا توجد `STAGING_DATABASE_URL` متاحة في البيئة الحالية |
 
 عند توفير secret حقيقي، يفشل gate عند migration أو foreign key أو tenant composite constraint أو ledger imbalance أو rollback failure، ولا يقبل SQLite كبديل.
+
+## V5.3 verified staging execution
+
+| المجال | الحالة | الدليل |
+|---|---|---|
+| PostgreSQL local staging | PASS | PostgreSQL 16، migrations 1–3، 184 FKs، 52 composite constraints |
+| Critical API paths on PostgreSQL | PASS | `scripts/postgres-critical-smoke.mjs` |
+| Tenant isolation adversarial smoke | PASS | tampered tenant header 403، cross-tenant AI search empty |
+| Financial integrity | PASS | all persisted journals balance، rollback probe PASS |
+| PostgreSQL timestamp compatibility | IMPLEMENTED | epoch millisecond columns corrected to BIGINT |
+
+Production/offsite PostgreSQL evidence remains separate from this local staging evidence.

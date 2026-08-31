@@ -87,3 +87,25 @@
 ## V5.2 staging verification gate
 
 أضيف `pnpm test:staging` وworkflow يدوي `.github/workflows/staging.yml`. عند توفر `STAGING_DATABASE_URL` حقيقيًا، يقوم gate بتطبيق migrations 1–3، ويتحقق من الاتصال والجداول والـforeign keys والـtenant composite constraints وتوازن كل journals، ثم ينفذ rollback transaction probe. عند غياب الرابط لا يختلق نجاحًا ويخرج بحالة `BLOCKED_EXTERNAL_DEPENDENCY` وبـexit code 78.
+
+## V5.3 execution evidence — local PostgreSQL staging
+
+تم provision لخدمة PostgreSQL 16 محلية مستقلة (`sinai_staging`) وRedis 7 داخل بيئة التنفيذ، ثم تم تشغيل gates على PostgreSQL الحقيقي لا SQLite. اكتشف الفحص عيبًا حقيقيًا في migrations: حقول epoch milliseconds كانت `INTEGER` وتسببت في overflow؛ تم تحويل حقول الوقت إلى `BIGINT` في PostgreSQL migrations 1–3، ثم إعادة التشغيل بنجاح.
+
+| الفحص | النتيجة |
+|---|---|
+| PostgreSQL connectivity | PASS — PostgreSQL 16 |
+| Migrations 1–3 | PASS |
+| Required tables | PASS — 10 أساسية موجودة |
+| Foreign keys | PASS — 184 |
+| Tenant composite constraints | PASS — 52 |
+| Financial journal balance | PASS — كل القيود متوازنة |
+| Transaction rollback | PASS |
+| Critical API paths on PostgreSQL | PASS |
+| Tenant ID tampering | PASS — 403 |
+| Inventory movement | PASS |
+| Order total/state | PASS — 1250 / PENDING |
+| Cross-tenant AI search | PASS — لا تسريب |
+| Payment without credentials | PASS — `REQUIRES_SETUP` |
+
+هذه الشهادة تخص PostgreSQL المحلي staging داخل البيئة الحالية. لا تزال production/offsite PostgreSQL وTLS وbackup restore الخارجي وprovider sandboxes متطلبات منفصلة.

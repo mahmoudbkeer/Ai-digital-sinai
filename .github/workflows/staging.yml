@@ -31,5 +31,9 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: Verify PostgreSQL staging
         run: pnpm test:staging
+      - name: Build staging application
+        run: pnpm build
+      - name: Verify PostgreSQL critical paths and tenant isolation
+        run: pnpm test:staging:api
       - name: Verify source integrity
         run: git diff --check
