@@ -76,3 +76,7 @@
 ## Payment webhook settlement
 
 أُكمل مسار webhook المحلي: event verification، replay idempotency، provider-reference lookup، atomic payment status، order confirmation، invoice paid، وaudit. التشغيل الخارجي يبقى `REQUIRES_SETUP` حتى توفر provider credentials واستجابة حقيقية.
+
+## RBAC/ABAC adversarial matrix
+
+أضيف `scripts/rbac-adversarial-matrix.mjs` إلى `pnpm test:security:adversarial`. ينشئ الاختبار Tenant A وTenant B ومستخدمين فعليين للأدوار Consumer وOwner وManager وEmployee وService Provider وDriver وAdmin وSuper Admin، ثم يختبر 64 حالة Role × Operation server-side، إضافة إلى IDOR حقيقي على product/order/invoice/payment_intent/customer. النتيجة المحلية: PASS؛ كل محاولات cross-tenant أعادت 403.

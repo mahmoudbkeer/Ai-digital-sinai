@@ -14,7 +14,7 @@
     "test:smoke": "node scripts/app-smoke.mjs",
     "test:load": "node scripts/load-smoke.mjs",
     "test:security": "node scripts/security-smoke.mjs",
-    "test:security:adversarial": "node scripts/security-adversarial-smoke.mjs",
+    "test:security:adversarial": "node scripts/security-adversarial-smoke.mjs && node scripts/rbac-adversarial-matrix.mjs",
     "acceptance:chain": "node scripts/acceptance-chain.mjs",
     "acceptance:post-payment": "node scripts/acceptance-post-payment.mjs",
     "worker": "node --import tsx scripts/queue-worker.mjs",

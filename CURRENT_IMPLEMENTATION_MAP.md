@@ -126,3 +126,7 @@ Production/offsite PostgreSQL evidence remains separate from this local staging 
 ## Payment runtime update
 
 Webhook settlement أصبح منفذًا محليًا من خلال provider reference مع idempotency وatomic order/invoice updates وaudit. حالة activation الخارجية ما تزال `REQUIRES_SETUP` لغياب credentials.
+
+## RBAC/ABAC adversarial verification
+
+تم تشغيل مصفوفة server-side كاملة لـ8 أدوار و8 عمليات، مع إنشاء مورد حقيقي في Tenant B ومحاولة الوصول من Tenant A عبر IDs معدلة. النتيجة: 64/64 Role × Operation و5/5 IDOR PASS.

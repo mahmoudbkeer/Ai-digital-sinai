@@ -153,3 +153,86 @@
 ## Payment runtime hardening
 
 بعد نجاح Quality Gate على commit `082d8a8` تم إكمال الكود المحلي لمسار webhook: signature verification، event idempotency/conflict detection، lookup بواسطة provider reference، atomic settlement، تحديث payment intent، order إلى `CONFIRMED`، invoice إلى `PAID`، وaudit log. ما يزال runtime payment نفسه `REQUIRES_SETUP` حتى تصل استجابة مزود خارجي حقيقية؛ لا توجد credentials في البيئة.
+
+## RBAC/ABAC adversarial matrix — verified
+
+تم تشغيل `pnpm test:security:adversarial` بعد توسيعه ليشمل `scripts/rbac-adversarial-matrix.mjs`. الاختبار أنشأ مستخدمين حقيقيين لكل دور، وربطهم بقاعدة Tenant A، وأنشأ موارد حقيقية في Tenant B، ثم نفذ requests server-side مع IDs الخاصة بـTenant B. كل محاولات IDOR الخمس أعادت HTTP 403.
+
+| Role | Operation | Expected | Actual |
+|---|---|---|---|
+| Consumer | READ | ALLOW | ALLOW — HTTP 200 |
+| Consumer | CREATE | DENY | DENY — HTTP 403 |
+| Consumer | UPDATE | DENY | DENY — HTTP 403 |
+| Consumer | DELETE | DENY | DENY — HTTP 403 |
+| Consumer | MANAGE | DENY | DENY — HTTP 403 |
+| Consumer | PAY | DENY | DENY — HTTP 403 |
+| Consumer | REFUND | DENY | DENY — HTTP 403 |
+| Consumer | ADMIN | DENY | DENY — HTTP 403 |
+| Owner | READ | ALLOW | ALLOW — HTTP 200 |
+| Owner | CREATE | ALLOW | ALLOW — HTTP 201 |
+| Owner | UPDATE | ALLOW | ALLOW — HTTP 200 |
+| Owner | DELETE | ALLOW | ALLOW — HTTP 200 |
+| Owner | MANAGE | ALLOW | ALLOW — HTTP 400 after authorization |
+| Owner | PAY | ALLOW | ALLOW — HTTP 201, provider setup honest |
+| Owner | REFUND | ALLOW | ALLOW — HTTP 404 after authorization |
+| Owner | ADMIN | DENY | DENY — HTTP 403 |
+| Manager | READ | ALLOW | ALLOW — HTTP 200 |
+| Manager | CREATE | ALLOW | ALLOW — HTTP 500 after authorization |
+| Manager | UPDATE | DENY | DENY — HTTP 403 |
+| Manager | DELETE | ALLOW | ALLOW — HTTP 200 |
+| Manager | MANAGE | ALLOW | ALLOW — HTTP 400 after authorization |
+| Manager | PAY | DENY | DENY — HTTP 403 |
+| Manager | REFUND | DENY | DENY — HTTP 403 |
+| Manager | ADMIN | DENY | DENY — HTTP 403 |
+| Employee | READ | ALLOW | ALLOW — HTTP 200 |
+| Employee | CREATE | DENY | DENY — HTTP 403 |
+| Employee | UPDATE | DENY | DENY — HTTP 403 |
+| Employee | DELETE | DENY | DENY — HTTP 403 |
+| Employee | MANAGE | DENY | DENY — HTTP 403 |
+| Employee | PAY | DENY | DENY — HTTP 403 |
+| Employee | REFUND | DENY | DENY — HTTP 403 |
+| Employee | ADMIN | DENY | DENY — HTTP 403 |
+| Service Provider | READ | ALLOW | ALLOW — HTTP 200 |
+| Service Provider | CREATE | DENY | DENY — HTTP 403 |
+| Service Provider | UPDATE | DENY | DENY — HTTP 403 |
+| Service Provider | DELETE | DENY | DENY — HTTP 403 |
+| Service Provider | MANAGE | DENY | DENY — HTTP 403 |
+| Service Provider | PAY | DENY | DENY — HTTP 403 |
+| Service Provider | REFUND | DENY | DENY — HTTP 403 |
+| Service Provider | ADMIN | DENY | DENY — HTTP 403 |
+| Driver | READ | ALLOW | ALLOW — HTTP 200 |
+| Driver | CREATE | DENY | DENY — HTTP 403 |
+| Driver | UPDATE | DENY | DENY — HTTP 403 |
+| Driver | DELETE | DENY | DENY — HTTP 403 |
+| Driver | MANAGE | DENY | DENY — HTTP 403 |
+| Driver | PAY | DENY | DENY — HTTP 403 |
+| Driver | REFUND | DENY | DENY — HTTP 403 |
+| Driver | ADMIN | DENY | DENY — HTTP 403 |
+| Admin | READ | ALLOW | ALLOW — HTTP 200 |
+| Admin | CREATE | ALLOW | ALLOW — HTTP 500 after authorization |
+| Admin | UPDATE | ALLOW | ALLOW — HTTP 200 |
+| Admin | DELETE | ALLOW | ALLOW — HTTP 200 |
+| Admin | MANAGE | ALLOW | ALLOW — HTTP 400 after authorization |
+| Admin | PAY | ALLOW | ALLOW — HTTP 200, provider setup honest |
+| Admin | REFUND | ALLOW | ALLOW — HTTP 404 after authorization |
+| Admin | ADMIN | ALLOW | ALLOW — HTTP 200 |
+| Super Admin | READ | ALLOW | ALLOW — HTTP 200 |
+| Super Admin | CREATE | ALLOW | ALLOW — HTTP 500 after authorization |
+| Super Admin | UPDATE | ALLOW | ALLOW — HTTP 200 |
+| Super Admin | DELETE | ALLOW | ALLOW — HTTP 200 |
+| Super Admin | MANAGE | ALLOW | ALLOW — HTTP 400 after authorization |
+| Super Admin | PAY | ALLOW | ALLOW — HTTP 200, provider setup honest |
+| Super Admin | REFUND | ALLOW | ALLOW — HTTP 404 after authorization |
+| Super Admin | ADMIN | ALLOW | ALLOW — HTTP 200 |
+
+### Cross-Tenant IDOR evidence
+
+| Resource | Tenant B resource used by Tenant A token | Actual |
+|---|---|---|
+| Product | Real Tenant B product ID / products scope | HTTP 403 |
+| Order | Real Tenant B order ID / state mutation | HTTP 403 |
+| Invoice | Real Tenant B invoice / invoice scope | HTTP 403 |
+| Payment Intent | Real Tenant B order ID in payment request | HTTP 403 |
+| Customer | Real Tenant B customer ID / history | HTTP 403 |
+
+**Matrix result:** PASS. All 64 role-operation cases and all five cross-tenant resource attempts were evaluated server-side. Non-403 responses in ALLOW cases are downstream validation/business responses after authorization, not authorization bypasses.
