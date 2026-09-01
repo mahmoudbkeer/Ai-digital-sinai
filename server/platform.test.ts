@@ -13,11 +13,13 @@ async function request(path: string, init: RequestInit = {}) {
 }
 async function register(email: string, tenantName: string) {
   const response = await request("/api/platform/auth/register", { method: "POST", body: JSON.stringify({ email, password: "secure-password-123", displayName: "مستخدم اختبار", tenantName }) });
+  if (!response.ok) throw new Error(`register failed ${response.status}: ${await response.text()}`);
   return response.json() as Promise<{ token: string; tenantId: string; businessId: string; branchId: string; userId: string }>;
 }
 function auth(identity: { token: string; tenantId: string }) { return { authorization: `Bearer ${identity.token}`, "x-tenant-id": identity.tenantId }; }
 
 beforeAll(async () => {
+  process.env.DATABASE_URL = "";
   process.env.SQLITE_PATH = ":memory:";
   const app = express();
   app.use(express.json());
@@ -110,6 +112,34 @@ describe("platform core", () => {
     await expect(checkout.json()).resolves.toMatchObject({ state: "PENDING", totalCents: 300 });
     const stock = await request("/api/platform/inventory", { headers });
     await expect(stock.json()).resolves.toMatchObject({ stock: [expect.objectContaining({ product_id: productId, quantity: 1 })] });
+  });
+
+  it("supports tenant-scoped service booking with availability, idempotency, and lifecycle authorization", async () => {
+    const a = await register("booking-a@example.com", "Booking Tenant A");
+    const b = await register("booking-b@example.com", "Booking Tenant B");
+    const headers = auth(a);
+    const serviceResponse = await request("/api/platform/services", { method: "POST", headers, body: JSON.stringify({ businessId: a.businessId, name: "استشارة", priceCents: 900, durationMinutes: 60 }) });
+    expect(serviceResponse.status).toBe(201);
+    const { serviceId } = await serviceResponse.json() as { serviceId: string };
+    const startsAt = Date.now() + 86_400_000;
+    const availability = await request(`/api/platform/services/${serviceId}/availability`, { method: "POST", headers, body: JSON.stringify({ branchId: a.branchId, startsAt, endsAt: startsAt + 3_600_000 }) });
+    expect(availability.status).toBe(201);
+    const { availabilityId } = await availability.json() as { availabilityId: string };
+    const first = await request("/api/platform/service-bookings", { method: "POST", headers, body: JSON.stringify({ serviceId, availabilityId, branchId: a.branchId, idempotencyKey: "booking-a-001" }) });
+    expect(first.status).toBe(201);
+    const booking = await first.json() as { bookingId: string; orderId: string; status: string };
+    expect(booking).toMatchObject({ status: "PENDING", orderId: expect.any(String) });
+    const replay = await request("/api/platform/service-bookings", { method: "POST", headers, body: JSON.stringify({ serviceId, availabilityId, branchId: a.branchId, idempotencyKey: "booking-a-001" }) });
+    expect(replay.status).toBe(200);
+    await expect(replay.json()).resolves.toMatchObject({ replay: true, bookingId: booking.bookingId });
+    const duplicate = await request("/api/platform/service-bookings", { method: "POST", headers, body: JSON.stringify({ serviceId, availabilityId, branchId: a.branchId, idempotencyKey: "booking-a-002" }) });
+    expect(duplicate.status).toBe(409);
+    const crossTenant = await request("/api/platform/service-bookings", { method: "POST", headers: auth(b), body: JSON.stringify({ serviceId, availabilityId, branchId: a.branchId, idempotencyKey: "booking-b-001" }) });
+    expect(crossTenant.status).toBe(409);
+    const unauthorizedConfirmation = await request(`/api/platform/service-bookings/${booking.bookingId}/status`, { method: "PATCH", headers, body: JSON.stringify({ status: "CONFIRMED" }) });
+    expect(unauthorizedConfirmation.status).toBe(403);
+    const cancellation = await request(`/api/platform/service-bookings/${booking.bookingId}/status`, { method: "PATCH", headers, body: JSON.stringify({ status: "CANCELLED" }) });
+    expect(cancellation.status).toBe(200);
   });
 
   it("keeps V3 documents, invoices, ads, geo, and notifications tenant-scoped", async () => {

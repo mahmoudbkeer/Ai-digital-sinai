@@ -267,3 +267,15 @@
 تم تشغيل اختبارات `server/rag.test.ts` و`server/aiProviders.test.ts`: **3/3 passed**. RAG الحالي يثبت chunking وtenant/permission filtering، لكنه لا يُصنف Provider-backed Vector Runtime قبل توفير embedding/vector credentials.
 
 أضيف داخل `MobileApp.tsx` مركز إدارة حقيقيًا يقرأ `/api/platform/admin/users` و`tenants` و`audit` و`feature-flags`، ويعرض رفض `403` صراحة للحساب غير المخول. لم يتم الادعاء بأن Super Admin runtime صار VERIFIED دون جلسة Super Admin فعلية.
+
+## Last code gap closure — Service Booking + Super Admin runtime
+
+أضيفت migration `0005_service_booking.sql` لكل من SQLite وPostgreSQL، وتحتوي على `service_availability` و`service_bookings` داخل نفس Commerce architecture. الحجز يحمل booking ID وtenant وcustomer/provider/service وavailability date/time وstatus وrelated order وtimestamps. تم ربط الحجز بطلب موجود، مع invoice وbalanced ledger journal، دون إنشاء order architecture جديدة.
+
+أضيفت مسارات `POST/GET /api/platform/services/:serviceId/availability`، و`POST/GET /api/platform/service-bookings`، و`PATCH /api/platform/service-bookings/:bookingId/status`. تتحقق المسارات من tenant scope وprovider/customer ownership، وتمنع الحجز خارج slot المفتوح، وتستخدم unique constraints للـavailability وidempotency key لمنع double booking وduplicate replay. واجهة Marketplace تقرأ availability وتتيح اختيار الموعد ثم تنشئ booking حقيقيًا.
+
+اختبار booking يثبت: successful booking، replay idempotency، unavailable-slot/duplicate booking، cross-tenant rejection، ومنع customer من confirmation بدل cancellation فقط. النتيجة `12/12 passed` في `server/platform.test.ts`.
+
+Super Admin UI بقي مرتبطًا فعليًا بالـadmin APIs ويعرض users/tenants/audit/feature-flags، لكن إثبات authenticated Super Admin runtime الكامل غير معلن VERIFIED لأن البيئة لا توفر جلسة Super Admin حقيقية قابلة للاستخدام دون bypass. Owner/Manager/Employee boundaries تبقى `403` server-side.
+
+External provider runtime remains `BLOCKED_EXTERNAL_DEPENDENCY`: payment credentials/callback/settlement، notification provider credentials، AI/embedding/vector services، وproduction infrastructure provisioning. Android لم يبدأ حسب التعليمات.

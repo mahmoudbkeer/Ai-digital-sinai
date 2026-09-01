@@ -760,6 +760,17 @@ export function getDatabase(): AppDatabase {
       .prepare("INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)")
       .run(4, Date.now());
   }
+  const appliedServiceBooking = database
+    .prepare("SELECT version FROM schema_migrations WHERE version = 5")
+    .get() as { version?: number } | undefined;
+  if (!appliedServiceBooking) {
+    database.exec(
+      readFileSync(path.resolve(process.cwd(), "migrations/0005_service_booking.sql"), "utf8")
+    );
+    database
+      .prepare("INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)")
+      .run(5, Date.now());
+  }
   const planInsert = database.prepare(
     "INSERT OR IGNORE INTO plans (code, name, price_cents, trial_days, active, created_at) VALUES (?, ?, ?, ?, 1, ?)"
   );

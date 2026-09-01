@@ -3350,6 +3350,111 @@ export function createPlatformRouter(): Router {
     }
   );
 
+  router.post(
+    "/services/:serviceId/availability",
+    authenticate,
+    async (req: AuthenticatedRequest, res, next) => {
+      try {
+        const context = currentContext(req);
+        assertScope(context, context.tenantId, "order.manage");
+        const { branchId, startsAt, endsAt } = req.body ?? {};
+        if (!isNonEmptyString(branchId, 100) || !Number.isInteger(startsAt) || !Number.isInteger(endsAt) || endsAt <= startsAt)
+          throw httpError(400, "invalid-availability", "الفرع والفترة الزمنية الصالحة مطلوبة.");
+        const db = getDataPlane();
+        const service = await db.prepare("SELECT id, business_id, price_cents FROM services WHERE id = ? AND tenant_id = ? AND status = 'active'").get(req.params.serviceId, context.tenantId) as { id: string; business_id: string; price_cents: number } | undefined;
+        const branch = await db.prepare("SELECT id FROM branches WHERE id = ? AND tenant_id = ? AND business_id = ? AND status = 'active'").get(branchId, context.tenantId, service?.business_id ?? "");
+        if (!service || !branch) throw httpError(404, "service-or-branch-not-found", "الخدمة أو الفرع غير موجود داخل المستأجر الحالي.");
+        const provider = await db.prepare("SELECT user_id FROM tenant_members WHERE tenant_id = ? AND user_id = ? AND role = 'SERVICE_PROVIDER'").get(context.tenantId, context.userId);
+        if (!provider && !["TENANT_OWNER", "SUPER_ADMIN", "PLATFORM_ADMIN"].includes(context.role)) throw httpError(403, "provider-required", "إنشاء المواعيد متاح لمقدم الخدمة أو مالك النشاط فقط.");
+        const id = randomUUID();
+        await db.prepare("INSERT INTO service_availability (id, tenant_id, service_id, provider_user_id, branch_id, starts_at, ends_at, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)").run(id, context.tenantId, service.id, context.userId, branchId, startsAt, endsAt, now());
+        await recordAudit(db, context, "service.availability.create", "service_availability", id, req.requestId, { serviceId: service.id, startsAt, endsAt });
+        return res.status(201).json({ ok: true, availabilityId: id, serviceId: service.id, providerUserId: context.userId, startsAt, endsAt, priceCents: service.price_cents });
+      } catch (error) { next(error); }
+    }
+  );
+
+  router.get(
+    "/services/:serviceId/availability",
+    authenticate,
+    async (req: AuthenticatedRequest, res, next) => {
+      try {
+        const context = currentContext(req);
+        assertScope(context, context.tenantId, "product.read");
+        return res.json({ ok: true, availability: await getDataPlane().prepare("SELECT id, provider_user_id, branch_id, starts_at, ends_at, status FROM service_availability WHERE tenant_id = ? AND service_id = ? AND status = 'OPEN' ORDER BY starts_at").all(context.tenantId, req.params.serviceId) });
+      } catch (error) { next(error); }
+    }
+  );
+
+  router.post(
+    "/service-bookings",
+    authenticate,
+    async (req: AuthenticatedRequest, res, next) => {
+      try {
+        const context = currentContext(req);
+        assertScope(context, context.tenantId, "order.manage");
+        const { serviceId, availabilityId, branchId, idempotencyKey } = req.body ?? {};
+        if (!isNonEmptyString(serviceId, 100) || !isNonEmptyString(availabilityId, 100) || !isNonEmptyString(branchId, 100) || !/^[A-Za-z0-9._:-]{8,200}$/.test(idempotencyKey ?? ""))
+          throw httpError(400, "invalid-booking", "الخدمة والموعد والفرع ومفتاح idempotency مطلوبة.");
+        const db = getDataPlane();
+        const existing = await db.prepare("SELECT id, order_id, status FROM service_bookings WHERE tenant_id = ? AND idempotency_key = ?").get(context.tenantId, idempotencyKey) as { id: string; order_id: string; status: string } | undefined;
+        if (existing) return res.status(200).json({ ok: true, bookingId: existing.id, orderId: existing.order_id, status: existing.status, replay: true });
+        const result = await withDataPlaneTransaction(db, async () => {
+          const slot = await db.prepare("SELECT a.id, a.provider_user_id, a.starts_at, a.ends_at, s.business_id, s.price_cents FROM service_availability a JOIN services s ON s.id = a.service_id AND s.tenant_id = a.tenant_id WHERE a.id = ? AND a.tenant_id = ? AND a.service_id = ? AND a.branch_id = ? AND a.status = 'OPEN'").get(availabilityId, context.tenantId, serviceId, branchId) as { id: string; provider_user_id: string; starts_at: number; ends_at: number; business_id: string; price_cents: number } | undefined;
+          if (!slot) throw httpError(409, "unavailable-slot", "الموعد غير متاح أو لا ينتمي إلى الخدمة والمستأجر الحالي.");
+          const orderId = randomUUID();
+          const timestamp = now();
+          await db.prepare("INSERT INTO orders (id, tenant_id, business_id, branch_id, customer_id, subtotal_cents, discount_cents, tax_cents, total_cents, created_by, created_at, updated_at) VALUES (?, ?, ?, ?, NULL, ?, 0, 0, ?, ?, ?, ?)").run(orderId, context.tenantId, slot.business_id, branchId, slot.price_cents, slot.price_cents, context.userId, timestamp, timestamp);
+          const bookingId = randomUUID();
+          await db.prepare("INSERT INTO service_bookings (id, tenant_id, customer_user_id, provider_user_id, service_id, availability_id, order_id, starts_at, ends_at, idempotency_key, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)").run(bookingId, context.tenantId, context.userId, slot.provider_user_id, serviceId, availabilityId, orderId, slot.starts_at, slot.ends_at, idempotencyKey, timestamp, timestamp);
+          await db.prepare("UPDATE service_availability SET status = 'BOOKED' WHERE id = ? AND tenant_id = ? AND status = 'OPEN'").run(availabilityId, context.tenantId);
+          await postBalancedSaleJournal(db, context, orderId, slot.price_cents, req.requestId);
+          await issueInvoice(db, context, { id: orderId, subtotal_cents: slot.price_cents, tax_cents: 0, total_cents: slot.price_cents, currency: "EGP" }, req.requestId);
+          await recordAudit(db, context, "service.booking.create", "service_booking", bookingId, req.requestId, { orderId, serviceId, availabilityId });
+          return { bookingId, orderId, status: "PENDING", startsAt: slot.starts_at, endsAt: slot.ends_at, totalCents: slot.price_cents };
+        });
+        return res.status(201).json({ ok: true, ...result });
+      } catch (error) { next(error); }
+    }
+  );
+
+  router.get(
+    "/service-bookings",
+    authenticate,
+    async (req: AuthenticatedRequest, res, next) => {
+      try {
+        const context = currentContext(req);
+        assertScope(context, context.tenantId, "order.read");
+        const bookings = await getDataPlane().prepare("SELECT id, customer_user_id, provider_user_id, service_id, availability_id, order_id, starts_at, ends_at, status, created_at, updated_at FROM service_bookings WHERE tenant_id = ? AND (customer_user_id = ? OR provider_user_id = ?) ORDER BY starts_at DESC").all(context.tenantId, context.userId, context.userId);
+        return res.json({ ok: true, bookings });
+      } catch (error) { next(error); }
+    }
+  );
+
+  router.patch(
+    "/service-bookings/:bookingId/status",
+    authenticate,
+    async (req: AuthenticatedRequest, res, next) => {
+      try {
+        const context = currentContext(req);
+        const nextStatus = req.body?.status;
+        if (!["CONFIRMED", "IN_PROGRESS", "COMPLETED", "CANCELLED", "FAILED"].includes(nextStatus)) throw httpError(400, "invalid-booking-status", "حالة الحجز غير صالحة.");
+        const db = getDataPlane();
+        const booking = await db.prepare("SELECT id, customer_user_id, provider_user_id, status FROM service_bookings WHERE id = ? AND tenant_id = ?").get(req.params.bookingId, context.tenantId) as { id: string; customer_user_id: string; provider_user_id: string; status: string } | undefined;
+        if (!booking) throw httpError(404, "booking-not-found", "الحجز غير موجود داخل المستأجر الحالي.");
+        const isProvider = booking.provider_user_id === context.userId;
+        const isCustomer = booking.customer_user_id === context.userId;
+        if (!isProvider && !isCustomer) throw httpError(403, "booking-forbidden", "لا يمكنك تعديل حجز لا يخصك.");
+        if (isCustomer && nextStatus !== "CANCELLED") throw httpError(403, "customer-status-forbidden", "العميل يمكنه الإلغاء فقط.");
+        const allowed: Record<string, string[]> = { PENDING: ["CONFIRMED", "CANCELLED", "FAILED"], CONFIRMED: ["IN_PROGRESS", "CANCELLED"], IN_PROGRESS: ["COMPLETED", "FAILED"] };
+        if (!allowed[booking.status]?.includes(nextStatus)) throw httpError(409, "invalid-booking-transition", "انتقال حالة الحجز غير صالح.");
+        await db.prepare("UPDATE service_bookings SET status = ?, updated_at = ? WHERE id = ? AND tenant_id = ?").run(nextStatus, now(), booking.id, context.tenantId);
+        await recordAudit(db, context, "service.booking.status", "service_booking", booking.id, req.requestId, { from: booking.status, to: nextStatus });
+        return res.json({ ok: true, bookingId: booking.id, status: nextStatus });
+      } catch (error) { next(error); }
+    }
+  );
+
   router.get(
     "/cart",
     authenticate,
