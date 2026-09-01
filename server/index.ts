@@ -150,9 +150,9 @@ async function startServer() {
           status: "invalid-signature",
           verified: false,
         });
-      let parsed: { id?: unknown; eventId?: unknown };
+      let parsed: Record<string, unknown>;
       try {
-        parsed = JSON.parse(payload) as { id?: unknown; eventId?: unknown };
+        parsed = JSON.parse(payload) as Record<string, unknown>;
       } catch {
         return res.status(400).json({
           accepted: false,
@@ -163,8 +163,10 @@ async function startServer() {
       const eventId =
         typeof parsed.eventId === "string"
           ? parsed.eventId
-          : typeof parsed.id === "string"
-            ? parsed.id
+          : typeof parsed.event_id === "string"
+            ? parsed.event_id
+            : typeof parsed.id === "string"
+              ? parsed.id
             : req.header("x-payment-event-id");
       if (!eventId || !/^[A-Za-z0-9._:-]{3,200}$/.test(eventId))
         return res.status(400).json({
@@ -199,27 +201,34 @@ async function startServer() {
           message: "تمت معالجة هذا الحدث سابقاً؛ لم تتم إعادة التسوية.",
         });
       }
-      await withDataPlaneTransaction(db, async () =>
-        db
-          .prepare(
-            "INSERT INTO payment_webhook_events (id, provider, event_id, payload_hash, signature_hash, status, received_at) VALUES (?, ?, ?, ?, ?, 'VERIFIED_PENDING', ?)"
-          )
-          .run(
-            randomUUID(),
-            provider,
-            eventId,
-            payloadHash,
-            signatureHash,
-            Date.now()
-          )
-      );
-      return res.status(202).json({
+      const providerReference = ["providerReference", "provider_reference", "paymentIntentId", "payment_intent_id"]
+        .map(key => parsed[key]).find(value => typeof value === "string") as string | undefined;
+      const rawEvent = [parsed.event, parsed.type, parsed.status].find(value => typeof value === "string");
+      const event = typeof rawEvent === "string" ? rawEvent.toLowerCase() : "";
+      const nextPaymentStatus = /refund/.test(event) ? "REFUNDED" : /fail|declin|cancel/.test(event) ? "FAILED" : /captur|success|paid|authoriz/.test(event) ? "CAPTURED" : null;
+      const settled = await withDataPlaneTransaction(db, async () => {
+        const intent = providerReference
+          ? (await db.prepare("SELECT id, tenant_id, order_id, status FROM payment_intents WHERE provider = ? AND provider_reference = ?").get(provider, providerReference) as { id: string; tenant_id: string; order_id: string | null; status: string } | undefined)
+          : undefined;
+        const eventStatus = intent && nextPaymentStatus ? nextPaymentStatus : "VERIFIED_PENDING";
+        await db.prepare("INSERT INTO payment_webhook_events (id, provider, event_id, payload_hash, signature_hash, status, received_at) VALUES (?, ?, ?, ?, ?, ?, ?)").run(randomUUID(), provider, eventId, payloadHash, signatureHash, eventStatus, Date.now());
+        if (!intent || !nextPaymentStatus) return { status: "VERIFIED_PENDING", intentId: null, tenantId: null, orderId: null };
+        await db.prepare("UPDATE payment_intents SET status = ?, updated_at = ? WHERE id = ? AND tenant_id = ? AND status NOT IN ('REFUNDED','CAPTURED')").run(nextPaymentStatus, Date.now(), intent.id, intent.tenant_id);
+        if (intent.order_id && nextPaymentStatus === "CAPTURED") {
+          await db.prepare("UPDATE orders SET state = 'CONFIRMED', updated_at = ? WHERE id = ? AND tenant_id = ? AND state IN ('PENDING','CONFIRMED')").run(Date.now(), intent.order_id, intent.tenant_id);
+          await db.prepare("UPDATE invoices SET status = 'PAID' WHERE order_id = ? AND tenant_id = ? AND status IN ('DRAFT','ISSUED')").run(intent.order_id, intent.tenant_id);
+        }
+        await db.prepare("INSERT INTO audit_logs (id, tenant_id, actor_user_id, action, resource_type, resource_id, request_id, metadata_json, created_at) VALUES (?, ?, NULL, ?, 'payment_intent', ?, ?, ?, ?)").run(randomUUID(), intent.tenant_id, `payment.${nextPaymentStatus.toLowerCase()}`, intent.id, req.header("x-request-id"), JSON.stringify({ provider, providerReference, eventId }), Date.now());
+        return { status: nextPaymentStatus, intentId: intent.id, tenantId: intent.tenant_id, orderId: intent.order_id };
+      });
+      return res.status(settled.status === "VERIFIED_PENDING" ? 202 : 200).json({
         accepted: true,
-        status: "verified-pending",
+        status: settled.status.toLowerCase().replaceAll("_", "-"),
         verified: true,
         eventId,
-        message:
-          "تم التحقق من Webhook وتسجيله؛ التسوية متوقفة حتى تهيئة adapter مزود رسمي.",
+        paymentIntentId: settled.intentId,
+        orderId: settled.orderId,
+        message: settled.status === "VERIFIED_PENDING" ? "تم التحقق من Webhook وتسجيله؛ لم يوجد payment intent قابل للتسوية." : "تم التحقق من Webhook وتحديث حالة الدفع والطلب والفاتورة.",
       });
     }
   );

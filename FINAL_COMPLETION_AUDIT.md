@@ -149,3 +149,7 @@
 ## Post-payment continuation acceptance
 
 تم تشغيل `pnpm acceptance:post-payment` عبر HTTP فعلي، فنجحت Delivery lifecycle كاملة مع proof of delivery، In-App Notification، Subscription trial، AI Advisor grounded endpoint، وAnalytics KPI endpoint. Admin overview رفض Owner بصلاحية 403، وهو boundary أمني صحيح وليس فشل عشوائيًا؛ يلزم تشغيله بهوية Super Admin مصرح بها لا يمكن اختلاقها من حساب tenant owner.
+
+## Payment runtime hardening
+
+بعد نجاح Quality Gate على commit `082d8a8` تم إكمال الكود المحلي لمسار webhook: signature verification، event idempotency/conflict detection، lookup بواسطة provider reference، atomic settlement، تحديث payment intent، order إلى `CONFIRMED`، invoice إلى `PAID`، وaudit log. ما يزال runtime payment نفسه `REQUIRES_SETUP` حتى تصل استجابة مزود خارجي حقيقية؛ لا توجد credentials في البيئة.

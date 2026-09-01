@@ -72,3 +72,7 @@
 ## Post-payment acceptance flow
 
 أضيف `scripts/acceptance-post-payment.mjs` لتشغيل واختبار delivery lifecycle، proof، in-app notifications، subscription trial، AI advisor، analytics KPIs، وadmin authorization boundary عبر HTTP فعلي. مرّت كل المراحل حتى Admin؛ Owner يحصل على 403 المتوقع، ولا يتم تجاوز الصلاحيات باختبار مصطنع.
+
+## Payment webhook settlement
+
+أُكمل مسار webhook المحلي: event verification، replay idempotency، provider-reference lookup، atomic payment status، order confirmation، invoice paid، وaudit. التشغيل الخارجي يبقى `REQUIRES_SETUP` حتى توفر provider credentials واستجابة حقيقية.

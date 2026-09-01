@@ -105,3 +105,7 @@ curl -i http://127.0.0.1:3000/api/readiness
 ## Post-payment continuation evidence
 
 `pnpm acceptance:post-payment` أثبت عبر HTTP: delivery states وproof، notification creation، subscription trial، AI advisor، وanalytics KPIs. Admin endpoint رفض tenant owner بـ403 كما يجب؛ يتطلب إثبات صلاحية Super Admin مستقلة قبل إعلان اكتمال مسار الإدارة.
+
+## Payment runtime update
+
+أصبح webhook يطبق settlement ذريًا عند تطابق provider reference ويمنع replay/conflict، مع تحديث payment/order/invoice وaudit. لم يتم تصنيف الدفع كـVERIFIED؛ تفعيل مزود خارجي حقيقي ومراجعة settlement/reconciliation ما زالا مطلوبين.

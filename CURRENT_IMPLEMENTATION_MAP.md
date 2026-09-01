@@ -122,3 +122,7 @@ Production/offsite PostgreSQL evidence remains separate from this local staging 
 ## End-to-end acceptance evidence
 
 `pnpm acceptance:chain` يثبت فعليًا عبر HTTP: الهوية، tenant context، Business OS/product، inventory، order، invoice، وledger. حالة السلسلة `BLOCKED_EXTERNAL_DEPENDENCY` عند Payment Provider بسبب غياب credentials. Payment adapter أصبح runtime HTTP contract حقيقيًا ولا يعيد success من دون provider reference.
+
+## Payment runtime update
+
+Webhook settlement أصبح منفذًا محليًا من خلال provider reference مع idempotency وatomic order/invoice updates وaudit. حالة activation الخارجية ما تزال `REQUIRES_SETUP` لغياب credentials.
