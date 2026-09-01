@@ -1,0 +1,32 @@
+/* Mobile web uses the exact App shell at every viewport size. */
+html, body, #root { min-width: 320px; min-height: 100%; }
+body { overflow-x: hidden; }
+.mobile-app-shell {
+  width: 100%;
+  min-height: 100vh;
+  min-height: 100dvh;
+  padding-top: env(safe-area-inset-top);
+}
+.mobile-app-header {
+  min-height: 64px;
+  height: auto;
+  padding-top: max(10px, env(safe-area-inset-top));
+}
+.mobile-app-content { padding-bottom: calc(98px + env(safe-area-inset-bottom)); }
+.mobile-tab-bar { padding-bottom: max(8px, env(safe-area-inset-bottom)); height: calc(73px + env(safe-area-inset-bottom)); }
+.mobile-command-note form { display: grid; gap: 10px; }
+.mobile-command-note input { width: 100%; border: 1px solid #d9e3e3; border-radius: 10px; padding: 11px 12px; background: #fff; color: #102a43; outline-color: #0e7c7b; }
+@media (max-width: 359px) {
+  .mobile-app-header { padding-inline: 12px; }
+  .mobile-app-content { padding-inline: 12px; }
+  .mobile-operation-card { flex-direction: column; }
+  .mobile-operation-card .mobile-command-button { width: 100%; }
+}
+@media (min-width: 700px) {
+  .mobile-app-shell { min-height: 100dvh; }
+}
+@media (orientation: landscape) and (max-height: 500px) {
+  .mobile-app-header { min-height: 52px; }
+  .mobile-app-content { padding-bottom: 82px; }
+  .mobile-tab-bar { height: 62px; }
+}
