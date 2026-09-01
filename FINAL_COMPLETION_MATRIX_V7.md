@@ -1,7 +1,7 @@
 # AI DIGITAL SINAI — FINAL COMPLETION MATRIX V7
 
 **Previous evidence commit:** `844be805f5f6025a9bc6a2aaf511625da1e35a04`  
-**V7 evidence commit:** to be replaced with the final pushed SHA  
+**V7 evidence commit:** `3390e34c54abb45089f13d6ad2b2f7ae56e10a1a`
 **Branch:** `main`  
 **Rule:** لا تُمنح external dependency حالة `VERIFIED` دون runtime/provider evidence.
 
