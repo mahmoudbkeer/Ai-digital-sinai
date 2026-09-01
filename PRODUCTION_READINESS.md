@@ -97,3 +97,7 @@ curl -i http://127.0.0.1:3000/api/readiness
 ## Focused gap-closure round
 
 تم تنفيذ queue/worker contract فوق Redis الحقيقي عند توفر `REDIS_URL`، مع retry وDLQ، وإيقاف worker production عند غياب Redis. تم تنفيذ تشفير AES-256-GCM للنسخ مع manifest checksum وrestore decrypt. تم تنفيذ RAG chunking وtenant permission filter وEmbedding provider boundary؛ غياب embedding/vector credentials يظل `REQUIRES_SETUP` ولا يعد نجاحًا وهميًا.
+
+## End-to-end acceptance result
+
+تشغيل `pnpm acceptance:chain` أثبت الهوية، سياق المستأجر، المنتج، المخزون، الطلب، الفاتورة، والـledger على HTTP فعلي. توقف عند تفعيل Payment Provider بسبب غياب credentials وأعاد `BLOCKED_EXTERNAL_DEPENDENCY`، وهو السلوك الصحيح. Payment adapter أصبح يستدعي provider URL ويتحقق من response ولا يعلن نجاحًا دون provider reference.

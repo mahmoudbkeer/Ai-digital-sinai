@@ -60,3 +60,7 @@
 ## V7 status
 
 أُغلقت فجوة MFA brute-force وأضيف `pnpm test:security:adversarial` إلى بوابة الجودة. الاختبار يثبت رفض IDOR وSQL injection وXSS input وrate-limit bypass وwebhook replay. `pnpm audit --prod --audit-level=high` يمر بلا vulnerabilities معروفة. النتيجة الوزنية الحالية **67.14%** والتصنيف `RELEASE CANDIDATE`؛ راجع `FINAL_COMPLETION_MATRIX_V7.md` للفجوات الدقيقة.
+
+## End-to-end acceptance
+
+السلسلة الفعلية متاحة عبر `pnpm acceptance:chain`. الاختبار لا يستخدم fake payment: يثبت identity وtenant وproduct وinventory وorder/invoice/ledger، ثم يتوقف بصدق عند provider activation إذا غابت credentials. لا يصنف المشروع `PRODUCTION READY` قبل نجاح Payment ثم بقية السلسلة على الاعتماديات الفعلية.

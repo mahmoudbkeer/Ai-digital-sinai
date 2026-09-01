@@ -4460,9 +4460,13 @@ export function createPlatformRouter(): Router {
         const configured = paymentProvider.status === "configured";
         const paymentIntentId = randomUUID();
         const timestamp = now();
+        const providerResult = configured
+          ? await paymentProvider.createPaymentIntent({ amountCents: amount, currency: "EGP", reference: paymentIntentId })
+          : { status: "REQUIRES_SETUP" as const, providerReference: undefined, error: undefined };
+        const intentStatus = providerResult.status === "FAILED" ? "FAILED" : providerResult.status;
         await db
           .prepare(
-            "INSERT INTO payment_intents (id, tenant_id, order_id, provider, amount_cents, status, idempotency_key, created_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+            "INSERT INTO payment_intents (id, tenant_id, order_id, provider, amount_cents, status, provider_reference, idempotency_key, created_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
           )
           .run(
             paymentIntentId,
@@ -4470,7 +4474,8 @@ export function createPlatformRouter(): Router {
             order?.id ?? null,
             paymentProvider.name,
             amount,
-            configured ? "REQUIRES_ACTION" : "REQUIRES_SETUP",
+            intentStatus,
+            providerResult.providerReference ?? null,
             idempotencyKey,
             context.userId,
             timestamp,
@@ -4483,15 +4488,18 @@ export function createPlatformRouter(): Router {
           "payment_intent",
           paymentIntentId,
           req.requestId,
-          { provider, amountCents: amount, configured }
+          { provider, amountCents: amount, configured, providerStatus: providerResult.status }
         );
         return res.status(201).json({
           ok: true,
           paymentIntentId,
-          status: configured ? "REQUIRES_ACTION" : "REQUIRES_SETUP",
-          message: configured
-            ? "يلزم إكمال خطوة مزود الدفع."
-            : "يلزم إعداد بيانات مزود الدفع؛ لم يتم إعلان نجاح أو تسوية.",
+          status: intentStatus,
+          providerReference: providerResult.providerReference,
+          message: intentStatus === "FAILED"
+            ? providerResult.error ?? "فشل مزود الدفع؛ لم تتم التسوية."
+            : intentStatus === "REQUIRES_SETUP"
+              ? "يلزم إعداد بيانات مزود الدفع؛ لم يتم إعلان نجاح أو تسوية."
+              : "يلزم إكمال خطوة مزود الدفع.",
         });
       } catch (error) {
         next(error);

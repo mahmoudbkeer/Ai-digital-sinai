@@ -118,3 +118,7 @@ Production/offsite PostgreSQL evidence remains separate from this local staging 
 | Redis queue/worker | IMPLEMENTED كعقد تشغيل | `server/integrations.ts`، `scripts/queue-worker.mjs`، queue tests؛ production يتطلب Redis فعلي |
 | Backup encryption | IMPLEMENTED | AES-256-GCM، manifest SHA-256، decrypt/restore drill محلي |
 | RAG ingestion | IMPLEMENTED جزئيًا | deterministic chunking وtenant/permission filter وEmbedding boundary؛ provider/vector runtime يحتاج إعداد |
+
+## End-to-end acceptance evidence
+
+`pnpm acceptance:chain` يثبت فعليًا عبر HTTP: الهوية، tenant context، Business OS/product، inventory، order، invoice، وledger. حالة السلسلة `BLOCKED_EXTERNAL_DEPENDENCY` عند Payment Provider بسبب غياب credentials. Payment adapter أصبح runtime HTTP contract حقيقيًا ولا يعيد success من دون provider reference.

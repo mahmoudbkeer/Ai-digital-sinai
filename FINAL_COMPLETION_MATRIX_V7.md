@@ -20,7 +20,7 @@
 | POS | 65 | 65 | PARTIALLY_IMPLEMENTED | shift/sale/order/payment/invoice/ledger foundation | return/receipt/close reconciliation | platform routes |
 | Commerce | 70 | 70 | PARTIALLY_IMPLEMENTED | cart/checkout/order/invoice/cancellation | coupon/discount/reservation/refund depth | platform tests |
 | Marketplace | 58 | 58 | PARTIALLY_IMPLEMENTED | catalog/offers/reviews/favorites/geo | onboarding/availability/bookings/ranking | platform routes |
-| Finance/Payments | 65 | 67 | PARTIALLY_IMPLEMENTED | balanced journals/payment intent/HMAC/replay/idempotency | provider sandbox, refunds, settlement/reconciliation | staging ledger + payment tests |
+| Finance/Payments | 65 | 70 | IMPLEMENTED / REQUIRES_SETUP | balanced journals، payment intent، real HTTP provider adapter، HMAC/replay/idempotency، truthful failure handling | provider credentials/sandbox runtime، refunds، settlement/reconciliation | acceptance chain + payment contract tests |
 | Subscriptions | 65 | 65 | PARTIALLY_IMPLEMENTED | trial/plans/cancel/renew/entitlements | provider webhook/grace automation | platform tests |
 | Logistics | 65 | 65 | PARTIALLY_IMPLEMENTED | state machine/driver/vehicle/proof | GPS/tracking provider/zones/pricing | delivery tests |
 | Redis | 60 | 72 | IMPLEMENTED / REQUIRES_SETUP | RESP get/set/del/TTL، LPUSH/RPOP queue، worker، retry/DLQ، no production memory fallback | managed Redis، distributed locks/rate limits | integration tests + `scripts/queue-worker.mjs` |
@@ -64,7 +64,7 @@ Frontend                 60% ×  3% = 1.80
 Mobile                   20% ×  2% = 0.40
 ```
 
-**V7 TRUE COMPLETION: 68.18%**. This is a weighted engineering score, not a production-readiness declaration.
+**V7 TRUE COMPLETION: 68.48%**. This is a weighted engineering score, not a production-readiness declaration.
 
 ## Exact remaining gaps
 
@@ -90,3 +90,9 @@ Mobile                   20% ×  2% = 0.40
 ## Final classification
 
 **RELEASE CANDIDATE** — not `PRODUCTION READY`, because external activation and release evidence remain incomplete.
+
+## End-to-end acceptance gate
+
+`pnpm acceptance:chain` هو release gate متسلسل HTTP وليس unit test. في آخر تشغيل مرّت المراحل `identity/register`، `identity/tenant-context`، `business-os/products`، `inventory/atomic-movement`، و`commerce/order-invoice-ledger`. توقفت المرحلة التالية عند `payment/provider-activation` وأعادت `BLOCKED_EXTERNAL_DEPENDENCY` بسبب غياب Payment Provider credentials. لذلك تبقى السلسلة الكاملة **غير مكتملة**.
+
+The weighted score remains an engineering progress measure only; it is not evidence that the requested user-to-deployment chain is complete.

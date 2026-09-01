@@ -46,3 +46,7 @@
 ## V7 evidence
 
 أضيف adversarial integration smoke إلى CI، ويثبت فعليًا: IDOR/Tenant Escape، SQL injection authentication bypass، XSS input handling، login rate-limit enforcement، webhook signature rejection، وreplay idempotency. أُصلح MFA brute-force counter reset regression. `pnpm audit --prod --audit-level=high` وsecret scan يمران. WAF وDAST وpentest تبقى `REQUIRES_SETUP` أو `BLOCKED_EXTERNAL_DEPENDENCY` ولا تُمنح PASS دون خدمة خارجية.
+
+## End-to-end chain security gate
+
+يشغل `pnpm acceptance:chain` HTTP flow حقيقيًا من التسجيل وسياق المستأجر حتى المنتج والمخزون والطلب والفاتورة والـledger. السلسلة لا تتجاوز Payment Provider عند غياب credentials؛ النتيجة `BLOCKED_EXTERNAL_DEPENDENCY` وليست PASS. هذا الحاجز يمنع إعلان اكتمال الدفع أو التسوية اعتمادًا على abstraction فقط.

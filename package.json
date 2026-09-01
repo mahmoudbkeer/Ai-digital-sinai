@@ -15,6 +15,7 @@
     "test:load": "node scripts/load-smoke.mjs",
     "test:security": "node scripts/security-smoke.mjs",
     "test:security:adversarial": "node scripts/security-adversarial-smoke.mjs",
+    "acceptance:chain": "node scripts/acceptance-chain.mjs",
     "worker": "node --import tsx scripts/queue-worker.mjs",
     "test:staging": "node --import tsx scripts/postgres-staging-smoke.mjs",
     "test:staging:api": "node scripts/postgres-critical-smoke.mjs",

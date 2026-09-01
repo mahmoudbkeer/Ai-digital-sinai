@@ -139,3 +139,9 @@
 أُغلقت أكبر فجوات قابلة للتنفيذ دون إعادة بناء المجالات المثبتة: أضيفت Redis queue primitives باستخدام `LPUSH`/`RPOP` مع TTL، وworker مستقل يدعم retry وDLQ ويرفض production fallback عند غياب Redis. أضيف تشفير AES-256-GCM للنسخ الاحتياطية مع authenticated tag وSHA-256 manifest، ثم decrypt والتحقق الإجباري أثناء restore مع safety copy. أضيف RAG contract لتقسيم المستندات إلى chunks، tenant/permission filtering، وEmbedding provider truthful boundary، وربط ingestion متعدد الـchunks.
 
 تم اجتياز الجولة النهائية: `pnpm check`، `pnpm test`، build، E2E، smoke، load، security، adversarial security، production dependency audit، PostgreSQL staging، وcritical-path API. سجلت الجولة **68.18% weighted completion**؛ ما تزال managed services وWAF وDAST/pentest وAndroid وprovider credentials خارج نطاق الإثبات المحلي.
+
+## End-to-end acceptance chain
+
+تم إنشاء وتشغيل `pnpm acceptance:chain` عبر HTTP على الخادم المبني، وليس عبر mocks. نجحت المراحل: identity/register، tenant context، business OS/product، inventory atomic movement، ثم commerce/order مع invoice وledger. توقفت السلسلة بصدق عند `payment/provider-activation` لأن مفاتيح مزود الدفع غير موجودة، وأعاد الاختبار `BLOCKED_EXTERNAL_DEPENDENCY` مع exit code 78. لذلك لم يُعلن اكتمال السلسلة ولا `PRODUCTION READY`.
+
+تم تحويل PaymentProvider من abstraction لا ينفذ شيئًا إلى HTTP adapter فعلي يستدعي `/payments/intents` و`/payments/refunds`، ويتحقق من provider reference/status، ويعيد `FAILED` عند الاستجابة غير الصالحة. لا يوجد fake success.

@@ -64,3 +64,7 @@
 ## Focused gap-closure round — Redis, Backup/DR, RAG
 
 تمت إضافة Redis queue primitives (`LPUSH`/`RPOP`) مع TTL، وworker architecture عبر `scripts/queue-worker.mjs` تدعم retry وDLQ ولا تستخدم process-memory في production. تم تنفيذ AES-256-GCM backup encryption عبر `BACKUP_ENCRYPTION_KEY` مع magic header وauth tag وmanifest checksum، وإضافة decrypt والتحقق الإجباري في restore. تم إنشاء RAG contract في `server/rag.ts` لتقسيم المستندات، permission filtering، وEmbedding provider truthful `REQUIRES_SETUP`، وربطه بمرحلة ingestion متعددة الـchunks. تم اختبار queue وRAG وbackup/restore المشفر فعليًا.
+
+## End-to-end chain and real payment adapter
+
+أضيف `scripts/acceptance-chain.mjs` لتشغيل سلسلة HTTP حقيقية من identity إلى product/inventory/order/invoice/ledger/payment. الاختبار يمر بالمراحل المحلية ثم يتوقف بوضوح عند Payment credentials المفقودة مع `BLOCKED_EXTERNAL_DEPENDENCY`. تم استبدال payment provider no-op بــHTTP adapter فعلي للـintent/refund مع timeout، authorization، response validation، وfailure handling؛ لا توجد fake payment success.

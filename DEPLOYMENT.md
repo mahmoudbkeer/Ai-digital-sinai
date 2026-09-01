@@ -73,3 +73,7 @@ Migration 4 يضيف MFA/TOTP، و`pnpm test:staging` يثبت PostgreSQL migrat
 ## V7 deployment gate
 
 قبل نشر production يجب توفير `DATABASE_URL` PostgreSQL، `COMMAND_CONTEXT_SECRET`، `PAYMENT_WEBHOOK_SECRET`، و`CORS_ORIGINS` allowlist. يمر الكود محليًا عبر adversarial security smoke الذي يثبت رفض IDOR وSQL injection وrate-limit bypass وwebhook replay. `pnpm audit --prod --audit-level=high` هو audit المعتمد لبوابة runtime، ويجب أن يبقى ناجحًا. WAF وDAST وpentest وmanaged services تظل أدلة خارجية مطلوبة.
+
+## Chain acceptance gate
+
+قبل النشر يجب تشغيل `pnpm acceptance:chain` على بيئة provider حقيقية. في البيئة الحالية يمر HTTP flow حتى `commerce/order-invoice-ledger` ثم يتوقف عند `payment/provider-activation` برمز 78 بسبب غياب مفاتيح Payment Provider. هذا متعمد لمنع deployment claiming payment success دون external evidence.
