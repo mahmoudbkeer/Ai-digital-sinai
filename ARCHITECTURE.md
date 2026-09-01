@@ -46,3 +46,7 @@ PostgreSQL، مزود الدفع، مزودات البريد/SMS/Push، vector e
 ## V6 implementation note
 
 أضيفت هوية MFA/TOTP server-enforced عبر migration 4، وObjectStorageProvider يدعم tenant-scoped signed upload/download URLs مع منع traversal والتحقق من النوع والحجم. PostgreSQL staging يطبق migrations 1–4 داخل transaction مع critical-path API smoke. لا تعتبر هذه العقود بديلًا عن provider credentials أو production verification.
+
+## V7 security boundary
+
+يطبق login الآن قفلًا موحدًا لمحاولات كلمة المرور وOTP؛ لا يتم تصفير عداد الفشل قبل نجاح MFA. Production startup لا يبدأ دون `COMMAND_CONTEXT_SECRET` و`PAYMENT_WEBHOOK_SECRET` وCORS allowlist صريحة. أضيف adversarial security gate مستقل بدل اعتبار unit tests وحدها دليلًا على الحماية.

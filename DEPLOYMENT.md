@@ -69,3 +69,7 @@ DATABASE_URL=postgresql://... pnpm restore /secure/backups/ai-digital-sinai-<tim
 ## V6 release evidence
 
 Migration 4 يضيف MFA/TOTP، و`pnpm test:staging` يثبت PostgreSQL migrations 1–4 والقيود والتوازن والrollback على staging حقيقي. استخدم `pnpm test:staging:api` بعد `pnpm build` لاختبار identity والعزل والمخزون والطلبات وpayment boundary. Object Storage يحتاج endpoint/bucket/access/secret، وعند توفرها تنتج المنصة signed tenant-scoped URLs؛ بدونها الحالة `REQUIRES_SETUP`. نتيجة `pnpm audit --audit-level high` الحالية `FAILED` وتمنع release security gate حتى معالجة 56 vulnerability.
+
+## V7 deployment gate
+
+قبل نشر production يجب توفير `DATABASE_URL` PostgreSQL، `COMMAND_CONTEXT_SECRET`، `PAYMENT_WEBHOOK_SECRET`، و`CORS_ORIGINS` allowlist. يمر الكود محليًا عبر adversarial security smoke الذي يثبت رفض IDOR وSQL injection وrate-limit bypass وwebhook replay. `pnpm audit --prod --audit-level=high` هو audit المعتمد لبوابة runtime، ويجب أن يبقى ناجحًا. WAF وDAST وpentest وmanaged services تظل أدلة خارجية مطلوبة.

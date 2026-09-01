@@ -50,6 +50,7 @@ describe("payment webhook persistence", () => {
           PORT: String(port),
           PAYMENT_WEBHOOK_SECRET: secret,
           COMMAND_CONTEXT_SECRET: "command-secret",
+          CORS_ORIGINS: "http://localhost:3000",
           SQLITE_PATH: dbPath,
         },
         stdio: ["ignore", "ignore", "ignore"],

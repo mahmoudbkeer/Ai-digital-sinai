@@ -87,3 +87,9 @@ curl -i http://127.0.0.1:3000/api/readiness
 نتيجة `pnpm audit --audit-level high` الحالية **FAILED**: 56 ثغرة، منها 27 high و2 critical. لذلك لا يوجد ادعاء أمني كامل، وتحتاج dependencies إلى معالجة واعتماد lockfile متوافق قبل Release Candidate. secret scan الحالي **VERIFIED** بلا مفاتيح خاصة أو AWS-like keys متتبعة.
 
 **Current verified commit:** `0e41219faad07ec7518d3102176422857ce1f335`
+
+## V7 release assessment
+
+تم إغلاق MFA brute-force regression وإضافة adversarial security integration gate. production startup يتطلب الآن PostgreSQL في الإنتاج، command secret، payment webhook secret، وCORS allowlist صريحة. بوابات `check`, `test`, `build`, `e2e`, `smoke`, `load`, `security`, adversarial security، وPostgreSQL staging تمر في البيئة المحلية. `pnpm audit --prod --audit-level=high` يمر بلا vulnerabilities معروفة، بينما WAF/DAST/pentest، managed providers، offsite restore، وAndroid ما زالت خارج إثبات المستودع.
+
+النتيجة الوزنية V7 هي **67.14%**، والتصنيف **RELEASE CANDIDATE**. لا يجوز إعلان `PRODUCTION READY` قبل تفعيل الاعتماديات الخارجية وإرفاق evidence تشغيلية مستقلة.

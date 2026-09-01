@@ -46,6 +46,8 @@ describe("command prepare endpoint authorization", () => {
           ALLOW_SQLITE_PRODUCTION_TEST: "1",
           PORT: String(port),
           COMMAND_CONTEXT_SECRET: secret,
+          PAYMENT_WEBHOOK_SECRET: "endpoint-webhook-secret",
+          CORS_ORIGINS: "http://localhost:3000",
         },
         stdio: ["ignore", "ignore", "pipe"],
       }
@@ -158,13 +160,13 @@ describe("command prepare endpoint authorization", () => {
     });
   });
 
-  it("returns degraded readiness when payment is not configured", async () => {
+  it("returns degraded readiness when an operational dependency is unavailable", async () => {
     const response = await fetch(`${baseUrl}/api/readiness`);
     expect(response.status).toBe(503);
     await expect(response.json()).resolves.toMatchObject({
       ok: false,
       status: "degraded",
-      checks: { commandContext: true, paymentWebhook: false },
+      checks: { commandContext: true, paymentWebhook: true },
     });
   });
 

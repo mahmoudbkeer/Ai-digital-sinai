@@ -171,4 +171,17 @@ describe("platform core", () => {
     expect(accepted.status).toBe(200);
     await expect(accepted.json()).resolves.toMatchObject({ ok: true, token: expect.any(String) });
   });
+
+  it("locks MFA brute-force attempts and does not reset the failure counter early", async () => {
+    const identity = await register("owner-mfa-lock@example.com", "Tenant MFA Lock");
+    const setup = await request("/api/platform/auth/mfa/setup", { method: "POST", headers: auth(identity) });
+    const { secret } = await setup.json() as { secret: string };
+    expect((await request("/api/platform/auth/mfa/enable", { method: "POST", headers: auth(identity), body: JSON.stringify({ otp: totpForTest(secret) }) })).status).toBe(200);
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      expect((await request("/api/platform/auth/login", { method: "POST", body: JSON.stringify({ email: "owner-mfa-lock@example.com", password: "secure-password-123", otp: "000000" }) })).status).toBe(401);
+    }
+    const validAfterAbuse = await request("/api/platform/auth/login", { method: "POST", body: JSON.stringify({ email: "owner-mfa-lock@example.com", password: "secure-password-123", otp: totpForTest(secret) }) });
+    expect(validAfterAbuse.status).toBe(401);
+    await expect(validAfterAbuse.json()).resolves.toMatchObject({ error: "invalid-login" });
+  });
 });

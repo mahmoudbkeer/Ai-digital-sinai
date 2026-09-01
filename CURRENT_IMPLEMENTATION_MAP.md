@@ -100,3 +100,13 @@ Production/offsite PostgreSQL evidence remains separate from this local staging 
 | Secret scan | VERIFIED | لا مفاتيح private أو AWS-like keys متتبعة |
 
 **Current verified commit:** `0e41219faad07ec7518d3102176422857ce1f335`
+
+## V7 gap-closure update
+
+- `V6_STATUS.md` يوثق إعادة التدقيق وعدم إعادة تنفيذ VERIFIED domains.
+- MFA brute-force regression أُغلق: OTP failures now increment the same account lock counter before returning `mfa-required`.
+- `scripts/security-adversarial-smoke.mjs` يغطي IDOR، SQL injection، XSS input، login rate limiting، webhook signature/replay، ويمر `PASS`.
+- Production startup يتطلب `PAYMENT_WEBHOOK_SECRET` و`CORS_ORIGINS` allowlist.
+- `pnpm audit --prod --audit-level=high`: `PASS`; secret scan: `PASS`.
+- Full weighted V7 score: **67.14%**. External services remain `REQUIRES_SETUP`/`BLOCKED_EXTERNAL_DEPENDENCY`.
+- المصفوفة المرجعية: `FINAL_COMPLETION_MATRIX_V7.md`.

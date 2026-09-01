@@ -13,7 +13,7 @@ if (ownsServer) {
       NODE_ENV: "production",
       ALLOW_SQLITE_PRODUCTION_TEST: "1",
       COMMAND_CONTEXT_SECRET: "smoke-command-secret",
-      PAYMENT_WEBHOOK_SECRET: "smoke-webhook-secret",
+      PAYMENT_WEBHOOK_SECRET: "smoke-webhook-secret", CORS_ORIGINS: "http://localhost:3000",
       PORT: port,
     },
     stdio: ["ignore", "pipe", "pipe"],

@@ -63,7 +63,7 @@ jobs:
 
       - name: Start production server
         run: |
-          ALLOW_SQLITE_PRODUCTION_TEST=1 COMMAND_CONTEXT_SECRET=ci-command-secret PAYMENT_WEBHOOK_SECRET=ci-webhook-secret pnpm start > /tmp/ai-digital-sinai-server.log 2>&1 &
+          ALLOW_SQLITE_PRODUCTION_TEST=1 COMMAND_CONTEXT_SECRET=ci-command-secret PAYMENT_WEBHOOK_SECRET=ci-webhook-secret CORS_ORIGINS=http://localhost:3000 pnpm start > /tmp/ai-digital-sinai-server.log 2>&1 &
           for attempt in $(seq 1 30); do
             if curl --fail --silent http://127.0.0.1:3000/api/health > /dev/null; then exit 0; fi
             sleep 1
@@ -82,3 +82,6 @@ jobs:
 
       - name: Application security smoke test
         run: BASE_URL=http://127.0.0.1:3000 pnpm test:security
+
+      - name: Adversarial security integration test
+        run: pnpm test:security:adversarial

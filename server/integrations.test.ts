@@ -22,6 +22,8 @@ describe("runtime integration contracts", () => {
   it("allows SQLite only through an explicit test bypass", () => {
     vi.stubEnv("NODE_ENV", "production");
     vi.stubEnv("COMMAND_CONTEXT_SECRET", "production-test-secret");
+    vi.stubEnv("PAYMENT_WEBHOOK_SECRET", "production-webhook-secret");
+    vi.stubEnv("CORS_ORIGINS", "http://localhost:3000");
     vi.stubEnv("DATABASE_URL", "");
     vi.stubEnv("ALLOW_SQLITE_PRODUCTION_TEST", "1");
     expect(() => assertRuntimeEnvironment()).not.toThrow();
@@ -106,5 +108,12 @@ describe("runtime integration contracts", () => {
       redis: "requires_setup",
       objectStorage: "requires_setup",
     });
+  });
+
+  it("requires explicit production webhook secret and CORS allowlist", () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("DATABASE_URL", "postgresql://example.invalid/db");
+    vi.stubEnv("COMMAND_CONTEXT_SECRET", "production-test-secret");
+    expect(() => assertRuntimeEnvironment()).toThrow(/PAYMENT_WEBHOOK_SECRET/);
   });
 });

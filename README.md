@@ -56,3 +56,7 @@
 ## V6 status
 
 يتضمن الإصدار الحالي MFA/TOTP server-enforced، PostgreSQL staging migrations 1–4 وcritical-path verification، وObject Storage signed tenant-scoped URL contract. الاختبارات المحلية وPostgreSQL staging تمر، بينما `pnpm audit --audit-level high` مصنف `FAILED` بسبب 56 vulnerability ويمنع إعلان الجاهزية الإنتاجية حتى معالجة الاعتماديات. راجع `FINAL_COMPLETION_AUDIT.md` و`PRODUCTION_READINESS.md` للحالة الموثقة.
+
+## V7 status
+
+أُغلقت فجوة MFA brute-force وأضيف `pnpm test:security:adversarial` إلى بوابة الجودة. الاختبار يثبت رفض IDOR وSQL injection وXSS input وrate-limit bypass وwebhook replay. `pnpm audit --prod --audit-level=high` يمر بلا vulnerabilities معروفة. النتيجة الوزنية الحالية **67.14%** والتصنيف `RELEASE CANDIDATE`؛ راجع `FINAL_COMPLETION_MATRIX_V7.md` للفجوات الدقيقة.

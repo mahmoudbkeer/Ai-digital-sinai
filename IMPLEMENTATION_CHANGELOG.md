@@ -56,3 +56,7 @@
 تم تنفيذ signed Object Storage access مع tenant prefix، منع traversal، signed upload/download URLs، وتغطية اختبارية. أضيف HSTS verification إلى security smoke. تم تشغيل dependency audit فعليًا؛ النتيجة FAILED بسبب 56 vulnerability، منها 27 high و2 critical، وتم رفض auto-fix لأنه ولّد overrides غير مدعومة في إعداد pnpm الحالي. لا يتم إخفاء النتيجة.
 
 **Current verified commit:** `0e41219faad07ec7518d3102176422857ce1f335`
+
+## V7 — Security gap closure
+
+بعد إعادة تدقيق V6، تم اكتشاف وإصلاح MFA brute-force regression: يتم الآن احتساب OTP failures وقفل المستخدم بعد خمس محاولات قبل السماح بإعادة ضبط العداد. أضيف adversarial security smoke حقيقي إلى package scripts وGitHub Quality Gate، ويغطي IDOR، SQL injection bypass، XSS input، rate-limit bypass، webhook signature، وreplay. شُدد production startup بمتطلبات webhook secret وCORS allowlist. النتيجة: 42 اختبارًا محليًا، adversarial smoke PASS، PostgreSQL staging PASS، و`pnpm audit --prod --audit-level=high` PASS.

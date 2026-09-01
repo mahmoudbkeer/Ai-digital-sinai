@@ -1026,16 +1026,28 @@ export function createPlatformRouter(): Router {
         }
         throw httpError(401, "invalid-login", "بيانات تسجيل الدخول غير صحيحة.");
       }
+      const security = (await db
+        .prepare("SELECT mfa_status, mfa_secret FROM user_security WHERE user_id = ?")
+        .get(user.id)) as { mfa_status: string; mfa_secret: string | null } | undefined;
+      if (security?.mfa_status === "ENABLED" && !verifyTotp(security.mfa_secret ?? "", req.body?.otp)) {
+        const failures = user.failed_login_count + 1;
+        await db
+          .prepare(
+            "UPDATE users SET failed_login_count = ?, locked_until = ?, updated_at = ? WHERE id = ?"
+          )
+          .run(
+            failures,
+            failures >= 5 ? now() + 15 * 60 * 1000 : null,
+            now(),
+            user.id
+          );
+        throw httpError(401, "mfa-required", "رمز MFA صالح مطلوب لإكمال تسجيل الدخول.");
+      }
       await db
         .prepare(
           "UPDATE users SET failed_login_count = 0, locked_until = NULL, updated_at = ? WHERE id = ?"
         )
         .run(now(), user.id);
-      const security = (await db
-        .prepare("SELECT mfa_status, mfa_secret FROM user_security WHERE user_id = ?")
-        .get(user.id)) as { mfa_status: string; mfa_secret: string | null } | undefined;
-      if (security?.mfa_status === "ENABLED" && !verifyTotp(security.mfa_secret ?? "", req.body?.otp))
-        throw httpError(401, "mfa-required", "رمز MFA صالح مطلوب لإكمال تسجيل الدخول.");
       const token = await createSession(db, user.id);
       const memberships = (await db
         .prepare(

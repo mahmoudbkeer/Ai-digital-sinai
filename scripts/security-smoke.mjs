@@ -20,7 +20,7 @@ try {
   if (!process.env.BASE_URL) {
     server = spawn(process.execPath, ["dist/index.js"], {
       cwd: process.cwd(),
-      env: { ...process.env, NODE_ENV: "production", ALLOW_SQLITE_PRODUCTION_TEST: "1", COMMAND_CONTEXT_SECRET: "security-command-secret", PAYMENT_WEBHOOK_SECRET: "security-webhook-secret", PORT: port },
+      env: { ...process.env, NODE_ENV: "production", ALLOW_SQLITE_PRODUCTION_TEST: "1", COMMAND_CONTEXT_SECRET: "security-command-secret", PAYMENT_WEBHOOK_SECRET: "security-webhook-secret", CORS_ORIGINS: "http://localhost:3000", PORT: port },
       stdio: ["ignore", "ignore", "ignore"],
     });
     const deadline = Date.now() + 10_000;

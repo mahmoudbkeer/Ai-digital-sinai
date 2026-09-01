@@ -76,6 +76,10 @@ export function assertRuntimeEnvironment(): void {
     );
   if (!process.env.COMMAND_CONTEXT_SECRET && environment === "production")
     throw new Error("Production requires COMMAND_CONTEXT_SECRET.");
+  if (!process.env.PAYMENT_WEBHOOK_SECRET && environment === "production")
+    throw new Error("Production requires PAYMENT_WEBHOOK_SECRET.");
+  if (!process.env.CORS_ORIGINS && environment === "production")
+    throw new Error("Production requires an explicit CORS_ORIGINS allowlist.");
 }
 
 export type ObjectStorageProvider = {

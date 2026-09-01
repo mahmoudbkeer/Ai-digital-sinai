@@ -123,3 +123,13 @@
 المصفوفة الشاملة للحالات والنسب والأدلة والفجوات موجودة في [`V6_FINAL_COMPLETION_MATRIX.md`](./V6_FINAL_COMPLETION_MATRIX.md). التقدير weighted التقريبي الحالي 67%، والتصنيف الصحيح `RELEASE CANDIDATE` مع بقاء dependency audit في حالة `FAILED`.
 
 **Current verified commit:** `0e41219faad07ec7518d3102176422857ce1f335`
+
+## V7 gap-closure evidence
+
+تمت إعادة تدقيق V6 قبل التعديل وإنشاء `V6_STATUS.md`. أُثبت regression في MFA: كان عدّاد فشل الدخول يُصفّر قبل التحقق من OTP، مما كان يسمح بمحاولات MFA متكررة دون قفل. تم إصلاح ترتيب التحقق وإضافة قفل بعد خمس محاولات OTP فاشلة.
+
+أضيف `scripts/security-adversarial-smoke.mjs` واختبار CI فعلي يغطي IDOR/Tenant Escape، SQL injection authentication bypass، XSS input handling، login rate limiting، webhook signature bypass، وwebhook replay. النتيجة `PASS`.
+
+تم تشديد production startup ليتطلب `PAYMENT_WEBHOOK_SECRET` وCORS allowlist صريحة. `pnpm audit --prod --audit-level=high` أعاد `PASS — No known vulnerabilities found`، وsecret scan أعاد صفر نتائج. بقيت خدمات WAF/DAST/pentest والخدمات الخارجية مصنفة بدقة كـ`REQUIRES_SETUP` أو `BLOCKED_EXTERNAL_DEPENDENCY`.
+
+المصفوفة الكاملة والنسبة الوزنية موجودة في [`FINAL_COMPLETION_MATRIX_V7.md`](./FINAL_COMPLETION_MATRIX_V7.md). النتيجة الحالية **67.14% weighted true completion** والتصنيف `RELEASE CANDIDATE`.

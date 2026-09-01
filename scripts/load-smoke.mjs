@@ -38,7 +38,7 @@ if (ownsServer) {
       NODE_ENV: "production",
       ALLOW_SQLITE_PRODUCTION_TEST: "1",
       COMMAND_CONTEXT_SECRET: "load-command-secret",
-      PAYMENT_WEBHOOK_SECRET: "load-webhook-secret",
+      PAYMENT_WEBHOOK_SECRET: "load-webhook-secret", CORS_ORIGINS: "http://localhost:3000",
       PORT: port,
     },
     stdio: ["ignore", "ignore", "pipe"],

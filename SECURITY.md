@@ -42,3 +42,7 @@
 ## V6 security evidence
 
 تم التحقق من HSTS في production smoke، وCORS allowlist، CSP، security headers، request ID، secret scan، وMFA/TOTP server enforcement. Object Storage يرفض traversal ويصدر مفاتيح tenant-scoped فقط مع signed access عند تهيئة المزود. `pnpm audit --audit-level high` ما زال `FAILED` بسبب 56 vulnerability؛ لا يعتبر المشروع أمنيًا مكتملًا قبل تحديث lockfile/dependencies ومراجعة أثر التحديثات.
+
+## V7 evidence
+
+أضيف adversarial integration smoke إلى CI، ويثبت فعليًا: IDOR/Tenant Escape، SQL injection authentication bypass، XSS input handling، login rate-limit enforcement، webhook signature rejection، وreplay idempotency. أُصلح MFA brute-force counter reset regression. `pnpm audit --prod --audit-level=high` وsecret scan يمران. WAF وDAST وpentest تبقى `REQUIRES_SETUP` أو `BLOCKED_EXTERNAL_DEPENDENCY` ولا تُمنح PASS دون خدمة خارجية.
