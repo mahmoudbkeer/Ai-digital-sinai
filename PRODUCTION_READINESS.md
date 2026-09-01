@@ -101,3 +101,7 @@ curl -i http://127.0.0.1:3000/api/readiness
 ## End-to-end acceptance result
 
 تشغيل `pnpm acceptance:chain` أثبت الهوية، سياق المستأجر، المنتج، المخزون، الطلب، الفاتورة، والـledger على HTTP فعلي. توقف عند تفعيل Payment Provider بسبب غياب credentials وأعاد `BLOCKED_EXTERNAL_DEPENDENCY`، وهو السلوك الصحيح. Payment adapter أصبح يستدعي provider URL ويتحقق من response ولا يعلن نجاحًا دون provider reference.
+
+## Post-payment continuation evidence
+
+`pnpm acceptance:post-payment` أثبت عبر HTTP: delivery states وproof، notification creation، subscription trial، AI advisor، وanalytics KPIs. Admin endpoint رفض tenant owner بـ403 كما يجب؛ يتطلب إثبات صلاحية Super Admin مستقلة قبل إعلان اكتمال مسار الإدارة.

@@ -96,3 +96,7 @@ Mobile                   20% ×  2% = 0.40
 `pnpm acceptance:chain` هو release gate متسلسل HTTP وليس unit test. في آخر تشغيل مرّت المراحل `identity/register`، `identity/tenant-context`، `business-os/products`، `inventory/atomic-movement`، و`commerce/order-invoice-ledger`. توقفت المرحلة التالية عند `payment/provider-activation` وأعادت `BLOCKED_EXTERNAL_DEPENDENCY` بسبب غياب Payment Provider credentials. لذلك تبقى السلسلة الكاملة **غير مكتملة**.
 
 The weighted score remains an engineering progress measure only; it is not evidence that the requested user-to-deployment chain is complete.
+
+## Continuation acceptance evidence
+
+`pnpm acceptance:post-payment` مرّ فعليًا في Delivery lifecycle وproof، In-App Notifications، Subscription trial، AI Advisor، وAnalytics KPI. Admin overview أعاد `403` لحساب tenant owner، وهو authorization boundary صحيح؛ إثبات Super Admin runtime ما يزال مطلوبًا.

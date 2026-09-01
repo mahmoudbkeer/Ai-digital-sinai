@@ -68,3 +68,7 @@
 ## End-to-end chain and real payment adapter
 
 أضيف `scripts/acceptance-chain.mjs` لتشغيل سلسلة HTTP حقيقية من identity إلى product/inventory/order/invoice/ledger/payment. الاختبار يمر بالمراحل المحلية ثم يتوقف بوضوح عند Payment credentials المفقودة مع `BLOCKED_EXTERNAL_DEPENDENCY`. تم استبدال payment provider no-op بــHTTP adapter فعلي للـintent/refund مع timeout، authorization، response validation، وfailure handling؛ لا توجد fake payment success.
+
+## Post-payment acceptance flow
+
+أضيف `scripts/acceptance-post-payment.mjs` لتشغيل واختبار delivery lifecycle، proof، in-app notifications، subscription trial، AI advisor، analytics KPIs، وadmin authorization boundary عبر HTTP فعلي. مرّت كل المراحل حتى Admin؛ Owner يحصل على 403 المتوقع، ولا يتم تجاوز الصلاحيات باختبار مصطنع.

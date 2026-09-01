@@ -145,3 +145,7 @@
 تم إنشاء وتشغيل `pnpm acceptance:chain` عبر HTTP على الخادم المبني، وليس عبر mocks. نجحت المراحل: identity/register، tenant context، business OS/product، inventory atomic movement، ثم commerce/order مع invoice وledger. توقفت السلسلة بصدق عند `payment/provider-activation` لأن مفاتيح مزود الدفع غير موجودة، وأعاد الاختبار `BLOCKED_EXTERNAL_DEPENDENCY` مع exit code 78. لذلك لم يُعلن اكتمال السلسلة ولا `PRODUCTION READY`.
 
 تم تحويل PaymentProvider من abstraction لا ينفذ شيئًا إلى HTTP adapter فعلي يستدعي `/payments/intents` و`/payments/refunds`، ويتحقق من provider reference/status، ويعيد `FAILED` عند الاستجابة غير الصالحة. لا يوجد fake success.
+
+## Post-payment continuation acceptance
+
+تم تشغيل `pnpm acceptance:post-payment` عبر HTTP فعلي، فنجحت Delivery lifecycle كاملة مع proof of delivery، In-App Notification، Subscription trial، AI Advisor grounded endpoint، وAnalytics KPI endpoint. Admin overview رفض Owner بصلاحية 403، وهو boundary أمني صحيح وليس فشل عشوائيًا؛ يلزم تشغيله بهوية Super Admin مصرح بها لا يمكن اختلاقها من حساب tenant owner.
