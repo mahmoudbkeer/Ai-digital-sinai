@@ -100,3 +100,14 @@ The weighted score remains an engineering progress measure only; it is not evide
 ## Continuation acceptance evidence
 
 `pnpm acceptance:post-payment` مرّ فعليًا في Delivery lifecycle وproof، In-App Notifications، Subscription trial، AI Advisor، وAnalytics KPI. Admin overview أعاد `403` لحساب tenant owner، وهو authorization boundary صحيح؛ إثبات Super Admin runtime ما يزال مطلوبًا.
+
+
+## Current continuation evidence — 2026-09-01
+
+| Focus | Status | Evidence | Remaining blocker |
+|---|---|---|---|
+| Payment runtime | BLOCKED_EXTERNAL_DEPENDENCY | acceptance:chain reaches provider activation honestly | Paymob/Fawry/Vodafone/other real credentials and sandbox callback |
+| Commerce UI/backend | VERIFIED | Marketplace products/services/cart/checkout UI + e2e + HTTP order PENDING | service booking contract is not part of current cart API |
+| Super Admin UI | PARTIALLY VERIFIED | database-backed UI calls users/tenants/audit/feature-flags and handles 403 | authenticated Super Admin browser session for full runtime proof |
+| AI/RAG | PARTIALLY VERIFIED | advisor/analytics acceptance and RAG tenant isolation tests | provider-backed embeddings/vector runtime |
+| Production/Release | BLOCKED_EXTERNAL_DEPENDENCY | local checks and truthful readiness gates | managed Postgres/Redis/storage, monitoring, WAF, restore drill, Android signing |

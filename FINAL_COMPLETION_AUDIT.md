@@ -257,3 +257,13 @@
 نتيجة `pnpm vitest run server/platform.test.ts --reporter=verbose`: **11/11 passed**. يتضمن الاختبار HTTP لمسار `POST /cart/items` ثم `POST /cart/checkout`، ويتحقق من `orderId` والحالة `PENDING` وعزل السلة والمخزون.
 
 تحافظ الواجهة على tenant scoping لأن الخادم يستخرج tenant من session context، ولا تقوم الواجهة بتوليد order ID أو تأكيد checkout محليًا.
+
+## Phase A–C continuation — verified boundaries
+
+تم تشغيل `pnpm acceptance:chain` عبر HTTP حقيقي. نجحت identity وtenant context وproducts وinventory وorder/invoice/ledger، ثم توقف المسار عند Payment Provider Activation بحالة `BLOCKED_EXTERNAL_DEPENDENCY` بسبب غياب credentials؛ لم تتم صناعة PAID أو provider reference.
+
+تم تشغيل `pnpm acceptance:post-payment`: نجحت delivery lifecycle وproof وin-app notifications وsubscription trial وAI advisor وanalytics، بينما أعاد Admin overview `403` لحساب tenant owner كما هو متوقع أمنيًا.
+
+تم تشغيل اختبارات `server/rag.test.ts` و`server/aiProviders.test.ts`: **3/3 passed**. RAG الحالي يثبت chunking وtenant/permission filtering، لكنه لا يُصنف Provider-backed Vector Runtime قبل توفير embedding/vector credentials.
+
+أضيف داخل `MobileApp.tsx` مركز إدارة حقيقيًا يقرأ `/api/platform/admin/users` و`tenants` و`audit` و`feature-flags`، ويعرض رفض `403` صراحة للحساب غير المخول. لم يتم الادعاء بأن Super Admin runtime صار VERIFIED دون جلسة Super Admin فعلية.

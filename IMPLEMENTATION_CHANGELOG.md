@@ -84,3 +84,7 @@
 ## Step 4 — Marketplace UI wiring
 
 تم استبدال Marketplace placeholder في `client/src/pages/MobileApp.tsx` بواجهة تقرأ products/services/cart من `/api/platform` وتنفذ الإضافة والـcheckout عبر backend الحقيقي. لا توجد بيانات hard-coded أو order success وهمي. نجح `pnpm test:e2e` بنتيجة 1/1، ونجح HTTP platform flow بنتيجة 11/11؛ checkout أثبت order ID حقيقيًا بالحالة `PENDING`. تم الحفاظ على tenant isolation وactive-cart upsert، والاعتماد على active-cart one-use semantics في checkout.
+
+## Phase A–C continuation
+
+أضيفت واجهة مركز الإدارة داخل الحساب، مرتبطة ببيانات users/tenants/audit/feature-flags الفعلية وتتعامل مع 403 دون صفحة ثابتة. نتائج التحقق: `pnpm check` PASS، `pnpm test:e2e` PASS 1/1، platform HTTP tests PASS 11/11، RAG/AI provider tests PASS 3/3. `pnpm acceptance:chain` نجح حتى order/invoice/ledger ثم توقف بصدق عند Payment Provider credentials؛ `acceptance:post-payment` نجح حتى analytics مع Admin authorization boundary المتوقع.

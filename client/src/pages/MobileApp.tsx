@@ -15,7 +15,8 @@ type RoadmapItem = { id: string; phase: string; title: string; status: "ready" |
 type ServiceState = { health: "loading" | "ok" | "error"; readiness: "loading" | "ready" | "degraded"; observability: "loading" | "ok" | "error"; uptimeSeconds: number | null };
 type Offering = { id: string; business_id: string; name: string; description?: string | null; category?: string | null; price_cents: number; offering_type: "PRODUCT" | "SERVICE"; duration_minutes?: number | null };
 type CartItem = { product_id: string; name: string; quantity: number; unit_price_cents: number; line_total_cents: number };
-type PlatformContext = { businessId?: string; branchId?: string };
+type PlatformContext = { businessId?: string; branchId?: string; role?: string };
+type AdminData = { users: Array<{ id: string; email: string; status: string }>; tenants: Array<{ id: string; name: string; status: string }>; audit: Array<{ action: string; resource_type: string; created_at: number }>; flags: Array<{ key: string; enabled: number }> };
 
 export default function MobileApp() {
   const [tab, setTab] = useState<TabId>("home");
@@ -35,6 +36,8 @@ export default function MobileApp() {
   const [marketState, setMarketState] = useState<"idle" | "loading" | "ready" | "auth" | "error">("idle");
   const [marketMessage, setMarketMessage] = useState("");
   const [checkoutState, setCheckoutState] = useState<"idle" | "loading" | "created" | "error">("idle");
+  const [adminData, setAdminData] = useState<AdminData | null>(null);
+  const [adminState, setAdminState] = useState<"idle" | "loading" | "ready" | "denied" | "error">("idle");
   const money = (cents: number) => `${(cents / 100).toFixed(2)} ج.م`;
   const loadMarketplace = async () => {
     setMarketState("loading"); setMarketMessage("");
@@ -69,6 +72,17 @@ export default function MobileApp() {
     if (!response.ok || !result.orderId) { setCheckoutState("error"); setMarketMessage(result.message ?? "تعذر إنشاء الطلب من السلة."); return; }
     setCheckoutState("created"); setCartItems([]); setCartTotal(0); setMarketMessage(`تم إنشاء الطلب الحقيقي ${result.orderId} بالحالة ${result.state ?? "PENDING"}.`);
   };
+  const loadAdmin = async () => {
+    setAdminState("loading");
+    try {
+      const responses = await Promise.all(["users?limit=20", "tenants?limit=20", "audit?limit=20", "feature-flags"].map((path) => fetch(`/api/platform/admin/${path}`)));
+      if (responses.some((response) => response.status === 401 || response.status === 403)) { setAdminState("denied"); return; }
+      if (responses.some((response) => !response.ok)) throw new Error("admin request failed");
+      const [users, tenants, audit, flags] = await Promise.all(responses.map((response) => response.json()));
+      setAdminData({ users: users.users ?? [], tenants: tenants.tenants ?? [], audit: audit.audit ?? [], flags: flags.flags ?? [] });
+      setAdminState("ready");
+    } catch { setAdminState("error"); }
+  };
 
   const loadApi = () => {
     setApiState("loading");
@@ -100,6 +114,7 @@ export default function MobileApp() {
     const handleInstall = (event: Event) => { event.preventDefault(); setInstallPrompt(event as InstallPromptEvent); };
     window.addEventListener("beforeinstallprompt", handleInstall);
     const cleanup = loadApi();
+    fetch("/api/platform/me").then(async (response) => { if (response.ok) { const payload = await response.json() as { context?: PlatformContext }; setPlatformContext(payload.context ?? {}); } }).catch(() => undefined);
     return () => { cleanup?.(); window.removeEventListener("beforeinstallprompt", handleInstall); };
   }, []);
 
@@ -149,7 +164,7 @@ export default function MobileApp() {
       </>}
       {tab === "market" && <><div className="mobile-page-title"><small>دليل السوق · بيانات حقيقية</small><h1>اكتشف ما حولك.</h1><p>المنتجات والخدمات المنشورة من المستأجر الحالي فقط.</p></div><div className="mobile-chip-row"><span>الكل</span><span>خدمات</span><span>منتجات</span><span><ShoppingCart size={14} /> {cartItems.length} · {money(cartTotal)}</span></div>{marketState === "idle" && <button className="mobile-command-button" onClick={loadMarketplace}>تحميل السوق من الخادم</button>}{marketState === "loading" && <div className="mobile-empty"><span>جارٍ تحميل المنتجات والخدمات...</span></div>}{(marketState === "auth" || marketState === "error") && <div className="mobile-empty"><Search size={22} /><b>{marketMessage}</b><button onClick={marketState === "auth" ? login : loadMarketplace}>{marketState === "auth" ? "تسجيل الدخول ←" : "إعادة المحاولة"}</button></div>}{marketState === "ready" && <><div className="mobile-operation-list">{offerings.map((offering) => <article className="mobile-operation-card" key={`${offering.offering_type}-${offering.id}`}><div><span className="mobile-status-pill status-ready">{offering.offering_type === "PRODUCT" ? "منتج" : "خدمة"}</span><h3>{offering.name}</h3><p>{offering.description || offering.category || "منشور من نشاط داخل مساحة العمل الحالية."}</p><b>{money(offering.price_cents)}</b></div><button className="mobile-command-button" onClick={() => addToCart(offering)}>{offering.offering_type === "PRODUCT" ? "أضف للسلة" : "عرض التفاصيل"}</button></article>)}</div>{!offerings.length && <div className="mobile-empty"><b>لا توجد عروض منشورة</b><span>تمت القراءة من الخادم دون عرض بيانات تجريبية.</span></div>}{cartItems.length > 0 && <section className="mobile-command-note" role="status"><b>السلة الحالية: {cartItems.map((item) => `${item.name} × ${item.quantity}`).join("، ")}</b><span> الإجمالي {money(cartTotal)}</span><button className="mobile-command-button" disabled={checkoutState === "loading"} onClick={checkout}>{checkoutState === "loading" ? "جارٍ إنشاء الطلب..." : "إتمام checkout"}</button></section>}{marketMessage && <div className="mobile-command-note" role="status">{marketMessage}</div>}</>}</>}
       {tab === "work" && <><div className="mobile-page-title"><small>{activeSector ? activeSector.eyebrow : "Business OS"}</small><h1>{activeModule ? activeModule.label : activeSector ? activeSector.name : "مساحة التشغيل"}</h1><p>{activeModule ? activeModule.description : activeSector ? activeSector.description : "اختر قطاعك للوصول إلى وحداته وعملياته الداخلية."}</p></div>{activeModule ? <><button className="mobile-back-button" onClick={backToModules}>← العودة إلى وحدات {activeSector?.name}</button><div className="mobile-operation-list">{activeModule.operations.map((operation) => <article className="mobile-operation-card" key={operation.id}><div><span className={`mobile-status-pill status-${operation.status}`}>{statusLabel[operation.status]}</span><h3>{operation.label}</h3><p>{operation.description}</p></div><button className="mobile-command-button" onClick={() => runOperation(operation)}>فتح الأمر</button></article>)}</div>{selectedOperation && <div className="mobile-command-note" role="status">{commandMessage}{selectedOperation.status === "requires-setup" && <button onClick={login}>تسجيل الدخول ←</button>}</div>}</> : activeSector ? <><button className="mobile-back-button" onClick={backToSectors}>← العودة إلى القطاعات</button><div className="mobile-module-list">{activeSector.modules.map((module) => <button key={module.id} className="mobile-module-card" onClick={() => openModule(module)}><span><b>{module.label}</b><small>{module.description}</small></span><strong>←</strong></button>)}</div></> : <><section className="mobile-login-card"><h2>ابدأ مساحة عملك</h2><p>اختر القطاع لإدارة عملياته، ثم سجّل الدخول لتفعيل البيانات المعزولة.</p><button onClick={login}>تسجيل الدخول ←</button></section><div className="mobile-sector-grid">{sectors.map((sector) => <button key={sector.id} className="mobile-sector-card" onClick={() => openSector(sector)}><small>{sector.eyebrow}</small><b>{sector.name}</b><span>{sector.description}</span><strong>استكشف القطاع ←</strong></button>)}</div></>}</>}
-      {tab === "account" && <><div className="mobile-page-title"><small>هوية آمنة</small><h1>حسابي</h1><p>إدارة الوصول والتنبيهات من مكان واحد.</p></div><section className="mobile-account-card"><div className="mobile-avatar">؟</div><div><b>زائر</b><span>لم تسجل الدخول بعد</span></div></section><div className="mobile-settings-list"><button onClick={() => go("work")}>مساحات العمل <b>←</b></button><button onClick={() => go("account")}>الإشعارات <b>—</b></button><button onClick={login}>تسجيل الدخول <b>←</b></button></div></>}
+      {tab === "account" && <><div className="mobile-page-title"><small>هوية آمنة</small><h1>حسابي</h1><p>إدارة الوصول والتنبيهات من مكان واحد.</p></div><section className="mobile-account-card"><div className="mobile-avatar">؟</div><div><b>{platformContext.role ?? "زائر"}</b><span>{platformContext.role ? "سياق مصادق عليه" : "لم تسجل الدخول بعد"}</span></div></section><div className="mobile-settings-list"><button onClick={() => go("work")}>مساحات العمل <b>←</b></button><button onClick={() => go("account")}>الإشعارات <b>—</b></button>{platformContext.role && <button onClick={loadAdmin}>مركز الإدارة الحقيقي <b>←</b></button>}<button onClick={login}>تسجيل الدخول <b>←</b></button></div>{adminState === "loading" && <div className="mobile-command-note">جارٍ تحميل users/tenants/audit/feature-flags من الخادم...</div>}{adminState === "denied" && <div className="mobile-command-note">تم رفض مركز الإدارة بـ403؛ هذه صلاحية Super Admin وليست صفحة ثابتة.</div>}{adminState === "error" && <div className="mobile-command-note">تعذر تحميل مركز الإدارة من الخادم.</div>}{adminState === "ready" && adminData && <section className="mobile-plan-card"><small>Super Admin Center · database-backed</small><h2>مركز الإدارة</h2><div><b>Users</b><span>{adminData.users.length} ضمن النطاق</span></div><div><b>Tenants</b><span>{adminData.tenants.length} ضمن النطاق</span></div><div><b>Audit</b><span>{adminData.audit.length} أحدث سجل</span></div><div><b>Flags</b><span>{adminData.flags.length} أعلام مهيأة</span></div></section>}</>}
     </section>
     <nav className="mobile-tab-bar" aria-label="التنقل الرئيسي">{tabs.map(({ id, label, icon: Icon }) => <button key={id} className={tab === id ? "active" : ""} onClick={() => setTab(id)} aria-current={tab === id ? "page" : undefined}><Icon size={19} /><span>{label}</span></button>)}</nav>
   </main>;
