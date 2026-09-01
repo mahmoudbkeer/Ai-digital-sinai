@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { Bell, Home, LayoutDashboard, Search, ShoppingCart, UserRound } from "lucide-react";
 import { getLoginUrl } from "@/const";
 import { sectors, statusLabel, type Operation, type Sector, type SectorModule } from "@/lib/operationsCatalog";
@@ -41,12 +41,18 @@ export default function MobileApp() {
   const [adminState, setAdminState] = useState<"idle" | "loading" | "ready" | "denied" | "error">("idle");
   const [serviceSlots, setServiceSlots] = useState<Availability[]>([]);
   const [selectedService, setSelectedService] = useState<Offering | null>(null);
+  const [loginOpen, setLoginOpen] = useState(false);
+  const [loginEmail, setLoginEmail] = useState("");
+  const [loginPassword, setLoginPassword] = useState("");
+  const [loginError, setLoginError] = useState("");
+  const [session, setSession] = useState<{ token: string; tenantId: string } | null>(null);
+  const authHeaders = (): Record<string, string> => session ? { authorization: `Bearer ${session.token}`, "x-tenant-id": session.tenantId } : {};
   const money = (cents: number) => `${(cents / 100).toFixed(2)} ج.م`;
   const loadMarketplace = async () => {
     setMarketState("loading"); setMarketMessage("");
     try {
       const [meResponse, productsResponse, servicesResponse, cartResponse] = await Promise.all([
-        fetch("/api/platform/me"), fetch("/api/platform/products"), fetch("/api/platform/services"), fetch("/api/platform/cart"),
+        fetch("/api/platform/me", { headers: authHeaders() }), fetch("/api/platform/products", { headers: authHeaders() }), fetch("/api/platform/services", { headers: authHeaders() }), fetch("/api/platform/cart", { headers: authHeaders() }),
       ]);
       if ([meResponse, productsResponse, servicesResponse, cartResponse].some((response) => response.status === 401)) { setMarketState("auth"); setMarketMessage("سجّل الدخول لعرض السوق المعزول وإتمام الطلب."); return; }
       if (!productsResponse.ok || !servicesResponse.ok || !cartResponse.ok) throw new Error("marketplace request failed");
@@ -60,17 +66,17 @@ export default function MobileApp() {
     } catch { setMarketState("error"); setMarketMessage("تعذر تحميل بيانات السوق الحقيقية. أعد المحاولة."); }
   };
   const addToCart = async (product: Offering) => {
-    if (product.offering_type !== "PRODUCT") { setMarketMessage("جارٍ تحميل المواعيد المتاحة للخدمة..."); const response = await fetch(`/api/platform/services/${product.id}/availability`); const payload = await response.json() as { availability?: Availability[] }; setSelectedService(product); setServiceSlots(response.ok ? payload.availability ?? [] : []); return; }
+    if (product.offering_type !== "PRODUCT") { setMarketMessage("جارٍ تحميل المواعيد المتاحة للخدمة..."); const response = await fetch(`/api/platform/services/${product.id}/availability`, { headers: authHeaders() }); const payload = await response.json() as { availability?: Availability[] }; setSelectedService(product); setServiceSlots(response.ok ? payload.availability ?? [] : []); return; }
     if (!platformContext.branchId) { setMarketMessage("لا يوجد فرع مصادق عليه في سياق المستخدم لإتمام الطلب."); return; }
     setMarketMessage("جارٍ إضافة المنتج إلى السلة الحقيقية...");
-    const response = await fetch("/api/platform/cart/items", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ productId: product.id, quantity: 1, branchId: platformContext.branchId }) });
+    const response = await fetch("/api/platform/cart/items", { method: "POST", headers: { "Content-Type": "application/json", ...authHeaders() }, body: JSON.stringify({ productId: product.id, quantity: 1, branchId: platformContext.branchId }) });
     if (!response.ok) { setMarketMessage("رفض الخادم إضافة المنتج؛ لم يتم إنشاء سلة وهمية."); return; }
     await loadMarketplace(); setMarketMessage("تمت الإضافة إلى السلة المعزولة لهذا المستخدم.");
   };
   const bookService = async (slot: Availability) => {
     if (!selectedService) return;
     setMarketMessage("جارٍ إنشاء حجز الخدمة وربطه بطلب وفاتورة دفتر الأستاذ...");
-    const response = await fetch("/api/platform/service-bookings", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ serviceId: selectedService.id, availabilityId: slot.id, branchId: slot.branch_id, idempotencyKey: `booking-${selectedService.id}-${slot.id}` }) });
+    const response = await fetch("/api/platform/service-bookings", { method: "POST", headers: { "Content-Type": "application/json", ...authHeaders() }, body: JSON.stringify({ serviceId: selectedService.id, availabilityId: slot.id, branchId: slot.branch_id, idempotencyKey: `booking-${selectedService.id}-${slot.id}` }) });
     const result = await response.json() as { bookingId?: string; orderId?: string; status?: string; message?: string };
     setMarketMessage(response.ok && result.bookingId ? `تم إنشاء الحجز ${result.bookingId} وربطه بالطلب ${result.orderId} بالحالة ${result.status}.` : result.message ?? "تعذر إنشاء الحجز من الخادم.");
     if (response.ok) setServiceSlots([]);
@@ -78,7 +84,7 @@ export default function MobileApp() {
   const checkout = async () => {
     if (!platformContext.branchId || !cartItems.length) return;
     setCheckoutState("loading");
-    const response = await fetch("/api/platform/cart/checkout", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ branchId: platformContext.branchId }) });
+    const response = await fetch("/api/platform/cart/checkout", { method: "POST", headers: { "Content-Type": "application/json", ...authHeaders() }, body: JSON.stringify({ branchId: platformContext.branchId }) });
     const result = await response.json() as { orderId?: string; state?: string; message?: string };
     if (!response.ok || !result.orderId) { setCheckoutState("error"); setMarketMessage(result.message ?? "تعذر إنشاء الطلب من السلة."); return; }
     setCheckoutState("created"); setCartItems([]); setCartTotal(0); setMarketMessage(`تم إنشاء الطلب الحقيقي ${result.orderId} بالحالة ${result.state ?? "PENDING"}.`);
@@ -135,7 +141,20 @@ export default function MobileApp() {
     await installPrompt.userChoice;
     setInstallPrompt(null);
   };
-  const login = () => { window.location.href = getLoginUrl(); };
+  const login = () => {
+    const portal = import.meta.env.VITE_OAUTH_PORTAL_URL;
+    if (portal) { window.location.href = getLoginUrl(); return; }
+    setLoginError(""); setLoginOpen(true); setTab("account");
+  };
+  const submitLogin = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault(); setLoginError("");
+    const response = await fetch("/api/platform/auth/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email: loginEmail, password: loginPassword }) });
+    const result = await response.json() as { token?: string; tenants?: Array<{ tenant_id: string }>; message?: string };
+    if (!response.ok || !result.token) { setLoginError(result.message ?? "تعذر تسجيل الدخول من الخادم."); return; }
+    const tenantId = result.tenants?.[0]?.tenant_id;
+    if (!tenantId) { setLoginError("الحساب لا يملك عضوية مستأجر صالحة."); return; }
+    const nextSession = { token: result.token, tenantId }; localStorage.setItem("platform_token", result.token); localStorage.setItem("platform_tenant_id", tenantId); setSession(nextSession); setLoginOpen(false); setLoginPassword(""); setMarketState("idle"); setMarketMessage("تم تسجيل الدخول؛ حمّل السوق لقراءة بيانات المستأجر.");
+  };
   const go = (next: TabId) => setTab(next);
   const openSector = (sector: Sector) => { setActiveSector(sector); setActiveModule(null); setSelectedOperation(null); setCommandMessage(""); };
   const openModule = (module: SectorModule) => { setActiveModule(module); setSelectedOperation(null); setCommandMessage(""); };
@@ -162,6 +181,7 @@ export default function MobileApp() {
 
   return <main className="mobile-app-shell" dir="rtl">
     <header className="mobile-app-header"><div className="mobile-brand"><span className="brand-mark">◈</span><span>AI DIGITAL <b>SINAI</b></span></div><button className="mobile-icon-button" onClick={() => go("account")} aria-label="فتح الحساب والإشعارات"><Bell size={18} /></button></header>
+    {loginOpen && <section className="mobile-command-note" aria-label="نموذج تسجيل الدخول"><button className="mobile-back-button" type="button" onClick={() => setLoginOpen(false)}>← العودة</button><h2>تسجيل الدخول</h2><p>أدخل بيانات الحساب ليتم التحقق منها عبر الخادم الحقيقي.</p><form onSubmit={submitLogin}><input aria-label="البريد الإلكتروني" type="email" required value={loginEmail} onChange={(event) => setLoginEmail(event.target.value)} placeholder="البريد الإلكتروني" /><input aria-label="كلمة المرور" type="password" required value={loginPassword} onChange={(event) => setLoginPassword(event.target.value)} placeholder="كلمة المرور" /><button className="mobile-command-button" type="submit">دخول</button></form>{loginError && <p role="alert">{loginError}</p>}</section>}
     <section className="mobile-app-content">
       {tab === "home" && <>
         <div className="mobile-greeting"><span>مساء الخير، يا شريك</span><small>من العريش إلى كل مكان</small></div>
