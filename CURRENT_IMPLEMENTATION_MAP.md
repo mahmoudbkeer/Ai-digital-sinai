@@ -110,3 +110,11 @@ Production/offsite PostgreSQL evidence remains separate from this local staging 
 - `pnpm audit --prod --audit-level=high`: `PASS`; secret scan: `PASS`.
 - Full weighted V7 score: **67.14%**. External services remain `REQUIRES_SETUP`/`BLOCKED_EXTERNAL_DEPENDENCY`.
 - المصفوفة المرجعية: `FINAL_COMPLETION_MATRIX_V7.md`.
+
+## Focused gap-closure update
+
+| المجال | الحالة | الدليل |
+|---|---|---|
+| Redis queue/worker | IMPLEMENTED كعقد تشغيل | `server/integrations.ts`، `scripts/queue-worker.mjs`، queue tests؛ production يتطلب Redis فعلي |
+| Backup encryption | IMPLEMENTED | AES-256-GCM، manifest SHA-256، decrypt/restore drill محلي |
+| RAG ingestion | IMPLEMENTED جزئيًا | deterministic chunking وtenant/permission filter وEmbedding boundary؛ provider/vector runtime يحتاج إعداد |

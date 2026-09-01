@@ -133,3 +133,9 @@
 تم تشديد production startup ليتطلب `PAYMENT_WEBHOOK_SECRET` وCORS allowlist صريحة. `pnpm audit --prod --audit-level=high` أعاد `PASS — No known vulnerabilities found`، وsecret scan أعاد صفر نتائج. بقيت خدمات WAF/DAST/pentest والخدمات الخارجية مصنفة بدقة كـ`REQUIRES_SETUP` أو `BLOCKED_EXTERNAL_DEPENDENCY`.
 
 المصفوفة الكاملة والنسبة الوزنية موجودة في [`FINAL_COMPLETION_MATRIX_V7.md`](./FINAL_COMPLETION_MATRIX_V7.md). النتيجة الحالية **67.14% weighted true completion** والتصنيف `RELEASE CANDIDATE`.
+
+## Focused gap-closure round — Redis, Backup/DR, RAG
+
+أُغلقت أكبر فجوات قابلة للتنفيذ دون إعادة بناء المجالات المثبتة: أضيفت Redis queue primitives باستخدام `LPUSH`/`RPOP` مع TTL، وworker مستقل يدعم retry وDLQ ويرفض production fallback عند غياب Redis. أضيف تشفير AES-256-GCM للنسخ الاحتياطية مع authenticated tag وSHA-256 manifest، ثم decrypt والتحقق الإجباري أثناء restore مع safety copy. أضيف RAG contract لتقسيم المستندات إلى chunks، tenant/permission filtering، وEmbedding provider truthful boundary، وربط ingestion متعدد الـchunks.
+
+تم اجتياز الجولة النهائية: `pnpm check`، `pnpm test`، build، E2E، smoke، load، security، adversarial security، production dependency audit، PostgreSQL staging، وcritical-path API. سجلت الجولة **68.18% weighted completion**؛ ما تزال managed services وWAF وDAST/pentest وAndroid وprovider credentials خارج نطاق الإثبات المحلي.

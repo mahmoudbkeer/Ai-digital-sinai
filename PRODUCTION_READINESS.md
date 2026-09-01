@@ -93,3 +93,7 @@ curl -i http://127.0.0.1:3000/api/readiness
 تم إغلاق MFA brute-force regression وإضافة adversarial security integration gate. production startup يتطلب الآن PostgreSQL في الإنتاج، command secret، payment webhook secret، وCORS allowlist صريحة. بوابات `check`, `test`, `build`, `e2e`, `smoke`, `load`, `security`, adversarial security، وPostgreSQL staging تمر في البيئة المحلية. `pnpm audit --prod --audit-level=high` يمر بلا vulnerabilities معروفة، بينما WAF/DAST/pentest، managed providers، offsite restore، وAndroid ما زالت خارج إثبات المستودع.
 
 النتيجة الوزنية V7 هي **67.14%**، والتصنيف **RELEASE CANDIDATE**. لا يجوز إعلان `PRODUCTION READY` قبل تفعيل الاعتماديات الخارجية وإرفاق evidence تشغيلية مستقلة.
+
+## Focused gap-closure round
+
+تم تنفيذ queue/worker contract فوق Redis الحقيقي عند توفر `REDIS_URL`، مع retry وDLQ، وإيقاف worker production عند غياب Redis. تم تنفيذ تشفير AES-256-GCM للنسخ مع manifest checksum وrestore decrypt. تم تنفيذ RAG chunking وtenant permission filter وEmbedding provider boundary؛ غياب embedding/vector credentials يظل `REQUIRES_SETUP` ولا يعد نجاحًا وهميًا.

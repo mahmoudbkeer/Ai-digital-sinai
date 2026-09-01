@@ -60,3 +60,7 @@
 ## V7 — Security gap closure
 
 بعد إعادة تدقيق V6، تم اكتشاف وإصلاح MFA brute-force regression: يتم الآن احتساب OTP failures وقفل المستخدم بعد خمس محاولات قبل السماح بإعادة ضبط العداد. أضيف adversarial security smoke حقيقي إلى package scripts وGitHub Quality Gate، ويغطي IDOR، SQL injection bypass، XSS input، rate-limit bypass، webhook signature، وreplay. شُدد production startup بمتطلبات webhook secret وCORS allowlist. النتيجة: 42 اختبارًا محليًا، adversarial smoke PASS، PostgreSQL staging PASS، و`pnpm audit --prod --audit-level=high` PASS.
+
+## Focused gap-closure round — Redis, Backup/DR, RAG
+
+تمت إضافة Redis queue primitives (`LPUSH`/`RPOP`) مع TTL، وworker architecture عبر `scripts/queue-worker.mjs` تدعم retry وDLQ ولا تستخدم process-memory في production. تم تنفيذ AES-256-GCM backup encryption عبر `BACKUP_ENCRYPTION_KEY` مع magic header وauth tag وmanifest checksum، وإضافة decrypt والتحقق الإجباري في restore. تم إنشاء RAG contract في `server/rag.ts` لتقسيم المستندات، permission filtering، وEmbedding provider truthful `REQUIRES_SETUP`، وربطه بمرحلة ingestion متعددة الـchunks. تم اختبار queue وRAG وbackup/restore المشفر فعليًا.

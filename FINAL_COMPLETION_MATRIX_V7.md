@@ -1,13 +1,13 @@
 # AI DIGITAL SINAI — FINAL COMPLETION MATRIX V7
 
 **Previous evidence commit:** `844be805f5f6025a9bc6a2aaf511625da1e35a04`  
-**V7 evidence commit:** `3390e34c54abb45089f13d6ad2b2f7ae56e10a1a`
+**V7 evidence commit:** `f11beb981be8765234cd7d6b19f49b2c24515ed4`
 **Branch:** `main`  
 **Rule:** لا تُمنح external dependency حالة `VERIFIED` دون runtime/provider evidence.
 
 | Domain | V6 % | V7 % | Status | Completed | Remaining | Evidence |
 |---|---:|---:|---|---|---|---|
-| Production Infrastructure | 45 | 55 | BLOCKED_EXTERNAL_DEPENDENCY | startup gate، health/readiness، PostgreSQL staging | managed production, WAF, external monitoring | staging + CI |
+| Production Infrastructure | 45 | 60 | BLOCKED_EXTERNAL_DEPENDENCY | startup gate، health/readiness، PostgreSQL staging، Redis worker contract | managed production, WAF, external monitoring | staging + CI + worker |
 | Security | 70 | 78 | IMPLEMENTED / EXTERNAL SETUP | HSTS، CSP، CORS، MFA، IDOR، SQLi، XSS input، rate-limit، webhook replay، secret scan | WAF، DAST/pentest، full dependency scan including dev tools | `pnpm test:security:adversarial`, `pnpm audit --prod` |
 | PostgreSQL/Data | 90 | 90 | VERIFIED | migrations 1–4، pooling، FK، composite tenant constraints، rollback، ledger balance | managed production/offsite drill | `pnpm test:staging` |
 | Identity | 82 | 84 | VERIFIED | registration/login/session/revoke/reset/MFA، MFA abuse lock | device verification، email delivery | 42 tests |
@@ -23,12 +23,12 @@
 | Finance/Payments | 65 | 67 | PARTIALLY_IMPLEMENTED | balanced journals/payment intent/HMAC/replay/idempotency | provider sandbox, refunds, settlement/reconciliation | staging ledger + payment tests |
 | Subscriptions | 65 | 65 | PARTIALLY_IMPLEMENTED | trial/plans/cancel/renew/entitlements | provider webhook/grace automation | platform tests |
 | Logistics | 65 | 65 | PARTIALLY_IMPLEMENTED | state machine/driver/vehicle/proof | GPS/tracking provider/zones/pricing | delivery tests |
-| Redis | 60 | 60 | REQUIRES_SETUP | RESP get/set/del/TTL/no production memory fallback | queues/workers/retry/DLQ/locks/distributed idempotency | integration tests |
+| Redis | 60 | 72 | IMPLEMENTED / REQUIRES_SETUP | RESP get/set/del/TTL، LPUSH/RPOP queue، worker، retry/DLQ، no production memory fallback | managed Redis، distributed locks/rate limits | integration tests + `scripts/queue-worker.mjs` |
 | Object Storage | 70 | 70 | REQUIRES_SETUP | tenant-scoped keys, validation, signed URLs | managed bucket, deletion/retention, malware scanner | integration tests |
 | Notifications | 55 | 55 | REQUIRES_SETUP | in-app schema/preferences/provider boundary | real email/SMS/push, queue/retry/DLQ | platform tests |
 | AI Gateway | 65 | 65 | REQUIRES_SETUP | provider boundary, usage/audit, output/policy boundary | real provider routing/cost/telemetry | AI contracts |
 | AI Search | 55 | 55 | PARTIALLY_IMPLEMENTED | database-truth lexical search, geo, tenant scope | intent/entity/semantic/vector/ranking | cross-tenant smoke |
-| RAG | 35 | 35 | REQUIRES_SETUP | document/chunk schema and tenant lexical fallback | parse/embed/vector/retrieve/context/evidence production path | explicit setup state |
+| RAG | 35 | 50 | IMPLEMENTED / REQUIRES_SETUP | deterministic chunking، tenant/permission filter، truthful embedding boundary، multi-chunk ingestion | embedding/vector/retrieve/context/evidence provider runtime | `server/rag.test.ts` |
 | Advisor | 60 | 60 | PARTIALLY_IMPLEMENTED | grounded sales/inventory/expense insights | production evaluation/alerts/opportunities | advisor routes |
 | Recommendations | 55 | 55 | PARTIALLY_IMPLEMENTED | deterministic factors/fallback/events | evaluation and model-backed ranking | recommendation routes |
 | Forecasting | 55 | 55 | PARTIALLY_IMPLEMENTED | moving average/confidence/MAE fallback | backtesting/monitoring/model selection | forecast routes |
@@ -37,7 +37,7 @@
 | Analytics/KPI | 55 | 55 | PARTIALLY_IMPLEMENTED | tenant-scoped database KPI foundation | full cohort/retention/CAC/LTV definitions/evaluation | KPI routes |
 | Super Admin | 55 | 55 | PARTIALLY_IMPLEMENTED | admin API/audit/flags foundation | full mutation matrix and UI | admin routes |
 | Observability | 65 | 65 | PARTIALLY_IMPLEMENTED | structured logs/request ID/health/readiness | metrics/alerts/queue/provider telemetry | health/security/load smoke |
-| Backup/DR | 55 | 55 | PARTIALLY_IMPLEMENTED | checksum/manifest/restore scripts | encrypted offsite restore drill with RPO/RTO | backup scripts |
+| Backup/DR | 55 | 72 | IMPLEMENTED / REQUIRES_SETUP | SHA-256 manifest، AES-256-GCM، authenticated decrypt، restore safety copy | encrypted offsite storage، managed PostgreSQL RPO/RTO drill | backup/restore smoke |
 | Frontend | 60 | 60 | PARTIALLY_IMPLEMENTED | Arabic RTL mobile app shell/loading/error baseline | all completed capabilities usable in UI | Playwright |
 | Android | 20 | 20 | NOT_IMPLEMENTED | shared backend contract | Android app/build/APK/AAB/keystore | no artifact |
 | CI/CD | 70 | 78 | IMPLEMENTED / EXTERNAL SETUP | check/test/build/e2e/smoke/load/security/adversarial/staging gates | staging secrets and protected branch enforcement | GitHub workflows |
@@ -64,7 +64,7 @@ Frontend                 60% ×  3% = 1.80
 Mobile                   20% ×  2% = 0.40
 ```
 
-**V7 TRUE COMPLETION: 67.14%**. This is a weighted engineering score, not a production-readiness declaration.
+**V7 TRUE COMPLETION: 68.18%**. This is a weighted engineering score, not a production-readiness declaration.
 
 ## Exact remaining gaps
 

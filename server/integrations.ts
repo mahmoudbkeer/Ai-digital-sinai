@@ -161,6 +161,8 @@ export type RedisProvider = {
     ttlSeconds?: number
   ): Promise<"OK" | "REQUIRES_SETUP">;
   del(key: string): Promise<number>;
+  enqueue(queue: string, payload: string, ttlSeconds?: number): Promise<"QUEUED" | "REQUIRES_SETUP">;
+  dequeue(queue: string): Promise<string | null>;
 };
 
 export function resolveRedisProvider(): RedisProvider {
@@ -241,6 +243,36 @@ export function resolveRedisProvider(): RedisProvider {
       }
       if (process.env.NODE_ENV === "production" || redisUrl) return 0;
       return memory.delete(key) ? 1 : 0;
+    },
+    async enqueue(queue, payload, ttlSeconds) {
+      if (!/^[A-Za-z0-9._:-]{1,100}$/.test(queue) || payload.length > 512_000) return "REQUIRES_SETUP";
+      if (ready) {
+        try {
+          const result = await command(["LPUSH", `queue:${queue}`, payload]);
+          if (ttlSeconds) await command(["EXPIRE", `queue:${queue}`, String(ttlSeconds)]);
+          return result ? "QUEUED" : "REQUIRES_SETUP";
+        } catch { return "REQUIRES_SETUP"; }
+      }
+      if (process.env.NODE_ENV === "production" || redisUrl) return "REQUIRES_SETUP";
+      const key = `queue:${queue}`;
+      const current = memory.get(key);
+      const items = current ? JSON.parse(current.value) as string[] : [];
+      items.unshift(payload);
+      memory.set(key, { value: JSON.stringify(items), expiresAt: ttlSeconds ? Date.now() + ttlSeconds * 1000 : current?.expiresAt });
+      return "QUEUED";
+    },
+    async dequeue(queue) {
+      if (!/^[A-Za-z0-9._:-]{1,100}$/.test(queue)) return null;
+      if (ready) {
+        try { return await command(["RPOP", `queue:${queue}`]); } catch { return null; }
+      }
+      if (process.env.NODE_ENV === "production" || redisUrl) return null;
+      const key = `queue:${queue}`;
+      if (isExpired(key)) return null;
+      const current = memory.get(key); if (!current) return null;
+      const items = JSON.parse(current.value) as string[]; const payload = items.pop() ?? null;
+      if (items.length) memory.set(key, { ...current, value: JSON.stringify(items) }); else memory.delete(key);
+      return payload;
     },
   };
 }

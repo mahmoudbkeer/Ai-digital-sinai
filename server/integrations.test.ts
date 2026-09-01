@@ -72,6 +72,18 @@ describe("runtime integration contracts", () => {
     expect(await redis.get("key")).toBeNull();
   });
 
+  it("supports development queue primitives without allowing production memory fallback", async () => {
+    vi.stubEnv("NODE_ENV", "test");
+    vi.stubEnv("REDIS_URL", "");
+    const redis = resolveRedisProvider();
+    expect(await redis.enqueue("notifications", JSON.stringify({ id: "job-1" }))).toBe("QUEUED");
+    expect(await redis.dequeue("notifications")).toBe(JSON.stringify({ id: "job-1" }));
+    expect(await redis.dequeue("notifications")).toBeNull();
+    vi.stubEnv("NODE_ENV", "production");
+    const productionRedis = resolveRedisProvider();
+    expect(await productionRedis.enqueue("notifications", "{}")) .toBe("REQUIRES_SETUP");
+  });
+
   it("creates tenant-scoped signed storage URLs and rejects traversal", async () => {
     vi.stubEnv("NODE_ENV", "staging");
     vi.stubEnv("OBJECT_STORAGE_ENDPOINT", "https://objects.example.test");

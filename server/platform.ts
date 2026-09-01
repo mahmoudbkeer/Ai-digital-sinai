@@ -23,6 +23,7 @@ import {
 } from "./notificationProviders";
 import { resolveAIProvider } from "./aiProviders";
 import { createTotpSecret, createTotpUri, verifyTotp } from "./mfa";
+import { chunkDocument, resolveEmbeddingProvider } from "./rag";
 
 export const ROLES = [
   "SUPER_ADMIN",
@@ -2760,19 +2761,24 @@ export function createPlatformRouter(): Router {
             timestamp,
             timestamp
           );
-        await db
-          .prepare(
-            "INSERT INTO ai_chunks (id, tenant_id, document_id, chunk_index, content, content_hash, metadata_json, created_at) VALUES (?, ?, ?, 0, ?, ?, ?, ?)"
-          )
-          .run(
-            randomUUID(),
-            context.tenantId,
-            documentId,
-            content.trim(),
-            hashToken(content),
-            json({ sourceType, sourceRef }),
-            timestamp
-          );
+        const chunks = chunkDocument(content);
+        for (let chunkIndex = 0; chunkIndex < chunks.length; chunkIndex += 1) {
+          const chunk = chunks[chunkIndex];
+          await db
+            .prepare(
+              "INSERT INTO ai_chunks (id, tenant_id, document_id, chunk_index, content, content_hash, metadata_json, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+            )
+            .run(
+              randomUUID(),
+              context.tenantId,
+              documentId,
+              chunkIndex,
+              chunk,
+              hashToken(chunk),
+              json({ sourceType, sourceRef, chunkIndex, chunkCount: chunks.length }),
+              timestamp
+            );
+        }
         await recordAudit(
           db,
           context,
@@ -2786,7 +2792,8 @@ export function createPlatformRouter(): Router {
           ok: true,
           documentId,
           status: "PENDING",
-          embedding: "REQUIRES_SETUP",
+          embedding: resolveEmbeddingProvider().status === "configured" ? "READY" : "REQUIRES_SETUP",
+          chunks: chunks.length,
         });
       } catch (error) {
         next(error);
