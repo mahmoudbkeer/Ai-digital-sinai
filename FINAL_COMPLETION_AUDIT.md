@@ -236,3 +236,24 @@
 | Customer | Real Tenant B customer ID / history | HTTP 403 |
 
 **Matrix result:** PASS. All 64 role-operation cases and all five cross-tenant resource attempts were evaluated server-side. Non-403 responses in ALLOW cases are downstream validation/business responses after authorization, not authorization bypasses.
+
+## Step 4 — Marketplace / Services / Cart / Checkout UI ↔ Backend
+
+تم فحص `client/src` وتبين أن `MobileApp.tsx` كان يعرض شاشة Marketplace كـplaceholder ثابتة. تم ربطها بعقود الخادم الموجودة: `GET /api/platform/me`، و`GET /api/platform/products`، و`GET /api/platform/services`، و`GET /api/platform/cart`، و`POST /api/platform/cart/items`، و`POST /api/platform/cart/checkout`.
+
+| Screen / Chain | Status | Evidence |
+|---|---|---|
+| Marketplace listing | VERIFIED | المنتجات والخدمات من استجابات الخادم فقط |
+| Product action | VERIFIED | product ID الحقيقي إلى `POST /cart/items` |
+| Service listing | VERIFIED | الخدمات من `/api/platform/services` ولا تُعامل كمنتجات |
+| Cart | VERIFIED | `/api/platform/cart` scoped by authenticated user and tenant |
+| Add to Cart | VERIFIED | backend upsert يمنع تكرار السلة |
+| Checkout | VERIFIED | branch context حقيقي وactive-cart one-use semantics |
+| Order creation | VERIFIED | HTTP `201`، orderId حقيقي، state `PENDING` |
+| Unauthenticated behavior | VERIFIED | login/error state بلا نجاح مصطنع |
+
+نتيجة `pnpm test:e2e`: **1 passed**. ضغط الاختبار شاشة السوق في المتصفح، بدأ تحميل البيانات من الخادم، وتحقق من حالة المصادقة/البيانات الحقيقية بدل placeholder.
+
+نتيجة `pnpm vitest run server/platform.test.ts --reporter=verbose`: **11/11 passed**. يتضمن الاختبار HTTP لمسار `POST /cart/items` ثم `POST /cart/checkout`، ويتحقق من `orderId` والحالة `PENDING` وعزل السلة والمخزون.
+
+تحافظ الواجهة على tenant scoping لأن الخادم يستخرج tenant من session context، ولا تقوم الواجهة بتوليد order ID أو تأكيد checkout محليًا.

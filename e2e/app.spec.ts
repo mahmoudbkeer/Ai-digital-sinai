@@ -12,7 +12,8 @@ test("App Mode opens and navigates across mobile tabs", async ({ page }) => {
 
   await page.getByRole("button", { name: "السوق", exact: true }).click();
   await expect(page.getByRole("heading", { name: "اكتشف ما حولك." })).toBeVisible();
-  await expect(page.getByText("السوق في انتظار أول نشر")).toBeVisible();
+  await page.getByRole("button", { name: "تحميل السوق من الخادم" }).click();
+  await expect(page.getByText(/سجّل الدخول لعرض السوق المعزول|تعذر تحميل بيانات السوق الحقيقية|لا توجد عروض منشورة/)).toBeVisible();
 
   await page.getByRole("button", { name: "التشغيل", exact: true }).click();
   await expect(page.getByRole("heading", { name: "مساحة التشغيل" })).toBeVisible();

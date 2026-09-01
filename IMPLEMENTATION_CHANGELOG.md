@@ -80,3 +80,7 @@
 ## RBAC/ABAC adversarial matrix
 
 أضيف `scripts/rbac-adversarial-matrix.mjs` إلى `pnpm test:security:adversarial`. ينشئ الاختبار Tenant A وTenant B ومستخدمين فعليين للأدوار Consumer وOwner وManager وEmployee وService Provider وDriver وAdmin وSuper Admin، ثم يختبر 64 حالة Role × Operation server-side، إضافة إلى IDOR حقيقي على product/order/invoice/payment_intent/customer. النتيجة المحلية: PASS؛ كل محاولات cross-tenant أعادت 403.
+
+## Step 4 — Marketplace UI wiring
+
+تم استبدال Marketplace placeholder في `client/src/pages/MobileApp.tsx` بواجهة تقرأ products/services/cart من `/api/platform` وتنفذ الإضافة والـcheckout عبر backend الحقيقي. لا توجد بيانات hard-coded أو order success وهمي. نجح `pnpm test:e2e` بنتيجة 1/1، ونجح HTTP platform flow بنتيجة 11/11؛ checkout أثبت order ID حقيقيًا بالحالة `PENDING`. تم الحفاظ على tenant isolation وactive-cart upsert، والاعتماد على active-cart one-use semantics في checkout.

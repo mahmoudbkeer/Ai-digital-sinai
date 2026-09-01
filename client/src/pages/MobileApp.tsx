@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Bell, Home, LayoutDashboard, Search, UserRound } from "lucide-react";
+import { Bell, Home, LayoutDashboard, Search, ShoppingCart, UserRound } from "lucide-react";
 import { getLoginUrl } from "@/const";
 import { sectors, statusLabel, type Operation, type Sector, type SectorModule } from "@/lib/operationsCatalog";
 
@@ -13,6 +13,9 @@ type TabId = (typeof tabs)[number]["id"];
 type InstallPromptEvent = Event & { prompt: () => Promise<void>; userChoice: Promise<{ outcome: "accepted" | "dismissed" }> };
 type RoadmapItem = { id: string; phase: string; title: string; status: "ready" | "requires-setup" | "deferred"; detail: string };
 type ServiceState = { health: "loading" | "ok" | "error"; readiness: "loading" | "ready" | "degraded"; observability: "loading" | "ok" | "error"; uptimeSeconds: number | null };
+type Offering = { id: string; business_id: string; name: string; description?: string | null; category?: string | null; price_cents: number; offering_type: "PRODUCT" | "SERVICE"; duration_minutes?: number | null };
+type CartItem = { product_id: string; name: string; quantity: number; unit_price_cents: number; line_total_cents: number };
+type PlatformContext = { businessId?: string; branchId?: string };
 
 export default function MobileApp() {
   const [tab, setTab] = useState<TabId>("home");
@@ -25,6 +28,47 @@ export default function MobileApp() {
   const [selectedOperation, setSelectedOperation] = useState<Operation | null>(null);
   const [commandMessage, setCommandMessage] = useState("");
   const [serviceState, setServiceState] = useState<ServiceState>({ health: "loading", readiness: "loading", observability: "loading", uptimeSeconds: null });
+  const [offerings, setOfferings] = useState<Offering[]>([]);
+  const [cartItems, setCartItems] = useState<CartItem[]>([]);
+  const [cartTotal, setCartTotal] = useState(0);
+  const [platformContext, setPlatformContext] = useState<PlatformContext>({});
+  const [marketState, setMarketState] = useState<"idle" | "loading" | "ready" | "auth" | "error">("idle");
+  const [marketMessage, setMarketMessage] = useState("");
+  const [checkoutState, setCheckoutState] = useState<"idle" | "loading" | "created" | "error">("idle");
+  const money = (cents: number) => `${(cents / 100).toFixed(2)} ج.م`;
+  const loadMarketplace = async () => {
+    setMarketState("loading"); setMarketMessage("");
+    try {
+      const [meResponse, productsResponse, servicesResponse, cartResponse] = await Promise.all([
+        fetch("/api/platform/me"), fetch("/api/platform/products"), fetch("/api/platform/services"), fetch("/api/platform/cart"),
+      ]);
+      if ([meResponse, productsResponse, servicesResponse, cartResponse].some((response) => response.status === 401)) { setMarketState("auth"); setMarketMessage("سجّل الدخول لعرض السوق المعزول وإتمام الطلب."); return; }
+      if (!productsResponse.ok || !servicesResponse.ok || !cartResponse.ok) throw new Error("marketplace request failed");
+      const me = await meResponse.json() as { context?: PlatformContext };
+      const products = await productsResponse.json() as { products?: Array<Omit<Offering, "offering_type">> };
+      const services = await servicesResponse.json() as { services?: Array<Omit<Offering, "offering_type">> };
+      const cart = await cartResponse.json() as { items?: CartItem[]; totalCents?: number };
+      setPlatformContext(me.context ?? {});
+      setOfferings([...(products.products ?? []).map((item) => ({ ...item, offering_type: "PRODUCT" as const })), ...(services.services ?? []).map((item) => ({ ...item, offering_type: "SERVICE" as const }))]);
+      setCartItems(cart.items ?? []); setCartTotal(cart.totalCents ?? 0); setMarketState("ready");
+    } catch { setMarketState("error"); setMarketMessage("تعذر تحميل بيانات السوق الحقيقية. أعد المحاولة."); }
+  };
+  const addToCart = async (product: Offering) => {
+    if (product.offering_type !== "PRODUCT") { setMarketMessage("هذه خدمة منشورة؛ مسار حجز الخدمات غير متاح في عقد السلة الحالي."); return; }
+    if (!platformContext.branchId) { setMarketMessage("لا يوجد فرع مصادق عليه في سياق المستخدم لإتمام الطلب."); return; }
+    setMarketMessage("جارٍ إضافة المنتج إلى السلة الحقيقية...");
+    const response = await fetch("/api/platform/cart/items", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ productId: product.id, quantity: 1, branchId: platformContext.branchId }) });
+    if (!response.ok) { setMarketMessage("رفض الخادم إضافة المنتج؛ لم يتم إنشاء سلة وهمية."); return; }
+    await loadMarketplace(); setMarketMessage("تمت الإضافة إلى السلة المعزولة لهذا المستخدم.");
+  };
+  const checkout = async () => {
+    if (!platformContext.branchId || !cartItems.length) return;
+    setCheckoutState("loading");
+    const response = await fetch("/api/platform/cart/checkout", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ branchId: platformContext.branchId }) });
+    const result = await response.json() as { orderId?: string; state?: string; message?: string };
+    if (!response.ok || !result.orderId) { setCheckoutState("error"); setMarketMessage(result.message ?? "تعذر إنشاء الطلب من السلة."); return; }
+    setCheckoutState("created"); setCartItems([]); setCartTotal(0); setMarketMessage(`تم إنشاء الطلب الحقيقي ${result.orderId} بالحالة ${result.state ?? "PENDING"}.`);
+  };
 
   const loadApi = () => {
     setApiState("loading");
@@ -103,7 +147,7 @@ export default function MobileApp() {
         <section className="mobile-readiness-card" aria-label="حالة الخدمات"><div><small>لوحة الثقة التشغيلية</small><h2>حالة المنصة الآن</h2></div><div className="mobile-readiness-grid"><span><b>الخدمة</b><strong className={`readiness-${serviceState.health}`}>{serviceState.health === "ok" ? "تعمل" : serviceState.health === "loading" ? "فحص" : "خطأ"}</strong></span><span><b>الجاهزية</b><strong className={`readiness-${serviceState.readiness}`}>{serviceState.readiness === "ready" ? "جاهزة" : serviceState.readiness === "loading" ? "فحص" : "تحتاج إعداداً"}</strong></span><span><b>التتبع</b><strong className={`readiness-${serviceState.observability}`}>{serviceState.observability === "ok" ? "نشط" : serviceState.observability === "loading" ? "فحص" : "متوقف"}</strong></span></div><p>{serviceState.readiness === "ready" ? "الاعتماديات الأساسية مهيأة." : "المنصة حية، لكن بعض الاعتماديات لم تُربط بعد؛ لا توجد تسوية تلقائية."}{serviceState.uptimeSeconds !== null ? ` · مدة التشغيل ${serviceState.uptimeSeconds} ث` : ""}</p></section>
         <section className="mobile-plan-card"><small>خارطة التنفيذ الاحترافية</small><h2>من الفكرة إلى الإصدار</h2>{roadmap.length ? roadmap.map((item) => <div key={item.id}><b>{item.phase}</b><span><strong>{item.title}</strong><small>{item.status === "ready" ? "جاهز" : item.status === "requires-setup" ? "يتطلب إعداداً" : "مؤجل"} · {item.detail}</small></span></div>) : <div><b>—</b><span>جارٍ تحميل خارطة التنفيذ...</span></div>}</section>
       </>}
-      {tab === "market" && <><div className="mobile-page-title"><small>دليل السوق</small><h1>اكتشف ما حولك.</h1><p>كتالوج الخدمات والمنتجات المحلية سيظهر هنا بعد الربط بالبيانات.</p></div><div className="mobile-chip-row"><span>خدمات</span><span>منتجات</span><span>مطاعم</span><span>وظائف</span><span>عقارات</span></div><div className="mobile-empty"><Search size={22} /><b>السوق في انتظار أول نشر</b><span>لن نعرض بطاقات أو تقييمات تجريبية. سجّل الدخول لبدء النشر الحقيقي.</span><button onClick={login}>تسجيل الدخول ←</button></div></>}
+      {tab === "market" && <><div className="mobile-page-title"><small>دليل السوق · بيانات حقيقية</small><h1>اكتشف ما حولك.</h1><p>المنتجات والخدمات المنشورة من المستأجر الحالي فقط.</p></div><div className="mobile-chip-row"><span>الكل</span><span>خدمات</span><span>منتجات</span><span><ShoppingCart size={14} /> {cartItems.length} · {money(cartTotal)}</span></div>{marketState === "idle" && <button className="mobile-command-button" onClick={loadMarketplace}>تحميل السوق من الخادم</button>}{marketState === "loading" && <div className="mobile-empty"><span>جارٍ تحميل المنتجات والخدمات...</span></div>}{(marketState === "auth" || marketState === "error") && <div className="mobile-empty"><Search size={22} /><b>{marketMessage}</b><button onClick={marketState === "auth" ? login : loadMarketplace}>{marketState === "auth" ? "تسجيل الدخول ←" : "إعادة المحاولة"}</button></div>}{marketState === "ready" && <><div className="mobile-operation-list">{offerings.map((offering) => <article className="mobile-operation-card" key={`${offering.offering_type}-${offering.id}`}><div><span className="mobile-status-pill status-ready">{offering.offering_type === "PRODUCT" ? "منتج" : "خدمة"}</span><h3>{offering.name}</h3><p>{offering.description || offering.category || "منشور من نشاط داخل مساحة العمل الحالية."}</p><b>{money(offering.price_cents)}</b></div><button className="mobile-command-button" onClick={() => addToCart(offering)}>{offering.offering_type === "PRODUCT" ? "أضف للسلة" : "عرض التفاصيل"}</button></article>)}</div>{!offerings.length && <div className="mobile-empty"><b>لا توجد عروض منشورة</b><span>تمت القراءة من الخادم دون عرض بيانات تجريبية.</span></div>}{cartItems.length > 0 && <section className="mobile-command-note" role="status"><b>السلة الحالية: {cartItems.map((item) => `${item.name} × ${item.quantity}`).join("، ")}</b><span> الإجمالي {money(cartTotal)}</span><button className="mobile-command-button" disabled={checkoutState === "loading"} onClick={checkout}>{checkoutState === "loading" ? "جارٍ إنشاء الطلب..." : "إتمام checkout"}</button></section>}{marketMessage && <div className="mobile-command-note" role="status">{marketMessage}</div>}</>}</>}
       {tab === "work" && <><div className="mobile-page-title"><small>{activeSector ? activeSector.eyebrow : "Business OS"}</small><h1>{activeModule ? activeModule.label : activeSector ? activeSector.name : "مساحة التشغيل"}</h1><p>{activeModule ? activeModule.description : activeSector ? activeSector.description : "اختر قطاعك للوصول إلى وحداته وعملياته الداخلية."}</p></div>{activeModule ? <><button className="mobile-back-button" onClick={backToModules}>← العودة إلى وحدات {activeSector?.name}</button><div className="mobile-operation-list">{activeModule.operations.map((operation) => <article className="mobile-operation-card" key={operation.id}><div><span className={`mobile-status-pill status-${operation.status}`}>{statusLabel[operation.status]}</span><h3>{operation.label}</h3><p>{operation.description}</p></div><button className="mobile-command-button" onClick={() => runOperation(operation)}>فتح الأمر</button></article>)}</div>{selectedOperation && <div className="mobile-command-note" role="status">{commandMessage}{selectedOperation.status === "requires-setup" && <button onClick={login}>تسجيل الدخول ←</button>}</div>}</> : activeSector ? <><button className="mobile-back-button" onClick={backToSectors}>← العودة إلى القطاعات</button><div className="mobile-module-list">{activeSector.modules.map((module) => <button key={module.id} className="mobile-module-card" onClick={() => openModule(module)}><span><b>{module.label}</b><small>{module.description}</small></span><strong>←</strong></button>)}</div></> : <><section className="mobile-login-card"><h2>ابدأ مساحة عملك</h2><p>اختر القطاع لإدارة عملياته، ثم سجّل الدخول لتفعيل البيانات المعزولة.</p><button onClick={login}>تسجيل الدخول ←</button></section><div className="mobile-sector-grid">{sectors.map((sector) => <button key={sector.id} className="mobile-sector-card" onClick={() => openSector(sector)}><small>{sector.eyebrow}</small><b>{sector.name}</b><span>{sector.description}</span><strong>استكشف القطاع ←</strong></button>)}</div></>}</>}
       {tab === "account" && <><div className="mobile-page-title"><small>هوية آمنة</small><h1>حسابي</h1><p>إدارة الوصول والتنبيهات من مكان واحد.</p></div><section className="mobile-account-card"><div className="mobile-avatar">؟</div><div><b>زائر</b><span>لم تسجل الدخول بعد</span></div></section><div className="mobile-settings-list"><button onClick={() => go("work")}>مساحات العمل <b>←</b></button><button onClick={() => go("account")}>الإشعارات <b>—</b></button><button onClick={login}>تسجيل الدخول <b>←</b></button></div></>}
     </section>
