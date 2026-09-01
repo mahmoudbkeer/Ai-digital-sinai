@@ -40,7 +40,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          if find . -path './.git' -prune -o -path './node_modules' -prune -o -type f \( -name '.env' -o -name '.env.*' \) -print -quit | grep -q .; then
+          if find . -path './.git' -prune -o -path './node_modules' -prune -o -type f \( -name '.env' -o -name '.env.*' \) ! -name '*.example' ! -name '*.sample' ! -name '*.template' -print -quit | grep -q .; then
             echo 'Environment files must not be committed.'
             exit 1
           fi
