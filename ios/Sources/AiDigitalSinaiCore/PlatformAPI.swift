@@ -54,6 +54,6 @@ public final class PlatformAPI {
         let branch = (object?["branch"] as? [String: Any])?["id"] as? String ?? object?["branchId"] as? String
         let auth = token.map { AuthSession(token: $0, tenantID: tenant, branchID: branch) }
         if let auth { authSession = auth }
-        return result to auth
+        return (result, auth)
     }
 }
