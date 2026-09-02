@@ -31,6 +31,27 @@ public struct MarketplaceProduct: Decodable, Sendable, Identifiable {
 
 public typealias ProductDetail = MarketplaceProduct
 
+public struct AnalyticsOverview: Decodable, Sendable {
+    public let orders: Int
+    public let deliveries: Int
+    public let notifications: Int
+
+    public init(from decoder: Decoder) throws {
+        let root = try decoder.container(keyedBy: RootKeys.self)
+        let analytics = try root.nestedContainer(keyedBy: AnalyticsKeys.self, forKey: .analytics)
+        let marketplace = try analytics.nestedContainer(keyedBy: MarketplaceKeys.self, forKey: .marketplace)
+        let platform = try analytics.nestedContainer(keyedBy: PlatformKeys.self, forKey: .platform)
+        orders = try marketplace.decode(Int.self, forKey: .orders)
+        deliveries = try platform.decode(Int.self, forKey: .deliveries)
+        notifications = try platform.decode(Int.self, forKey: .notifications)
+    }
+
+    private enum RootKeys: String, CodingKey { case analytics }
+    private enum AnalyticsKeys: String, CodingKey { case marketplace, platform }
+    private enum MarketplaceKeys: String, CodingKey { case orders }
+    private enum PlatformKeys: String, CodingKey { case deliveries, notifications }
+}
+
 public struct AiSearchResult: Decodable, Sendable, Identifiable {
     public let documentID: String
     public let title: String
@@ -136,6 +157,10 @@ private struct AiSearchEnvelope: Decodable {
     let results: [AiSearchResult]
 }
 
+private struct AnalyticsEnvelope: Decodable {
+    let analytics: AnalyticsOverview
+}
+
 private struct CartEnvelope: Decodable {
     let cart: Cart?
     let items: [CartItem]
@@ -170,6 +195,17 @@ public final class PlatformAPI {
         try await authenticate(path: "/api/platform/auth/register", body: [
             "email": email, "password": password, "displayName": displayName, "tenantName": tenantName
         ])
+    }
+
+    public func analyticsOverview() async throws -> (APIResult, AnalyticsOverview) {
+        var request = URLRequest(url: baseURL.appendingPathComponent("api/platform/analytics/overview"))
+        request.httpMethod = "GET"
+        applyAuth(to: &request)
+        let (data, response) = try await session.data(for: request)
+        let http = response as! HTTPURLResponse
+        let result = APIResult(statusCode: http.statusCode, data: data)
+        let envelope = try JSONDecoder().decode(AnalyticsEnvelope.self, from: data)
+        return (result, envelope.analytics)
     }
 
     public func aiSearch(query: String) async throws -> (APIResult, [AiSearchResult]) {

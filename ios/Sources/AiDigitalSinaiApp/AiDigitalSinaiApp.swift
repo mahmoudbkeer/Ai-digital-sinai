@@ -138,8 +138,9 @@ struct MarketplaceView: View {
         }
         .navigationTitle("Marketplace")
         .toolbar {
-            ToolbarItem(placement: .automatic) {
+            ToolbarItemGroup(placement: .automatic) {
                 NavigationLink("الإشعارات") { NotificationsView(api: api) }
+                NavigationLink("Analytics") { AnalyticsView(api: api) }
             }
         }
         .task { await loadProducts() }
@@ -315,6 +316,51 @@ struct CartCheckoutView: View {
     }
 }
 
+
+struct AnalyticsView: View {
+    let api: PlatformAPI
+    @State private var analytics: AnalyticsOverview?
+    @State private var loading = true
+    @State private var errorMessage = ""
+
+    var body: some View {
+        Group {
+            if loading {
+                ProgressView("تحميل التحليلات…")
+            } else if !errorMessage.isEmpty {
+                VStack(spacing: 8) {
+                    Image(systemName: "exclamationmark.triangle")
+                    Text("تعذر تحميل التحليلات")
+                    Text(errorMessage)
+                }
+            } else if let analytics {
+                List {
+                    Section("ملخص المنصة") {
+                        LabeledContent("الطلبات", value: String(analytics.orders))
+                        LabeledContent("التوصيلات", value: String(analytics.deliveries))
+                        LabeledContent("الإشعارات", value: String(analytics.notifications))
+                    }
+                }
+            }
+        }
+        .navigationTitle("Analytics")
+        .task { await loadAnalytics() }
+    }
+
+    private func loadAnalytics() async {
+        do {
+            let (result, loadedAnalytics) = try await api.analyticsOverview()
+            if (200..<300).contains(result.statusCode) {
+                analytics = loadedAnalytics
+            } else {
+                errorMessage = "HTTP \(result.statusCode)"
+            }
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+        loading = false
+    }
+}
 
 struct NotificationsView: View {
     let api: PlatformAPI
