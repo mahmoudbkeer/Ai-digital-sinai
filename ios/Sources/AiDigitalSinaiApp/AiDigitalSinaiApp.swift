@@ -94,7 +94,10 @@ struct MarketplaceView: View {
                 }
             } else {
                 List(products) { product in
-                    VStack(alignment: .leading, spacing: 6) {
+                    NavigationLink {
+                        ProductDetailView(api: api, productId: product.id)
+                    } label: {
+                        VStack(alignment: .leading, spacing: 6) {
                         HStack {
                             Text(product.name).font(.headline)
                             Spacer()
@@ -102,8 +105,9 @@ struct MarketplaceView: View {
                         }
                         if let category = product.category { Text(category).font(.caption) }
                         if let description = product.description { Text(description) }
+                        }
+                        .padding(.vertical, 4)
                     }
-                    .padding(.vertical, 4)
                 }
             }
         }
@@ -116,6 +120,62 @@ struct MarketplaceView: View {
             let (result, loadedProducts) = try await api.products()
             if (200..<300).contains(result.statusCode) {
                 products = loadedProducts
+            } else {
+                errorMessage = "HTTP \(result.statusCode)"
+            }
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+        loading = false
+    }
+}
+
+
+struct ProductDetailView: View {
+    let api: PlatformAPI
+    let productId: String
+    @State private var product: ProductDetail?
+    @State private var loading = true
+    @State private var errorMessage = ""
+
+    var body: some View {
+        Group {
+            if loading {
+                ProgressView("تحميل التفاصيل…")
+            } else if let product {
+                List {
+                    Section("المنتج") {
+                        LabeledContent("الاسم", value: product.name)
+                        LabeledContent("SKU", value: product.sku)
+                        LabeledContent("النشاط", value: product.businessID)
+                        LabeledContent("الفئة", value: product.category ?? "—")
+                        LabeledContent("الحالة", value: product.status)
+                        LabeledContent("السعر", value: String(format: "%.2f %@", Double(product.priceCents) / 100.0, product.currency))
+                    }
+                    Section("الوصف") { Text(product.description ?? "لا يوجد وصف") }
+                    Section("السجل") {
+                        LabeledContent("إنشاء", value: String(product.createdAt))
+                        LabeledContent("تحديث", value: String(product.updatedAt))
+                        LabeledContent("ID", value: product.id)
+                    }
+                }
+            } else {
+                VStack(spacing: 8) {
+                    Image(systemName: "exclamationmark.triangle")
+                    Text("تعذر تحميل التفاصيل")
+                    Text(errorMessage)
+                }
+            }
+        }
+        .navigationTitle("تفاصيل المنتج")
+        .task { await loadDetail() }
+    }
+
+    private func loadDetail() async {
+        do {
+            let (result, loadedProduct) = try await api.productDetail(productId: productId)
+            if (200..<300).contains(result.statusCode) {
+                product = loadedProduct
             } else {
                 errorMessage = "HTTP \(result.statusCode)"
             }

@@ -29,6 +29,8 @@ public struct MarketplaceProduct: Decodable, Sendable, Identifiable {
     }
 }
 
+public typealias ProductDetail = MarketplaceProduct
+
 public struct AuthSession: Codable, Sendable {
     public let token: String
     public let tenantID: String?
@@ -42,6 +44,10 @@ public struct AuthSession: Codable, Sendable {
 
 private struct ProductEnvelope: Decodable {
     let products: [MarketplaceProduct]
+}
+
+private struct ProductDetailEnvelope: Decodable {
+    let product: ProductDetail
 }
 
 public final class PlatformAPI {
@@ -66,6 +72,17 @@ public final class PlatformAPI {
         try await authenticate(path: "/api/platform/auth/register", body: [
             "email": email, "password": password, "displayName": displayName, "tenantName": tenantName
         ])
+    }
+
+    public func productDetail(productId: String) async throws -> (APIResult, ProductDetail) {
+        var request = URLRequest(url: baseURL.appendingPathComponent("api/platform/products/\(productId)"))
+        request.httpMethod = "GET"
+        applyAuth(to: &request)
+        let (data, response) = try await session.data(for: request)
+        let http = response as! HTTPURLResponse
+        let result = APIResult(statusCode: http.statusCode, data: data)
+        let envelope = try JSONDecoder().decode(ProductDetailEnvelope.self, from: data)
+        return (result, envelope.product)
     }
 
     public func products() async throws -> (APIResult, [MarketplaceProduct]) {
