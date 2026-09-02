@@ -12,7 +12,7 @@
 | PostgreSQL/Data | 90 | 90 | VERIFIED | migrations 1–4، pooling، FK، composite tenant constraints، rollback، ledger balance | managed production/offsite drill | `pnpm test:staging` |
 | Identity | 82 | 84 | VERIFIED | registration/login/session/revoke/reset/MFA، MFA abuse lock | device verification، email delivery | 42 tests |
 | Tenant Isolation | 82 | 86 | VERIFIED | token/tenant mismatch denial، AI tenant isolation، IDOR smoke | complete 20-domain adversarial matrix | staging + adversarial smoke |
-| RBAC/ABAC | 75 | 75 | PARTIALLY_IMPLEMENTED | server-side permission/scope/entitlements | exhaustive 8-role × resource/action matrix | platform policy code |
+| RBAC/ABAC | 75 | 75 | PARTIALLY_IMPLEMENTED | server-side permission/scope/entitlements; 64 abstract role × operation checks; 5 concrete cross-tenant IDOR resources | exhaustive 8-role × 28 resource-family × applicable-action matrix | `scripts/rbac-adversarial-matrix.mjs`; exact reconciliation below |
 | Business OS | 70 | 70 | PARTIALLY_IMPLEMENTED | core businesses/branches/customers/employees/suppliers/purchases/expenses | advanced returns/reconciliation workflows | platform/business tests |
 | CRM | 65 | 65 | PARTIALLY_IMPLEMENTED | profiles/history/interactions/tags | segments/follow-ups/customer value | platform routes |
 | Procurement | 62 | 64 | PARTIALLY_IMPLEMENTED | supplier/PO/receiving/AP foundation | partial receiving/returns/concurrency reconciliation | business tests |
@@ -74,7 +74,7 @@ Mobile                   20% ×  2% = 0.40
 4. Paymob/Fawry/Vodafone Cash provider sandbox credentials and settlement/reconciliation evidence.
 5. Email/SMS/Push/GPS/AI/embedding provider activation.
 6. Full RAG embedding/vector/context/evidence runtime path.
-7. Full 8-role RBAC/ABAC adversarial matrix across all actions.
+7. Full 8-role × concrete resource × applicable-action RBAC/ABAC adversarial matrix. Current evidence is 5 concrete IDOR resources plus 8 abstract operation probes; 23 resource families remain without per-role resource/action evidence.
 8. WAF, DAST, independent penetration test, and production TLS verification.
 9. Full production metrics and alerting for DB/Redis/queue/AI/payment.
 10. Android application, build, APK/AAB, signing, and device tests.

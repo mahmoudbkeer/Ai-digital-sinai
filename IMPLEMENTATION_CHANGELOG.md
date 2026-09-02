@@ -100,3 +100,13 @@
 Super Admin UI بقي مرتبطًا فعليًا بالـadmin APIs ويعرض users/tenants/audit/feature-flags، لكن إثبات authenticated Super Admin runtime الكامل غير معلن VERIFIED لأن البيئة لا توفر جلسة Super Admin حقيقية قابلة للاستخدام دون bypass. Owner/Manager/Employee boundaries تبقى `403` server-side.
 
 External provider runtime remains `BLOCKED_EXTERNAL_DEPENDENCY`: payment credentials/callback/settlement، notification provider credentials، AI/embedding/vector services، وproduction infrastructure provisioning. Android لم يبدأ حسب التعليمات.
+
+## RBAC reconciliation — exact scope
+
+The previous `64/64` statement means only **8 roles × 8 abstract operations** (`READ`, `CREATE`, `UPDATE`, `DELETE`, `MANAGE`, `PAY`, `REFUND`, `ADMIN`) against one representative endpoint per operation. It is not a concrete Role × Resource × Action matrix.
+
+The current adversarial script explicitly exercises **5 concrete cross-tenant resources**: Product, Order, Invoice, Payment Intent, and Customer. It does not provide per-role, per-resource, per-action evidence for the remaining **23 resource families** enumerated by server policy: Service/Booking, Admin, Advertising, AI, Analytics, Audit, Branch, Business, Catalog, CRM, Employee, Expense, Inventory, Ledger, Marketplace, Notification, POS, Purchase, Report, Subscription, Supplier, Tenant, and the remaining service-booking-specific endpoints. Therefore the reconciled concrete coverage is **5/28 resource families**, not 64/64.
+
+`pnpm test:security:adversarial` was rerun on 2026-09-02 and returned exit code 0 with the existing 64 abstract checks and 5 concrete IDOR resource checks passing. This is evidence of the existing scope only, not evidence of the unimplemented 23-resource exhaustive matrix.
+
+Super Admin authenticated runtime remains unverified because no real browser session or credential entry was available in this execution. No bypass or synthetic Super Admin mutation was used.
