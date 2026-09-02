@@ -31,6 +31,41 @@ public struct MarketplaceProduct: Decodable, Sendable, Identifiable {
 
 public typealias ProductDetail = MarketplaceProduct
 
+public struct CartItem: Decodable, Sendable, Identifiable {
+    public let id: String
+    public let productID: String
+    public let sku: String
+    public let name: String
+    public let quantity: Int
+    public let unitPriceCents: Int
+    public let lineTotalCents: Int
+    enum CodingKeys: String, CodingKey {
+        case id, productID = "product_id", sku, name, quantity
+        case unitPriceCents = "unit_price_cents", lineTotalCents = "line_total_cents"
+    }
+}
+
+public struct Cart: Decodable, Sendable {
+    public let id: String?
+    public let branchID: String?
+    public let items: [CartItem]
+    public let totalCents: Int
+    enum CodingKeys: String, CodingKey {
+        case id, branchID = "branch_id", items
+        case totalCents = "totalCents"
+    }
+}
+
+public struct CheckoutResult: Decodable, Sendable {
+    public let orderID: String
+    public let state: String
+    public let totalCents: Int?
+    enum CodingKeys: String, CodingKey {
+        case orderID = "orderId", state, totalCents
+    }
+}
+
+
 public struct AuthSession: Codable, Sendable {
     public let token: String
     public let tenantID: String?
@@ -48,6 +83,18 @@ private struct ProductEnvelope: Decodable {
 
 private struct ProductDetailEnvelope: Decodable {
     let product: ProductDetail
+}
+
+private struct CartEnvelope: Decodable {
+    let cart: Cart?
+    let items: [CartItem]
+    let totalCents: Int
+}
+
+private struct CheckoutEnvelope: Decodable {
+    let orderId: String
+    let state: String
+    let totalCents: Int?
 }
 
 public final class PlatformAPI {
@@ -72,6 +119,46 @@ public final class PlatformAPI {
         try await authenticate(path: "/api/platform/auth/register", body: [
             "email": email, "password": password, "displayName": displayName, "tenantName": tenantName
         ])
+    }
+
+    public func cart() async throws -> (APIResult, Cart) {
+        var request = URLRequest(url: baseURL.appendingPathComponent("api/platform/cart"))
+        request.httpMethod = "GET"
+        applyAuth(to: &request)
+        let (data, response) = try await session.data(for: request)
+        let http = response as! HTTPURLResponse
+        let result = APIResult(statusCode: http.statusCode, data: data)
+        let envelope = try JSONDecoder().decode(CartEnvelope.self, from: data)
+        let cart = envelope.cart ?? Cart(id: nil, branchID: nil, items: envelope.items, totalCents: envelope.totalCents)
+        return (result, cart)
+    }
+
+    public func addCartItem(productId: String, quantity: Int, branchId: String? = nil) async throws -> (APIResult, String?) {
+        var request = URLRequest(url: baseURL.appendingPathComponent("api/platform/cart/items"))
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        applyAuth(to: &request)
+        var body: [String: Any] = ["productId": productId, "quantity": quantity]
+        if let branchId { body["branchId"] = branchId }
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        let (data, response) = try await session.data(for: request)
+        let http = response as! HTTPURLResponse
+        let result = APIResult(statusCode: http.statusCode, data: data)
+        let object = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+        return (result, object?["cartId"] as? String)
+    }
+
+    public func checkout(branchId: String) async throws -> (APIResult, CheckoutResult) {
+        var request = URLRequest(url: baseURL.appendingPathComponent("api/platform/cart/checkout"))
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        applyAuth(to: &request)
+        request.httpBody = try JSONSerialization.data(withJSONObject: ["branchId": branchId])
+        let (data, response) = try await session.data(for: request)
+        let http = response as! HTTPURLResponse
+        let result = APIResult(statusCode: http.statusCode, data: data)
+        let envelope = try JSONDecoder().decode(CheckoutEnvelope.self, from: data)
+        return (result, CheckoutResult(orderID: envelope.orderId, state: envelope.state, totalCents: envelope.totalCents))
     }
 
     public func productDetail(productId: String) async throws -> (APIResult, ProductDetail) {

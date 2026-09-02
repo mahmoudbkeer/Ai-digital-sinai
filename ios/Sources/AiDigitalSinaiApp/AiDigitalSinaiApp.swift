@@ -153,6 +153,11 @@ struct ProductDetailView: View {
                         LabeledContent("السعر", value: String(format: "%.2f %@", Double(product.priceCents) / 100.0, product.currency))
                     }
                     Section("الوصف") { Text(product.description ?? "لا يوجد وصف") }
+                    Section {
+                        NavigationLink("أضف للسلة") {
+                            CartCheckoutView(api: api, productId: product.id)
+                        }
+                    }
                     Section("السجل") {
                         LabeledContent("إنشاء", value: String(product.createdAt))
                         LabeledContent("تحديث", value: String(product.updatedAt))
@@ -183,5 +188,83 @@ struct ProductDetailView: View {
             errorMessage = error.localizedDescription
         }
         loading = false
+    }
+}
+
+
+struct CartCheckoutView: View {
+    let api: PlatformAPI
+    let productId: String
+    @State private var cart: Cart?
+    @State private var loading = false
+    @State private var message = ""
+    @State private var order: CheckoutResult?
+
+    var body: some View {
+        Form {
+            Section("السلة") {
+                if let cart {
+                    ForEach(cart.items) { item in
+                        HStack {
+                            Text(item.name)
+                            Spacer()
+                            Text("x\(item.quantity)")
+                        }
+                        Text(String(format: "%.2f EGP", Double(item.lineTotalCents) / 100.0))
+                            .font(.caption)
+                    }
+                    LabeledContent("الإجمالي", value: String(format: "%.2f EGP", Double(cart.totalCents) / 100.0))
+                } else {
+                    Text("السلة غير محمّلة")
+                }
+            }
+            Section {
+                Button("أضف للسلة") { Task { await addItem() } }
+                    .disabled(loading)
+                Button("إتمام الشراء") { Task { await completeCheckout() } }
+                    .disabled(loading || cart?.items.isEmpty != false || api.authSession?.branchID == nil)
+            }
+            if loading { ProgressView() }
+            if !message.isEmpty { Text(message).foregroundStyle(.blue) }
+            if let order {
+                Section("الطلب") {
+                    LabeledContent("Order ID", value: order.orderID)
+                    LabeledContent("State", value: order.state)
+                }
+            }
+        }
+        .navigationTitle("Cart / Checkout")
+        .task { await loadCart() }
+    }
+
+    private func loadCart() async {
+        loading = true
+        defer { loading = false }
+        do {
+            let (result, loadedCart) = try await api.cart()
+            if (200..<300).contains(result.statusCode) { cart = loadedCart }
+            else { message = "Cart HTTP \(result.statusCode)" }
+        } catch { message = error.localizedDescription }
+    }
+
+    private func addItem() async {
+        loading = true
+        defer { loading = false }
+        do {
+            let (result, _) = try await api.addCartItem(productId: productId, quantity: 1, branchId: api.authSession?.branchID)
+            if (200..<300).contains(result.statusCode) { await loadCart() }
+            else { message = "Add item HTTP \(result.statusCode)" }
+        } catch { message = error.localizedDescription }
+    }
+
+    private func completeCheckout() async {
+        guard let branchID = api.authSession?.branchID else { message = "الفرع مطلوب"; return }
+        loading = true
+        defer { loading = false }
+        do {
+            let (result, checkoutResult) = try await api.checkout(branchId: branchID)
+            if (200..<300).contains(result.statusCode) { order = checkoutResult }
+            else { message = "Checkout HTTP \(result.statusCode)" }
+        } catch { message = error.localizedDescription }
     }
 }
