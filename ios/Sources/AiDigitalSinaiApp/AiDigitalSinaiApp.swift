@@ -112,6 +112,11 @@ struct MarketplaceView: View {
             }
         }
         .navigationTitle("Marketplace")
+        .toolbar {
+            ToolbarItem(placement: .automatic) {
+                NavigationLink("الإشعارات") { NotificationsView(api: api) }
+            }
+        }
         .task { await loadProducts() }
     }
 
@@ -266,5 +271,63 @@ struct CartCheckoutView: View {
             if (200..<300).contains(result.statusCode) { order = checkoutResult }
             else { message = "Checkout HTTP \(result.statusCode)" }
         } catch { message = error.localizedDescription }
+    }
+}
+
+
+struct NotificationsView: View {
+    let api: PlatformAPI
+    @State private var notifications: [PlatformNotification] = []
+    @State private var loading = true
+    @State private var errorMessage = ""
+
+    var body: some View {
+        Group {
+            if loading {
+                ProgressView("تحميل الإشعارات…")
+            } else if !errorMessage.isEmpty {
+                VStack(spacing: 8) {
+                    Image(systemName: "exclamationmark.triangle")
+                    Text("تعذر تحميل الإشعارات")
+                    Text(errorMessage)
+                }
+            } else if notifications.isEmpty {
+                VStack(spacing: 8) {
+                    Image(systemName: "bell.slash")
+                    Text("لا توجد إشعارات")
+                }
+            } else {
+                List(notifications) { notification in
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack {
+                            Text(notification.title).font(.headline)
+                            Spacer()
+                            Text(notification.status).font(.caption).bold()
+                        }
+                        Text(notification.body)
+                        Text("\(notification.channel) · \(notification.status)")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(.vertical, 4)
+                }
+            }
+        }
+        .navigationTitle("الإشعارات")
+        .task { await loadNotifications() }
+    }
+
+    private func loadNotifications() async {
+        do {
+            let (result, loaded) = try await api.notifications()
+            if (200..<300).contains(result.statusCode) {
+                notifications = loaded
+            } else {
+                errorMessage = "HTTP \(result.statusCode)"
+            }
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+        loading = false
     }
 }

@@ -31,6 +31,20 @@ public struct MarketplaceProduct: Decodable, Sendable, Identifiable {
 
 public typealias ProductDetail = MarketplaceProduct
 
+public struct PlatformNotification: Decodable, Sendable, Identifiable {
+    public let id: String
+    public let userID: String
+    public let channel: String
+    public let title: String
+    public let body: String
+    public let status: String
+    public let createdAt: Int64
+    enum CodingKeys: String, CodingKey {
+        case id, userID = "user_id", channel, title, body, status
+        case createdAt = "created_at"
+    }
+}
+
 public struct CartItem: Decodable, Sendable, Identifiable {
     public let id: String
     public let productID: String
@@ -100,6 +114,10 @@ private struct ProductDetailEnvelope: Decodable {
     let product: ProductDetail
 }
 
+private struct NotificationEnvelope: Decodable {
+    let notifications: [PlatformNotification]
+}
+
 private struct CartEnvelope: Decodable {
     let cart: Cart?
     let items: [CartItem]
@@ -134,6 +152,17 @@ public final class PlatformAPI {
         try await authenticate(path: "/api/platform/auth/register", body: [
             "email": email, "password": password, "displayName": displayName, "tenantName": tenantName
         ])
+    }
+
+    public func notifications() async throws -> (APIResult, [PlatformNotification]) {
+        var request = URLRequest(url: baseURL.appendingPathComponent("api/platform/notifications"))
+        request.httpMethod = "GET"
+        applyAuth(to: &request)
+        let (data, response) = try await session.data(for: request)
+        let http = response as! HTTPURLResponse
+        let result = APIResult(statusCode: http.statusCode, data: data)
+        let envelope = try JSONDecoder().decode(NotificationEnvelope.self, from: data)
+        return (result, envelope.notifications)
     }
 
     public func cart() async throws -> (APIResult, Cart) {
