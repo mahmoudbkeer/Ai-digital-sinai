@@ -22,6 +22,7 @@ import { resolveAIProvider } from "./aiProviders";
 import { createTotpSecret, createTotpUri, verifyTotp } from "./mfa";
 import { chunkDocument, resolveEmbeddingProvider } from "./rag";
 import { resolveRedisProvider } from "./integrations";
+import { emitStructuredEvent } from "./observability";
 
 export const ROLES = [
   "SUPER_ADMIN",
@@ -323,6 +324,7 @@ async function recordAudit(
       json(metadata),
       now()
     );
+  emitStructuredEvent({ event: action, requestId, tenantId: context.tenantId ?? null, actorUserId: context.userId ?? null, resourceType, resourceId, metadata });
 }
 
 async function postBalancedSaleJournal(
