@@ -1,0 +1,19 @@
+PlatformApi.products() JVM test evidence
+Date: 2026-09-02
+Command: ./gradlew :app:testDebugUnitTest --no-daemon
+Result: BUILD SUCCESSFUL
+Test: com.aidigitalsinai.PlatformApiProductsTest.productsBuildsAuthenticatedRequestAndParsesResponse
+
+Assertions passed against OkHttp MockWebServer:
+- HTTP method: GET
+- request path: /api/platform/products
+- Authorization: Bearer test-bearer-token
+- x-tenant-id: tenant-test-123
+- response status: 200
+- parsed product id: product-1
+- parsed product name: Android Marketplace Product
+- parsed price_cents: 1250
+- parsed currency: EGP
+- parsed description: present
+
+The test executes PlatformApi.products() from Android main source code; it does not reuse the Web Acceptance implementation.

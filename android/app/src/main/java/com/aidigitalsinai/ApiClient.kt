@@ -1,17 +1,21 @@
 package com.aidigitalsinai
 
 import android.content.Context
-import android.util.Base64
 import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
 
-class SessionStore(context: Context) {
-    private val prefs = context.getSharedPreferences("platform_session", Context.MODE_PRIVATE)
+interface SessionStoreContract {
     var token: String?
+    var tenantId: String?
+}
+
+class SessionStore(context: Context) : SessionStoreContract {
+    private val prefs = context.getSharedPreferences("platform_session", Context.MODE_PRIVATE)
+    override var token: String?
         get() = prefs.getString("platform_token", null)
         set(value) { prefs.edit().putString("platform_token", value).apply() }
-    var tenantId: String?
+    override var tenantId: String?
         get() = prefs.getString("platform_tenant_id", null)
         set(value) { prefs.edit().putString("platform_tenant_id", value).apply() }
 }
@@ -27,7 +31,7 @@ data class MarketplaceProduct(
     val category: String?
 )
 
-class PlatformApi(private val baseUrl: String, private val session: SessionStore) {
+class PlatformApi(private val baseUrl: String, private val session: SessionStoreContract) {
     fun login(email: String, password: String): ApiResult = request("POST", "/api/platform/auth/login", JSONObject().apply {
         put("email", email)
         put("password", password)
