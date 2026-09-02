@@ -82,9 +82,16 @@ struct MarketplaceView: View {
             if loading {
                 ProgressView("تحميل المنتجات…")
             } else if !errorMessage.isEmpty {
-                ContentUnavailableView("تعذر تحميل Marketplace", systemImage: "exclamationmark.triangle", description: Text(errorMessage))
+                VStack(spacing: 8) {
+                    Image(systemName: "exclamationmark.triangle")
+                    Text("تعذر تحميل Marketplace").font(.headline)
+                    Text(errorMessage)
+                }
             } else if products.isEmpty {
-                ContentUnavailableView("لا توجد منتجات منشورة", systemImage: "shippingbox")
+                VStack(spacing: 8) {
+                    Image(systemName: "shippingbox")
+                    Text("لا توجد منتجات منشورة")
+                }
             } else {
                 List(products) { product in
                     VStack(alignment: .leading, spacing: 6) {
