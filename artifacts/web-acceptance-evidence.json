@@ -1,0 +1,3358 @@
+{
+  "status": "PASS",
+  "browserSession": "one Playwright browser context",
+  "ids": {
+    "owner": {
+      "ok": true,
+      "userId": "d1527bb5-109a-47b3-a87a-7dc2413b2632",
+      "tenantId": "195b0229-dfb7-4cda-8bc7-04a62e77b13c",
+      "businessId": "0c0dcaef-913d-47a6-9190-5e638967f966",
+      "branchId": "4cc61536-d38d-4741-a2d4-dc70bdb41974",
+      "token": "baA6LMk4_CQz-D-y9ZeQPyK_rzBYWDVgT4qFGltstAI"
+    },
+    "productId": "efe59039-3cad-44bf-b2a4-3675782b7fb9",
+    "orderId": "129e19f8-69c1-49c1-b11c-080fb174efed",
+    "paymentId": "d2513fb7-2e3a-4a9e-b2c1-94925ddc9319",
+    "deliveryId": "8c363adb-0980-4a5d-863f-d63919a1b8b9",
+    "notificationId": "a226def4-58f5-43c1-a6b0-dac07aace47a",
+    "subscriptionId": "13f03def-5896-44d3-9463-cce282c92c90",
+    "requests": [
+      {
+        "method": "POST",
+        "endpoint": "/api/platform/auth/register",
+        "status": 201,
+        "body": {
+          "ok": true,
+          "userId": "d1527bb5-109a-47b3-a87a-7dc2413b2632",
+          "tenantId": "195b0229-dfb7-4cda-8bc7-04a62e77b13c",
+          "businessId": "0c0dcaef-913d-47a6-9190-5e638967f966",
+          "branchId": "4cc61536-d38d-4741-a2d4-dc70bdb41974",
+          "token": "baA6LMk4_CQz-D-y9ZeQPyK_rzBYWDVgT4qFGltstAI"
+        }
+      },
+      {
+        "method": "POST",
+        "endpoint": "/api/platform/auth/login",
+        "status": 200,
+        "body": {
+          "ok": true,
+          "token": "KWC8DXp2vDniowxX6Rd6ZYw8H22oTGd9lopzMJA7vwg",
+          "userId": "d1527bb5-109a-47b3-a87a-7dc2413b2632",
+          "tenants": [
+            {
+              "tenant_id": "195b0229-dfb7-4cda-8bc7-04a62e77b13c",
+              "role": "TENANT_OWNER"
+            }
+          ]
+        }
+      },
+      {
+        "method": "GET",
+        "endpoint": "/api/platform/me",
+        "status": 200,
+        "body": {
+          "ok": true,
+          "user": {
+            "id": "d1527bb5-109a-47b3-a87a-7dc2413b2632",
+            "email": "web-full-1788335582318@example.test",
+            "display_name": "Web Full Acceptance",
+            "status": "active"
+          },
+          "tenant": {
+            "id": "195b0229-dfb7-4cda-8bc7-04a62e77b13c",
+            "name": "Web Full Tenant",
+            "slug": "web-full-tenant-93c82a",
+            "status": "active"
+          },
+          "context": {
+            "userId": "d1527bb5-109a-47b3-a87a-7dc2413b2632",
+            "tenantId": "195b0229-dfb7-4cda-8bc7-04a62e77b13c",
+            "role": "TENANT_OWNER",
+            "permissions": [
+              "tenant.read",
+              "tenant.manage",
+              "business.read",
+              "business.manage",
+              "branch.read",
+              "branch.manage",
+              "employee.read",
+              "employee.manage",
+              "customer.read",
+              "customer.manage",
+              "crm.read",
+              "crm.manage",
+              "supplier.read",
+              "supplier.manage",
+              "purchase.read",
+              "purchase.manage",
+              "expense.read",
+              "expense.manage",
+              "report.read",
+              "report.export",
+              "pos.read",
+              "pos.manage",
+              "marketplace.manage",
+              "product.read",
+              "product.manage",
+              "inventory.read",
+              "inventory.manage",
+              "order.read",
+              "order.manage",
+              "order.approve",
+              "order.refund",
+              "ledger.read",
+              "ledger.manage",
+              "payment.read",
+              "payment.manage",
+              "payment.refund",
+              "invoice.read",
+              "invoice.manage",
+              "subscription.read",
+              "subscription.manage",
+              "ai.read",
+              "ai.manage",
+              "notification.read",
+              "notification.manage",
+              "advertising.read",
+              "advertising.manage",
+              "audit.read"
+            ]
+          }
+        }
+      },
+      {
+        "method": "POST",
+        "endpoint": "/api/platform/products",
+        "status": 201,
+        "body": {
+          "ok": true,
+          "productId": "efe59039-3cad-44bf-b2a4-3675782b7fb9"
+        }
+      },
+      {
+        "method": "GET",
+        "endpoint": "/api/platform/products",
+        "status": 200,
+        "body": {
+          "ok": true,
+          "products": [
+            {
+              "id": "efe59039-3cad-44bf-b2a4-3675782b7fb9",
+              "business_id": "0c0dcaef-913d-47a6-9190-5e638967f966",
+              "sku": "WEB-1788335582468",
+              "name": "Web Acceptance Product",
+              "description": "real browser acceptance",
+              "category": "local",
+              "price_cents": 1250,
+              "currency": "EGP",
+              "status": "active",
+              "created_at": 1788335582471,
+              "updated_at": 1788335582471
+            }
+          ]
+        }
+      },
+      {
+        "method": "GET",
+        "endpoint": "/api/platform/products/efe59039-3cad-44bf-b2a4-3675782b7fb9",
+        "status": 200,
+        "body": {
+          "ok": true,
+          "product": {
+            "id": "efe59039-3cad-44bf-b2a4-3675782b7fb9",
+            "business_id": "0c0dcaef-913d-47a6-9190-5e638967f966",
+            "sku": "WEB-1788335582468",
+            "name": "Web Acceptance Product",
+            "description": "real browser acceptance",
+            "category": "local",
+            "price_cents": 1250,
+            "currency": "EGP",
+            "status": "active",
+            "created_at": 1788335582471,
+            "updated_at": 1788335582471
+          }
+        }
+      },
+      {
+        "method": "POST",
+        "endpoint": "/api/platform/inventory/movements",
+        "status": 201,
+        "body": {
+          "ok": true,
+          "movementId": "8d2604fe-dd35-49dd-8a16-d3ab6b2c817a",
+          "quantity": 3,
+          "replay": false
+        }
+      },
+      {
+        "method": "GET",
+        "endpoint": "/api/platform/cart",
+        "status": 200,
+        "body": {
+          "ok": true,
+          "cart": null,
+          "items": [],
+          "totalCents": 0
+        }
+      },
+      {
+        "method": "POST",
+        "endpoint": "/api/platform/cart/items",
+        "status": 201,
+        "body": {
+          "ok": true,
+          "cartId": "e518203a-bad8-47ca-b4bb-8aa008cd4c1c"
+        }
+      },
+      {
+        "method": "GET",
+        "endpoint": "/api/platform/cart",
+        "status": 200,
+        "body": {
+          "ok": true,
+          "cart": {
+            "id": "e518203a-bad8-47ca-b4bb-8aa008cd4c1c",
+            "branch_id": "4cc61536-d38d-4741-a2d4-dc70bdb41974",
+            "status": "ACTIVE",
+            "updated_at": 1788335582492
+          },
+          "items": [
+            {
+              "id": "b8dc21f6-3f03-410a-8eb7-0befa4f05902",
+              "product_id": "efe59039-3cad-44bf-b2a4-3675782b7fb9",
+              "sku": "WEB-1788335582468",
+              "name": "Web Acceptance Product",
+              "quantity": 1,
+              "unit_price_cents": 1250,
+              "line_total_cents": 1250
+            }
+          ],
+          "totalCents": 1250
+        }
+      },
+      {
+        "method": "POST",
+        "endpoint": "/api/platform/cart/checkout",
+        "status": 201,
+        "body": {
+          "ok": true,
+          "orderId": "129e19f8-69c1-49c1-b11c-080fb174efed",
+          "totalCents": 1250,
+          "taxCents": 0,
+          "currency": "EGP",
+          "state": "PENDING"
+        }
+      },
+      {
+        "method": "GET",
+        "endpoint": "/api/platform/orders",
+        "status": 200,
+        "body": {
+          "ok": true,
+          "orders": [
+            {
+              "id": "129e19f8-69c1-49c1-b11c-080fb174efed",
+              "business_id": "0c0dcaef-913d-47a6-9190-5e638967f966",
+              "branch_id": "4cc61536-d38d-4741-a2d4-dc70bdb41974",
+              "customer_id": null,
+              "state": "PENDING",
+              "subtotal_cents": 1250,
+              "discount_cents": 0,
+              "tax_cents": 0,
+              "total_cents": 1250,
+              "currency": "EGP",
+              "created_at": 1788335582503,
+              "updated_at": 1788335582503
+            }
+          ]
+        }
+      },
+      {
+        "method": "POST",
+        "endpoint": "/api/platform/payment-intents",
+        "status": 201,
+        "body": {
+          "ok": true,
+          "paymentIntentId": "d2513fb7-2e3a-4a9e-b2c1-94925ddc9319",
+          "status": "REQUIRES_SETUP",
+          "message": "يلزم إعداد بيانات مزود الدفع؛ لم يتم إعلان نجاح أو تسوية."
+        }
+      },
+      {
+        "method": "POST",
+        "endpoint": "/api/platform/drivers",
+        "status": 201,
+        "body": {
+          "ok": true,
+          "driverId": "d0c1ad6f-ebe9-422c-a5ee-5cf0b492bb30",
+          "status": "AVAILABLE"
+        }
+      },
+      {
+        "method": "POST",
+        "endpoint": "/api/platform/deliveries",
+        "status": 201,
+        "body": {
+          "ok": true,
+          "deliveryId": "8c363adb-0980-4a5d-863f-d63919a1b8b9",
+          "state": "ASSIGNED"
+        }
+      },
+      {
+        "method": "POST",
+        "endpoint": "/api/platform/deliveries/8c363adb-0980-4a5d-863f-d63919a1b8b9/accept",
+        "status": 200,
+        "body": {
+          "ok": true,
+          "deliveryId": "8c363adb-0980-4a5d-863f-d63919a1b8b9",
+          "state": "ASSIGNED",
+          "accepted": true
+        }
+      },
+      {
+        "method": "PATCH",
+        "endpoint": "/api/platform/deliveries/8c363adb-0980-4a5d-863f-d63919a1b8b9/state",
+        "status": 200,
+        "body": {
+          "ok": true,
+          "deliveryId": "8c363adb-0980-4a5d-863f-d63919a1b8b9",
+          "state": "PICKED_UP"
+        }
+      },
+      {
+        "method": "PATCH",
+        "endpoint": "/api/platform/deliveries/8c363adb-0980-4a5d-863f-d63919a1b8b9/state",
+        "status": 200,
+        "body": {
+          "ok": true,
+          "deliveryId": "8c363adb-0980-4a5d-863f-d63919a1b8b9",
+          "state": "IN_TRANSIT"
+        }
+      },
+      {
+        "method": "POST",
+        "endpoint": "/api/platform/deliveries/8c363adb-0980-4a5d-863f-d63919a1b8b9/proof",
+        "status": 201,
+        "body": {
+          "ok": true,
+          "proofId": "cb12a19d-c927-45bb-a065-d38f59c7ff41",
+          "status": "RECORDED"
+        }
+      },
+      {
+        "method": "PATCH",
+        "endpoint": "/api/platform/deliveries/8c363adb-0980-4a5d-863f-d63919a1b8b9/state",
+        "status": 200,
+        "body": {
+          "ok": true,
+          "deliveryId": "8c363adb-0980-4a5d-863f-d63919a1b8b9",
+          "state": "DELIVERED"
+        }
+      },
+      {
+        "method": "POST",
+        "endpoint": "/api/platform/notifications",
+        "status": 201,
+        "body": {
+          "ok": true,
+          "notificationId": "a226def4-58f5-43c1-a6b0-dac07aace47a",
+          "status": "QUEUED",
+          "delivery": "queued"
+        }
+      },
+      {
+        "method": "GET",
+        "endpoint": "/api/platform/notifications",
+        "status": 200,
+        "body": {
+          "ok": true,
+          "notifications": [
+            {
+              "id": "a226def4-58f5-43c1-a6b0-dac07aace47a",
+              "user_id": "d1527bb5-109a-47b3-a87a-7dc2413b2632",
+              "channel": "IN_APP",
+              "title": "Order delivered",
+              "body": "Order 129e19f8-69c1-49c1-b11c-080fb174efed delivered",
+              "status": "QUEUED",
+              "created_at": 1788335582559
+            }
+          ]
+        }
+      },
+      {
+        "method": "POST",
+        "endpoint": "/api/platform/subscriptions",
+        "status": 201,
+        "body": {
+          "ok": true,
+          "subscriptionId": "13f03def-5896-44d3-9463-cce282c92c90",
+          "planCode": "trial",
+          "status": "TRIALING",
+          "currentPeriodEnd": 1790927582570,
+          "payment": "not-required"
+        }
+      },
+      {
+        "method": "GET",
+        "endpoint": "/api/platform/subscription",
+        "status": 200,
+        "body": {
+          "ok": true,
+          "subscription": {
+            "id": "13f03def-5896-44d3-9463-cce282c92c90",
+            "plan_code": "trial",
+            "status": "TRIALING",
+            "current_period_start": 1788335582570,
+            "current_period_end": 1790927582570,
+            "cancel_at_period_end": 0,
+            "price_cents": 0,
+            "trial_days": 14
+          }
+        }
+      },
+      {
+        "method": "GET",
+        "endpoint": "/api/platform/subscription/entitlements",
+        "status": 200,
+        "body": {
+          "ok": true,
+          "subscription": {
+            "plan_code": "trial",
+            "status": "TRIALING",
+            "current_period_end": 1790927582570,
+            "name": "التجربة"
+          },
+          "features": [
+            {
+              "feature": "analytics.read",
+              "limit_value": null
+            },
+            {
+              "feature": "catalog.read",
+              "limit_value": null
+            }
+          ]
+        }
+      },
+      {
+        "method": "POST",
+        "endpoint": "/api/platform/ai/search",
+        "status": 200,
+        "body": {
+          "ok": true,
+          "engine": "lexical-fallback",
+          "providerStatus": "requires-setup",
+          "results": []
+        }
+      },
+      {
+        "method": "GET",
+        "endpoint": "/api/platform/analytics/overview",
+        "status": 200,
+        "body": {
+          "ok": true,
+          "source": "database",
+          "asOf": "2026-09-02T07:53:02.589Z",
+          "analytics": {
+            "user": {
+              "total": 1,
+              "active": 1
+            },
+            "business": {
+              "total": 1,
+              "active": 1
+            },
+            "marketplace": {
+              "products": 1,
+              "services": 0,
+              "active_ads": 0,
+              "orders": 1,
+              "bookings": 0
+            },
+            "financial": {
+              "payments": 1,
+              "authorized_or_captured_cents": 0,
+              "failed_payments": 0
+            },
+            "ai": {
+              "requests": 0,
+              "tokens": 0,
+              "features": 0
+            },
+            "platform": {
+              "deliveries": 1,
+              "notifications": 1,
+              "audit_events": 18
+            }
+          }
+        }
+      },
+      {
+        "method": "GET",
+        "endpoint": "/api/platform/analytics/kpis",
+        "status": 200,
+        "body": {
+          "ok": true,
+          "source": "database",
+          "asOf": "2026-09-02T07:53:02.593Z",
+          "kpis": {
+            "sales": {
+              "orders": 1,
+              "gmv_cents": 1250,
+              "completed_gmv_cents": 1250
+            },
+            "inventory": {
+              "units": 2,
+              "sku_count": 1
+            },
+            "ai": {
+              "requests": 0
+            },
+            "members": {
+              "members": 1
+            }
+          }
+        }
+      }
+    ]
+  },
+  "finalDb": {
+    "users": 1,
+    "tenants": 1,
+    "businesses": 1,
+    "products": 1,
+    "carts": 1,
+    "cartItems": 1,
+    "orders": 1,
+    "payments": 1,
+    "deliveries": 1,
+    "proofs": 1,
+    "notifications": 1,
+    "notificationDeliveries": 1,
+    "subscriptions": 1,
+    "audits": 18,
+    "order": {
+      "id": "129e19f8-69c1-49c1-b11c-080fb174efed",
+      "state": "COMPLETED",
+      "total_cents": 1250
+    },
+    "payment": {
+      "id": "d2513fb7-2e3a-4a9e-b2c1-94925ddc9319",
+      "status": "REQUIRES_SETUP",
+      "amount_cents": 1250
+    },
+    "delivery": {
+      "id": "8c363adb-0980-4a5d-863f-d63919a1b8b9",
+      "state": "DELIVERED"
+    },
+    "notification": {
+      "id": "a226def4-58f5-43c1-a6b0-dac07aace47a",
+      "channel": "IN_APP",
+      "user_id": "d1527bb5-109a-47b3-a87a-7dc2413b2632"
+    },
+    "subscription": {
+      "id": "13f03def-5896-44d3-9463-cce282c92c90",
+      "plan_code": "trial",
+      "status": "TRIALING",
+      "cancel_at_period_end": 0
+    }
+  },
+  "evidence": [
+    {
+      "step": "/api/platform/auth/register",
+      "method": "POST",
+      "endpoint": "/api/platform/auth/register",
+      "httpStatus": 201,
+      "response": {
+        "ok": true,
+        "userId": "d1527bb5-109a-47b3-a87a-7dc2413b2632",
+        "tenantId": "195b0229-dfb7-4cda-8bc7-04a62e77b13c",
+        "businessId": "0c0dcaef-913d-47a6-9190-5e638967f966",
+        "branchId": "4cc61536-d38d-4741-a2d4-dc70bdb41974",
+        "token": "baA6LMk4_CQz-D-y9ZeQPyK_rzBYWDVgT4qFGltstAI"
+      },
+      "dbBefore": {
+        "users": 1,
+        "tenants": 1,
+        "businesses": 1,
+        "products": 1,
+        "carts": 1,
+        "cartItems": 1,
+        "orders": 1,
+        "payments": 1,
+        "deliveries": 1,
+        "proofs": 1,
+        "notifications": 1,
+        "notificationDeliveries": 1,
+        "subscriptions": 1,
+        "audits": 18
+      },
+      "dbAfter": {
+        "users": 1,
+        "tenants": 1,
+        "businesses": 1,
+        "products": 1,
+        "carts": 1,
+        "cartItems": 1,
+        "orders": 1,
+        "payments": 1,
+        "deliveries": 1,
+        "proofs": 1,
+        "notifications": 1,
+        "notificationDeliveries": 1,
+        "subscriptions": 1,
+        "audits": 18,
+        "order": {
+          "id": "129e19f8-69c1-49c1-b11c-080fb174efed",
+          "state": "COMPLETED",
+          "total_cents": 1250
+        },
+        "payment": {
+          "id": "d2513fb7-2e3a-4a9e-b2c1-94925ddc9319",
+          "status": "REQUIRES_SETUP",
+          "amount_cents": 1250
+        },
+        "delivery": {
+          "id": "8c363adb-0980-4a5d-863f-d63919a1b8b9",
+          "state": "DELIVERED"
+        },
+        "notification": {
+          "id": "a226def4-58f5-43c1-a6b0-dac07aace47a",
+          "channel": "IN_APP",
+          "user_id": "d1527bb5-109a-47b3-a87a-7dc2413b2632"
+        },
+        "subscription": {
+          "id": "13f03def-5896-44d3-9463-cce282c92c90",
+          "plan_code": "trial",
+          "status": "TRIALING",
+          "cancel_at_period_end": 0
+        }
+      }
+    },
+    {
+      "step": "/api/platform/auth/login",
+      "method": "POST",
+      "endpoint": "/api/platform/auth/login",
+      "httpStatus": 200,
+      "response": {
+        "ok": true,
+        "token": "KWC8DXp2vDniowxX6Rd6ZYw8H22oTGd9lopzMJA7vwg",
+        "userId": "d1527bb5-109a-47b3-a87a-7dc2413b2632",
+        "tenants": [
+          {
+            "tenant_id": "195b0229-dfb7-4cda-8bc7-04a62e77b13c",
+            "role": "TENANT_OWNER"
+          }
+        ]
+      },
+      "dbBefore": {
+        "users": 1,
+        "tenants": 1,
+        "businesses": 1,
+        "products": 1,
+        "carts": 1,
+        "cartItems": 1,
+        "orders": 1,
+        "payments": 1,
+        "deliveries": 1,
+        "proofs": 1,
+        "notifications": 1,
+        "notificationDeliveries": 1,
+        "subscriptions": 1,
+        "audits": 18,
+        "order": {
+          "id": "129e19f8-69c1-49c1-b11c-080fb174efed",
+          "state": "COMPLETED",
+          "total_cents": 1250
+        },
+        "payment": {
+          "id": "d2513fb7-2e3a-4a9e-b2c1-94925ddc9319",
+          "status": "REQUIRES_SETUP",
+          "amount_cents": 1250
+        },
+        "delivery": {
+          "id": "8c363adb-0980-4a5d-863f-d63919a1b8b9",
+          "state": "DELIVERED"
+        },
+        "notification": {
+          "id": "a226def4-58f5-43c1-a6b0-dac07aace47a",
+          "channel": "IN_APP",
+          "user_id": "d1527bb5-109a-47b3-a87a-7dc2413b2632"
+        },
+        "subscription": {
+          "id": "13f03def-5896-44d3-9463-cce282c92c90",
+          "plan_code": "trial",
+          "status": "TRIALING",
+          "cancel_at_period_end": 0
+        }
+      },
+      "dbAfter": {
+        "users": 1,
+        "tenants": 1,
+        "businesses": 1,
+        "products": 1,
+        "carts": 1,
+        "cartItems": 1,
+        "orders": 1,
+        "payments": 1,
+        "deliveries": 1,
+        "proofs": 1,
+        "notifications": 1,
+        "notificationDeliveries": 1,
+        "subscriptions": 1,
+        "audits": 18,
+        "order": {
+          "id": "129e19f8-69c1-49c1-b11c-080fb174efed",
+          "state": "COMPLETED",
+          "total_cents": 1250
+        },
+        "payment": {
+          "id": "d2513fb7-2e3a-4a9e-b2c1-94925ddc9319",
+          "status": "REQUIRES_SETUP",
+          "amount_cents": 1250
+        },
+        "delivery": {
+          "id": "8c363adb-0980-4a5d-863f-d63919a1b8b9",
+          "state": "DELIVERED"
+        },
+        "notification": {
+          "id": "a226def4-58f5-43c1-a6b0-dac07aace47a",
+          "channel": "IN_APP",
+          "user_id": "d1527bb5-109a-47b3-a87a-7dc2413b2632"
+        },
+        "subscription": {
+          "id": "13f03def-5896-44d3-9463-cce282c92c90",
+          "plan_code": "trial",
+          "status": "TRIALING",
+          "cancel_at_period_end": 0
+        }
+      }
+    },
+    {
+      "step": "/api/platform/me",
+      "method": "GET",
+      "endpoint": "/api/platform/me",
+      "httpStatus": 200,
+      "response": {
+        "ok": true,
+        "user": {
+          "id": "d1527bb5-109a-47b3-a87a-7dc2413b2632",
+          "email": "web-full-1788335582318@example.test",
+          "display_name": "Web Full Acceptance",
+          "status": "active"
+        },
+        "tenant": {
+          "id": "195b0229-dfb7-4cda-8bc7-04a62e77b13c",
+          "name": "Web Full Tenant",
+          "slug": "web-full-tenant-93c82a",
+          "status": "active"
+        },
+        "context": {
+          "userId": "d1527bb5-109a-47b3-a87a-7dc2413b2632",
+          "tenantId": "195b0229-dfb7-4cda-8bc7-04a62e77b13c",
+          "role": "TENANT_OWNER",
+          "permissions": [
+            "tenant.read",
+            "tenant.manage",
+            "business.read",
+            "business.manage",
+            "branch.read",
+            "branch.manage",
+            "employee.read",
+            "employee.manage",
+            "customer.read",
+            "customer.manage",
+            "crm.read",
+            "crm.manage",
+            "supplier.read",
+            "supplier.manage",
+            "purchase.read",
+            "purchase.manage",
+            "expense.read",
+            "expense.manage",
+            "report.read",
+            "report.export",
+            "pos.read",
+            "pos.manage",
+            "marketplace.manage",
+            "product.read",
+            "product.manage",
+            "inventory.read",
+            "inventory.manage",
+            "order.read",
+            "order.manage",
+            "order.approve",
+            "order.refund",
+            "ledger.read",
+            "ledger.manage",
+            "payment.read",
+            "payment.manage",
+            "payment.refund",
+            "invoice.read",
+            "invoice.manage",
+            "subscription.read",
+            "subscription.manage",
+            "ai.read",
+            "ai.manage",
+            "notification.read",
+            "notification.manage",
+            "advertising.read",
+            "advertising.manage",
+            "audit.read"
+          ]
+        }
+      },
+      "dbBefore": {
+        "users": 1,
+        "tenants": 1,
+        "businesses": 1,
+        "products": 1,
+        "carts": 1,
+        "cartItems": 1,
+        "orders": 1,
+        "payments": 1,
+        "deliveries": 1,
+        "proofs": 1,
+        "notifications": 1,
+        "notificationDeliveries": 1,
+        "subscriptions": 1,
+        "audits": 18,
+        "order": {
+          "id": "129e19f8-69c1-49c1-b11c-080fb174efed",
+          "state": "COMPLETED",
+          "total_cents": 1250
+        },
+        "payment": {
+          "id": "d2513fb7-2e3a-4a9e-b2c1-94925ddc9319",
+          "status": "REQUIRES_SETUP",
+          "amount_cents": 1250
+        },
+        "delivery": {
+          "id": "8c363adb-0980-4a5d-863f-d63919a1b8b9",
+          "state": "DELIVERED"
+        },
+        "notification": {
+          "id": "a226def4-58f5-43c1-a6b0-dac07aace47a",
+          "channel": "IN_APP",
+          "user_id": "d1527bb5-109a-47b3-a87a-7dc2413b2632"
+        },
+        "subscription": {
+          "id": "13f03def-5896-44d3-9463-cce282c92c90",
+          "plan_code": "trial",
+          "status": "TRIALING",
+          "cancel_at_period_end": 0
+        }
+      },
+      "dbAfter": {
+        "users": 1,
+        "tenants": 1,
+        "businesses": 1,
+        "products": 1,
+        "carts": 1,
+        "cartItems": 1,
+        "orders": 1,
+        "payments": 1,
+        "deliveries": 1,
+        "proofs": 1,
+        "notifications": 1,
+        "notificationDeliveries": 1,
+        "subscriptions": 1,
+        "audits": 18,
+        "order": {
+          "id": "129e19f8-69c1-49c1-b11c-080fb174efed",
+          "state": "COMPLETED",
+          "total_cents": 1250
+        },
+        "payment": {
+          "id": "d2513fb7-2e3a-4a9e-b2c1-94925ddc9319",
+          "status": "REQUIRES_SETUP",
+          "amount_cents": 1250
+        },
+        "delivery": {
+          "id": "8c363adb-0980-4a5d-863f-d63919a1b8b9",
+          "state": "DELIVERED"
+        },
+        "notification": {
+          "id": "a226def4-58f5-43c1-a6b0-dac07aace47a",
+          "channel": "IN_APP",
+          "user_id": "d1527bb5-109a-47b3-a87a-7dc2413b2632"
+        },
+        "subscription": {
+          "id": "13f03def-5896-44d3-9463-cce282c92c90",
+          "plan_code": "trial",
+          "status": "TRIALING",
+          "cancel_at_period_end": 0
+        }
+      }
+    },
+    {
+      "step": "/api/platform/products",
+      "method": "POST",
+      "endpoint": "/api/platform/products",
+      "httpStatus": 201,
+      "response": {
+        "ok": true,
+        "productId": "efe59039-3cad-44bf-b2a4-3675782b7fb9"
+      },
+      "dbBefore": {
+        "users": 1,
+        "tenants": 1,
+        "businesses": 1,
+        "products": 1,
+        "carts": 1,
+        "cartItems": 1,
+        "orders": 1,
+        "payments": 1,
+        "deliveries": 1,
+        "proofs": 1,
+        "notifications": 1,
+        "notificationDeliveries": 1,
+        "subscriptions": 1,
+        "audits": 18,
+        "order": {
+          "id": "129e19f8-69c1-49c1-b11c-080fb174efed",
+          "state": "COMPLETED",
+          "total_cents": 1250
+        },
+        "payment": {
+          "id": "d2513fb7-2e3a-4a9e-b2c1-94925ddc9319",
+          "status": "REQUIRES_SETUP",
+          "amount_cents": 1250
+        },
+        "delivery": {
+          "id": "8c363adb-0980-4a5d-863f-d63919a1b8b9",
+          "state": "DELIVERED"
+        },
+        "notification": {
+          "id": "a226def4-58f5-43c1-a6b0-dac07aace47a",
+          "channel": "IN_APP",
+          "user_id": "d1527bb5-109a-47b3-a87a-7dc2413b2632"
+        },
+        "subscription": {
+          "id": "13f03def-5896-44d3-9463-cce282c92c90",
+          "plan_code": "trial",
+          "status": "TRIALING",
+          "cancel_at_period_end": 0
+        }
+      },
+      "dbAfter": {
+        "users": 1,
+        "tenants": 1,
+        "businesses": 1,
+        "products": 1,
+        "carts": 1,
+        "cartItems": 1,
+        "orders": 1,
+        "payments": 1,
+        "deliveries": 1,
+        "proofs": 1,
+        "notifications": 1,
+        "notificationDeliveries": 1,
+        "subscriptions": 1,
+        "audits": 18,
+        "order": {
+          "id": "129e19f8-69c1-49c1-b11c-080fb174efed",
+          "state": "COMPLETED",
+          "total_cents": 1250
+        },
+        "payment": {
+          "id": "d2513fb7-2e3a-4a9e-b2c1-94925ddc9319",
+          "status": "REQUIRES_SETUP",
+          "amount_cents": 1250
+        },
+        "delivery": {
+          "id": "8c363adb-0980-4a5d-863f-d63919a1b8b9",
+          "state": "DELIVERED"
+        },
+        "notification": {
+          "id": "a226def4-58f5-43c1-a6b0-dac07aace47a",
+          "channel": "IN_APP",
+          "user_id": "d1527bb5-109a-47b3-a87a-7dc2413b2632"
+        },
+        "subscription": {
+          "id": "13f03def-5896-44d3-9463-cce282c92c90",
+          "plan_code": "trial",
+          "status": "TRIALING",
+          "cancel_at_period_end": 0
+        }
+      }
+    },
+    {
+      "step": "/api/platform/products",
+      "method": "GET",
+      "endpoint": "/api/platform/products",
+      "httpStatus": 200,
+      "response": {
+        "ok": true,
+        "products": [
+          {
+            "id": "efe59039-3cad-44bf-b2a4-3675782b7fb9",
+            "business_id": "0c0dcaef-913d-47a6-9190-5e638967f966",
+            "sku": "WEB-1788335582468",
+            "name": "Web Acceptance Product",
+            "description": "real browser acceptance",
+            "category": "local",
+            "price_cents": 1250,
+            "currency": "EGP",
+            "status": "active",
+            "created_at": 1788335582471,
+            "updated_at": 1788335582471
+          }
+        ]
+      },
+      "dbBefore": {
+        "users": 1,
+        "tenants": 1,
+        "businesses": 1,
+        "products": 1,
+        "carts": 1,
+        "cartItems": 1,
+        "orders": 1,
+        "payments": 1,
+        "deliveries": 1,
+        "proofs": 1,
+        "notifications": 1,
+        "notificationDeliveries": 1,
+        "subscriptions": 1,
+        "audits": 18,
+        "order": {
+          "id": "129e19f8-69c1-49c1-b11c-080fb174efed",
+          "state": "COMPLETED",
+          "total_cents": 1250
+        },
+        "payment": {
+          "id": "d2513fb7-2e3a-4a9e-b2c1-94925ddc9319",
+          "status": "REQUIRES_SETUP",
+          "amount_cents": 1250
+        },
+        "delivery": {
+          "id": "8c363adb-0980-4a5d-863f-d63919a1b8b9",
+          "state": "DELIVERED"
+        },
+        "notification": {
+          "id": "a226def4-58f5-43c1-a6b0-dac07aace47a",
+          "channel": "IN_APP",
+          "user_id": "d1527bb5-109a-47b3-a87a-7dc2413b2632"
+        },
+        "subscription": {
+          "id": "13f03def-5896-44d3-9463-cce282c92c90",
+          "plan_code": "trial",
+          "status": "TRIALING",
+          "cancel_at_period_end": 0
+        }
+      },
+      "dbAfter": {
+        "users": 1,
+        "tenants": 1,
+        "businesses": 1,
+        "products": 1,
+        "carts": 1,
+        "cartItems": 1,
+        "orders": 1,
+        "payments": 1,
+        "deliveries": 1,
+        "proofs": 1,
+        "notifications": 1,
+        "notificationDeliveries": 1,
+        "subscriptions": 1,
+        "audits": 18,
+        "order": {
+          "id": "129e19f8-69c1-49c1-b11c-080fb174efed",
+          "state": "COMPLETED",
+          "total_cents": 1250
+        },
+        "payment": {
+          "id": "d2513fb7-2e3a-4a9e-b2c1-94925ddc9319",
+          "status": "REQUIRES_SETUP",
+          "amount_cents": 1250
+        },
+        "delivery": {
+          "id": "8c363adb-0980-4a5d-863f-d63919a1b8b9",
+          "state": "DELIVERED"
+        },
+        "notification": {
+          "id": "a226def4-58f5-43c1-a6b0-dac07aace47a",
+          "channel": "IN_APP",
+          "user_id": "d1527bb5-109a-47b3-a87a-7dc2413b2632"
+        },
+        "subscription": {
+          "id": "13f03def-5896-44d3-9463-cce282c92c90",
+          "plan_code": "trial",
+          "status": "TRIALING",
+          "cancel_at_period_end": 0
+        }
+      }
+    },
+    {
+      "step": "/api/platform/products/efe59039-3cad-44bf-b2a4-3675782b7fb9",
+      "method": "GET",
+      "endpoint": "/api/platform/products/efe59039-3cad-44bf-b2a4-3675782b7fb9",
+      "httpStatus": 200,
+      "response": {
+        "ok": true,
+        "product": {
+          "id": "efe59039-3cad-44bf-b2a4-3675782b7fb9",
+          "business_id": "0c0dcaef-913d-47a6-9190-5e638967f966",
+          "sku": "WEB-1788335582468",
+          "name": "Web Acceptance Product",
+          "description": "real browser acceptance",
+          "category": "local",
+          "price_cents": 1250,
+          "currency": "EGP",
+          "status": "active",
+          "created_at": 1788335582471,
+          "updated_at": 1788335582471
+        }
+      },
+      "dbBefore": {
+        "users": 1,
+        "tenants": 1,
+        "businesses": 1,
+        "products": 1,
+        "carts": 1,
+        "cartItems": 1,
+        "orders": 1,
+        "payments": 1,
+        "deliveries": 1,
+        "proofs": 1,
+        "notifications": 1,
+        "notificationDeliveries": 1,
+        "subscriptions": 1,
+        "audits": 18,
+        "order": {
+          "id": "129e19f8-69c1-49c1-b11c-080fb174efed",
+          "state": "COMPLETED",
+          "total_cents": 1250
+        },
+        "payment": {
+          "id": "d2513fb7-2e3a-4a9e-b2c1-94925ddc9319",
+          "status": "REQUIRES_SETUP",
+          "amount_cents": 1250
+        },
+        "delivery": {
+          "id": "8c363adb-0980-4a5d-863f-d63919a1b8b9",
+          "state": "DELIVERED"
+        },
+        "notification": {
+          "id": "a226def4-58f5-43c1-a6b0-dac07aace47a",
+          "channel": "IN_APP",
+          "user_id": "d1527bb5-109a-47b3-a87a-7dc2413b2632"
+        },
+        "subscription": {
+          "id": "13f03def-5896-44d3-9463-cce282c92c90",
+          "plan_code": "trial",
+          "status": "TRIALING",
+          "cancel_at_period_end": 0
+        }
+      },
+      "dbAfter": {
+        "users": 1,
+        "tenants": 1,
+        "businesses": 1,
+        "products": 1,
+        "carts": 1,
+        "cartItems": 1,
+        "orders": 1,
+        "payments": 1,
+        "deliveries": 1,
+        "proofs": 1,
+        "notifications": 1,
+        "notificationDeliveries": 1,
+        "subscriptions": 1,
+        "audits": 18,
+        "order": {
+          "id": "129e19f8-69c1-49c1-b11c-080fb174efed",
+          "state": "COMPLETED",
+          "total_cents": 1250
+        },
+        "payment": {
+          "id": "d2513fb7-2e3a-4a9e-b2c1-94925ddc9319",
+          "status": "REQUIRES_SETUP",
+          "amount_cents": 1250
+        },
+        "delivery": {
+          "id": "8c363adb-0980-4a5d-863f-d63919a1b8b9",
+          "state": "DELIVERED"
+        },
+        "notification": {
+          "id": "a226def4-58f5-43c1-a6b0-dac07aace47a",
+          "channel": "IN_APP",
+          "user_id": "d1527bb5-109a-47b3-a87a-7dc2413b2632"
+        },
+        "subscription": {
+          "id": "13f03def-5896-44d3-9463-cce282c92c90",
+          "plan_code": "trial",
+          "status": "TRIALING",
+          "cancel_at_period_end": 0
+        }
+      }
+    },
+    {
+      "step": "/api/platform/inventory/movements",
+      "method": "POST",
+      "endpoint": "/api/platform/inventory/movements",
+      "httpStatus": 201,
+      "response": {
+        "ok": true,
+        "movementId": "8d2604fe-dd35-49dd-8a16-d3ab6b2c817a",
+        "quantity": 3,
+        "replay": false
+      },
+      "dbBefore": {
+        "users": 1,
+        "tenants": 1,
+        "businesses": 1,
+        "products": 1,
+        "carts": 1,
+        "cartItems": 1,
+        "orders": 1,
+        "payments": 1,
+        "deliveries": 1,
+        "proofs": 1,
+        "notifications": 1,
+        "notificationDeliveries": 1,
+        "subscriptions": 1,
+        "audits": 18,
+        "order": {
+          "id": "129e19f8-69c1-49c1-b11c-080fb174efed",
+          "state": "COMPLETED",
+          "total_cents": 1250
+        },
+        "payment": {
+          "id": "d2513fb7-2e3a-4a9e-b2c1-94925ddc9319",
+          "status": "REQUIRES_SETUP",
+          "amount_cents": 1250
+        },
+        "delivery": {
+          "id": "8c363adb-0980-4a5d-863f-d63919a1b8b9",
+          "state": "DELIVERED"
+        },
+        "notification": {
+          "id": "a226def4-58f5-43c1-a6b0-dac07aace47a",
+          "channel": "IN_APP",
+          "user_id": "d1527bb5-109a-47b3-a87a-7dc2413b2632"
+        },
+        "subscription": {
+          "id": "13f03def-5896-44d3-9463-cce282c92c90",
+          "plan_code": "trial",
+          "status": "TRIALING",
+          "cancel_at_period_end": 0
+        }
+      },
+      "dbAfter": {
+        "users": 1,
+        "tenants": 1,
+        "businesses": 1,
+        "products": 1,
+        "carts": 1,
+        "cartItems": 1,
+        "orders": 1,
+        "payments": 1,
+        "deliveries": 1,
+        "proofs": 1,
+        "notifications": 1,
+        "notificationDeliveries": 1,
+        "subscriptions": 1,
+        "audits": 18,
+        "order": {
+          "id": "129e19f8-69c1-49c1-b11c-080fb174efed",
+          "state": "COMPLETED",
+          "total_cents": 1250
+        },
+        "payment": {
+          "id": "d2513fb7-2e3a-4a9e-b2c1-94925ddc9319",
+          "status": "REQUIRES_SETUP",
+          "amount_cents": 1250
+        },
+        "delivery": {
+          "id": "8c363adb-0980-4a5d-863f-d63919a1b8b9",
+          "state": "DELIVERED"
+        },
+        "notification": {
+          "id": "a226def4-58f5-43c1-a6b0-dac07aace47a",
+          "channel": "IN_APP",
+          "user_id": "d1527bb5-109a-47b3-a87a-7dc2413b2632"
+        },
+        "subscription": {
+          "id": "13f03def-5896-44d3-9463-cce282c92c90",
+          "plan_code": "trial",
+          "status": "TRIALING",
+          "cancel_at_period_end": 0
+        }
+      }
+    },
+    {
+      "step": "/api/platform/cart",
+      "method": "GET",
+      "endpoint": "/api/platform/cart",
+      "httpStatus": 200,
+      "response": {
+        "ok": true,
+        "cart": null,
+        "items": [],
+        "totalCents": 0
+      },
+      "dbBefore": {
+        "users": 1,
+        "tenants": 1,
+        "businesses": 1,
+        "products": 1,
+        "carts": 1,
+        "cartItems": 1,
+        "orders": 1,
+        "payments": 1,
+        "deliveries": 1,
+        "proofs": 1,
+        "notifications": 1,
+        "notificationDeliveries": 1,
+        "subscriptions": 1,
+        "audits": 18,
+        "order": {
+          "id": "129e19f8-69c1-49c1-b11c-080fb174efed",
+          "state": "COMPLETED",
+          "total_cents": 1250
+        },
+        "payment": {
+          "id": "d2513fb7-2e3a-4a9e-b2c1-94925ddc9319",
+          "status": "REQUIRES_SETUP",
+          "amount_cents": 1250
+        },
+        "delivery": {
+          "id": "8c363adb-0980-4a5d-863f-d63919a1b8b9",
+          "state": "DELIVERED"
+        },
+        "notification": {
+          "id": "a226def4-58f5-43c1-a6b0-dac07aace47a",
+          "channel": "IN_APP",
+          "user_id": "d1527bb5-109a-47b3-a87a-7dc2413b2632"
+        },
+        "subscription": {
+          "id": "13f03def-5896-44d3-9463-cce282c92c90",
+          "plan_code": "trial",
+          "status": "TRIALING",
+          "cancel_at_period_end": 0
+        }
+      },
+      "dbAfter": {
+        "users": 1,
+        "tenants": 1,
+        "businesses": 1,
+        "products": 1,
+        "carts": 1,
+        "cartItems": 1,
+        "orders": 1,
+        "payments": 1,
+        "deliveries": 1,
+        "proofs": 1,
+        "notifications": 1,
+        "notificationDeliveries": 1,
+        "subscriptions": 1,
+        "audits": 18,
+        "order": {
+          "id": "129e19f8-69c1-49c1-b11c-080fb174efed",
+          "state": "COMPLETED",
+          "total_cents": 1250
+        },
+        "payment": {
+          "id": "d2513fb7-2e3a-4a9e-b2c1-94925ddc9319",
+          "status": "REQUIRES_SETUP",
+          "amount_cents": 1250
+        },
+        "delivery": {
+          "id": "8c363adb-0980-4a5d-863f-d63919a1b8b9",
+          "state": "DELIVERED"
+        },
+        "notification": {
+          "id": "a226def4-58f5-43c1-a6b0-dac07aace47a",
+          "channel": "IN_APP",
+          "user_id": "d1527bb5-109a-47b3-a87a-7dc2413b2632"
+        },
+        "subscription": {
+          "id": "13f03def-5896-44d3-9463-cce282c92c90",
+          "plan_code": "trial",
+          "status": "TRIALING",
+          "cancel_at_period_end": 0
+        }
+      }
+    },
+    {
+      "step": "/api/platform/cart/items",
+      "method": "POST",
+      "endpoint": "/api/platform/cart/items",
+      "httpStatus": 201,
+      "response": {
+        "ok": true,
+        "cartId": "e518203a-bad8-47ca-b4bb-8aa008cd4c1c"
+      },
+      "dbBefore": {
+        "users": 1,
+        "tenants": 1,
+        "businesses": 1,
+        "products": 1,
+        "carts": 1,
+        "cartItems": 1,
+        "orders": 1,
+        "payments": 1,
+        "deliveries": 1,
+        "proofs": 1,
+        "notifications": 1,
+        "notificationDeliveries": 1,
+        "subscriptions": 1,
+        "audits": 18,
+        "order": {
+          "id": "129e19f8-69c1-49c1-b11c-080fb174efed",
+          "state": "COMPLETED",
+          "total_cents": 1250
+        },
+        "payment": {
+          "id": "d2513fb7-2e3a-4a9e-b2c1-94925ddc9319",
+          "status": "REQUIRES_SETUP",
+          "amount_cents": 1250
+        },
+        "delivery": {
+          "id": "8c363adb-0980-4a5d-863f-d63919a1b8b9",
+          "state": "DELIVERED"
+        },
+        "notification": {
+          "id": "a226def4-58f5-43c1-a6b0-dac07aace47a",
+          "channel": "IN_APP",
+          "user_id": "d1527bb5-109a-47b3-a87a-7dc2413b2632"
+        },
+        "subscription": {
+          "id": "13f03def-5896-44d3-9463-cce282c92c90",
+          "plan_code": "trial",
+          "status": "TRIALING",
+          "cancel_at_period_end": 0
+        }
+      },
+      "dbAfter": {
+        "users": 1,
+        "tenants": 1,
+        "businesses": 1,
+        "products": 1,
+        "carts": 1,
+        "cartItems": 1,
+        "orders": 1,
+        "payments": 1,
+        "deliveries": 1,
+        "proofs": 1,
+        "notifications": 1,
+        "notificationDeliveries": 1,
+        "subscriptions": 1,
+        "audits": 18,
+        "order": {
+          "id": "129e19f8-69c1-49c1-b11c-080fb174efed",
+          "state": "COMPLETED",
+          "total_cents": 1250
+        },
+        "payment": {
+          "id": "d2513fb7-2e3a-4a9e-b2c1-94925ddc9319",
+          "status": "REQUIRES_SETUP",
+          "amount_cents": 1250
+        },
+        "delivery": {
+          "id": "8c363adb-0980-4a5d-863f-d63919a1b8b9",
+          "state": "DELIVERED"
+        },
+        "notification": {
+          "id": "a226def4-58f5-43c1-a6b0-dac07aace47a",
+          "channel": "IN_APP",
+          "user_id": "d1527bb5-109a-47b3-a87a-7dc2413b2632"
+        },
+        "subscription": {
+          "id": "13f03def-5896-44d3-9463-cce282c92c90",
+          "plan_code": "trial",
+          "status": "TRIALING",
+          "cancel_at_period_end": 0
+        }
+      }
+    },
+    {
+      "step": "/api/platform/cart",
+      "method": "GET",
+      "endpoint": "/api/platform/cart",
+      "httpStatus": 200,
+      "response": {
+        "ok": true,
+        "cart": {
+          "id": "e518203a-bad8-47ca-b4bb-8aa008cd4c1c",
+          "branch_id": "4cc61536-d38d-4741-a2d4-dc70bdb41974",
+          "status": "ACTIVE",
+          "updated_at": 1788335582492
+        },
+        "items": [
+          {
+            "id": "b8dc21f6-3f03-410a-8eb7-0befa4f05902",
+            "product_id": "efe59039-3cad-44bf-b2a4-3675782b7fb9",
+            "sku": "WEB-1788335582468",
+            "name": "Web Acceptance Product",
+            "quantity": 1,
+            "unit_price_cents": 1250,
+            "line_total_cents": 1250
+          }
+        ],
+        "totalCents": 1250
+      },
+      "dbBefore": {
+        "users": 1,
+        "tenants": 1,
+        "businesses": 1,
+        "products": 1,
+        "carts": 1,
+        "cartItems": 1,
+        "orders": 1,
+        "payments": 1,
+        "deliveries": 1,
+        "proofs": 1,
+        "notifications": 1,
+        "notificationDeliveries": 1,
+        "subscriptions": 1,
+        "audits": 18,
+        "order": {
+          "id": "129e19f8-69c1-49c1-b11c-080fb174efed",
+          "state": "COMPLETED",
+          "total_cents": 1250
+        },
+        "payment": {
+          "id": "d2513fb7-2e3a-4a9e-b2c1-94925ddc9319",
+          "status": "REQUIRES_SETUP",
+          "amount_cents": 1250
+        },
+        "delivery": {
+          "id": "8c363adb-0980-4a5d-863f-d63919a1b8b9",
+          "state": "DELIVERED"
+        },
+        "notification": {
+          "id": "a226def4-58f5-43c1-a6b0-dac07aace47a",
+          "channel": "IN_APP",
+          "user_id": "d1527bb5-109a-47b3-a87a-7dc2413b2632"
+        },
+        "subscription": {
+          "id": "13f03def-5896-44d3-9463-cce282c92c90",
+          "plan_code": "trial",
+          "status": "TRIALING",
+          "cancel_at_period_end": 0
+        }
+      },
+      "dbAfter": {
+        "users": 1,
+        "tenants": 1,
+        "businesses": 1,
+        "products": 1,
+        "carts": 1,
+        "cartItems": 1,
+        "orders": 1,
+        "payments": 1,
+        "deliveries": 1,
+        "proofs": 1,
+        "notifications": 1,
+        "notificationDeliveries": 1,
+        "subscriptions": 1,
+        "audits": 18,
+        "order": {
+          "id": "129e19f8-69c1-49c1-b11c-080fb174efed",
+          "state": "COMPLETED",
+          "total_cents": 1250
+        },
+        "payment": {
+          "id": "d2513fb7-2e3a-4a9e-b2c1-94925ddc9319",
+          "status": "REQUIRES_SETUP",
+          "amount_cents": 1250
+        },
+        "delivery": {
+          "id": "8c363adb-0980-4a5d-863f-d63919a1b8b9",
+          "state": "DELIVERED"
+        },
+        "notification": {
+          "id": "a226def4-58f5-43c1-a6b0-dac07aace47a",
+          "channel": "IN_APP",
+          "user_id": "d1527bb5-109a-47b3-a87a-7dc2413b2632"
+        },
+        "subscription": {
+          "id": "13f03def-5896-44d3-9463-cce282c92c90",
+          "plan_code": "trial",
+          "status": "TRIALING",
+          "cancel_at_period_end": 0
+        }
+      }
+    },
+    {
+      "step": "/api/platform/cart/checkout",
+      "method": "POST",
+      "endpoint": "/api/platform/cart/checkout",
+      "httpStatus": 201,
+      "response": {
+        "ok": true,
+        "orderId": "129e19f8-69c1-49c1-b11c-080fb174efed",
+        "totalCents": 1250,
+        "taxCents": 0,
+        "currency": "EGP",
+        "state": "PENDING"
+      },
+      "dbBefore": {
+        "users": 1,
+        "tenants": 1,
+        "businesses": 1,
+        "products": 1,
+        "carts": 1,
+        "cartItems": 1,
+        "orders": 1,
+        "payments": 1,
+        "deliveries": 1,
+        "proofs": 1,
+        "notifications": 1,
+        "notificationDeliveries": 1,
+        "subscriptions": 1,
+        "audits": 18,
+        "order": {
+          "id": "129e19f8-69c1-49c1-b11c-080fb174efed",
+          "state": "COMPLETED",
+          "total_cents": 1250
+        },
+        "payment": {
+          "id": "d2513fb7-2e3a-4a9e-b2c1-94925ddc9319",
+          "status": "REQUIRES_SETUP",
+          "amount_cents": 1250
+        },
+        "delivery": {
+          "id": "8c363adb-0980-4a5d-863f-d63919a1b8b9",
+          "state": "DELIVERED"
+        },
+        "notification": {
+          "id": "a226def4-58f5-43c1-a6b0-dac07aace47a",
+          "channel": "IN_APP",
+          "user_id": "d1527bb5-109a-47b3-a87a-7dc2413b2632"
+        },
+        "subscription": {
+          "id": "13f03def-5896-44d3-9463-cce282c92c90",
+          "plan_code": "trial",
+          "status": "TRIALING",
+          "cancel_at_period_end": 0
+        }
+      },
+      "dbAfter": {
+        "users": 1,
+        "tenants": 1,
+        "businesses": 1,
+        "products": 1,
+        "carts": 1,
+        "cartItems": 1,
+        "orders": 1,
+        "payments": 1,
+        "deliveries": 1,
+        "proofs": 1,
+        "notifications": 1,
+        "notificationDeliveries": 1,
+        "subscriptions": 1,
+        "audits": 18,
+        "order": {
+          "id": "129e19f8-69c1-49c1-b11c-080fb174efed",
+          "state": "COMPLETED",
+          "total_cents": 1250
+        },
+        "payment": {
+          "id": "d2513fb7-2e3a-4a9e-b2c1-94925ddc9319",
+          "status": "REQUIRES_SETUP",
+          "amount_cents": 1250
+        },
+        "delivery": {
+          "id": "8c363adb-0980-4a5d-863f-d63919a1b8b9",
+          "state": "DELIVERED"
+        },
+        "notification": {
+          "id": "a226def4-58f5-43c1-a6b0-dac07aace47a",
+          "channel": "IN_APP",
+          "user_id": "d1527bb5-109a-47b3-a87a-7dc2413b2632"
+        },
+        "subscription": {
+          "id": "13f03def-5896-44d3-9463-cce282c92c90",
+          "plan_code": "trial",
+          "status": "TRIALING",
+          "cancel_at_period_end": 0
+        }
+      }
+    },
+    {
+      "step": "/api/platform/orders",
+      "method": "GET",
+      "endpoint": "/api/platform/orders",
+      "httpStatus": 200,
+      "response": {
+        "ok": true,
+        "orders": [
+          {
+            "id": "129e19f8-69c1-49c1-b11c-080fb174efed",
+            "business_id": "0c0dcaef-913d-47a6-9190-5e638967f966",
+            "branch_id": "4cc61536-d38d-4741-a2d4-dc70bdb41974",
+            "customer_id": null,
+            "state": "PENDING",
+            "subtotal_cents": 1250,
+            "discount_cents": 0,
+            "tax_cents": 0,
+            "total_cents": 1250,
+            "currency": "EGP",
+            "created_at": 1788335582503,
+            "updated_at": 1788335582503
+          }
+        ]
+      },
+      "dbBefore": {
+        "users": 1,
+        "tenants": 1,
+        "businesses": 1,
+        "products": 1,
+        "carts": 1,
+        "cartItems": 1,
+        "orders": 1,
+        "payments": 1,
+        "deliveries": 1,
+        "proofs": 1,
+        "notifications": 1,
+        "notificationDeliveries": 1,
+        "subscriptions": 1,
+        "audits": 18,
+        "order": {
+          "id": "129e19f8-69c1-49c1-b11c-080fb174efed",
+          "state": "COMPLETED",
+          "total_cents": 1250
+        },
+        "payment": {
+          "id": "d2513fb7-2e3a-4a9e-b2c1-94925ddc9319",
+          "status": "REQUIRES_SETUP",
+          "amount_cents": 1250
+        },
+        "delivery": {
+          "id": "8c363adb-0980-4a5d-863f-d63919a1b8b9",
+          "state": "DELIVERED"
+        },
+        "notification": {
+          "id": "a226def4-58f5-43c1-a6b0-dac07aace47a",
+          "channel": "IN_APP",
+          "user_id": "d1527bb5-109a-47b3-a87a-7dc2413b2632"
+        },
+        "subscription": {
+          "id": "13f03def-5896-44d3-9463-cce282c92c90",
+          "plan_code": "trial",
+          "status": "TRIALING",
+          "cancel_at_period_end": 0
+        }
+      },
+      "dbAfter": {
+        "users": 1,
+        "tenants": 1,
+        "businesses": 1,
+        "products": 1,
+        "carts": 1,
+        "cartItems": 1,
+        "orders": 1,
+        "payments": 1,
+        "deliveries": 1,
+        "proofs": 1,
+        "notifications": 1,
+        "notificationDeliveries": 1,
+        "subscriptions": 1,
+        "audits": 18,
+        "order": {
+          "id": "129e19f8-69c1-49c1-b11c-080fb174efed",
+          "state": "COMPLETED",
+          "total_cents": 1250
+        },
+        "payment": {
+          "id": "d2513fb7-2e3a-4a9e-b2c1-94925ddc9319",
+          "status": "REQUIRES_SETUP",
+          "amount_cents": 1250
+        },
+        "delivery": {
+          "id": "8c363adb-0980-4a5d-863f-d63919a1b8b9",
+          "state": "DELIVERED"
+        },
+        "notification": {
+          "id": "a226def4-58f5-43c1-a6b0-dac07aace47a",
+          "channel": "IN_APP",
+          "user_id": "d1527bb5-109a-47b3-a87a-7dc2413b2632"
+        },
+        "subscription": {
+          "id": "13f03def-5896-44d3-9463-cce282c92c90",
+          "plan_code": "trial",
+          "status": "TRIALING",
+          "cancel_at_period_end": 0
+        }
+      }
+    },
+    {
+      "step": "/api/platform/payment-intents",
+      "method": "POST",
+      "endpoint": "/api/platform/payment-intents",
+      "httpStatus": 201,
+      "response": {
+        "ok": true,
+        "paymentIntentId": "d2513fb7-2e3a-4a9e-b2c1-94925ddc9319",
+        "status": "REQUIRES_SETUP",
+        "message": "يلزم إعداد بيانات مزود الدفع؛ لم يتم إعلان نجاح أو تسوية."
+      },
+      "dbBefore": {
+        "users": 1,
+        "tenants": 1,
+        "businesses": 1,
+        "products": 1,
+        "carts": 1,
+        "cartItems": 1,
+        "orders": 1,
+        "payments": 1,
+        "deliveries": 1,
+        "proofs": 1,
+        "notifications": 1,
+        "notificationDeliveries": 1,
+        "subscriptions": 1,
+        "audits": 18,
+        "order": {
+          "id": "129e19f8-69c1-49c1-b11c-080fb174efed",
+          "state": "COMPLETED",
+          "total_cents": 1250
+        },
+        "payment": {
+          "id": "d2513fb7-2e3a-4a9e-b2c1-94925ddc9319",
+          "status": "REQUIRES_SETUP",
+          "amount_cents": 1250
+        },
+        "delivery": {
+          "id": "8c363adb-0980-4a5d-863f-d63919a1b8b9",
+          "state": "DELIVERED"
+        },
+        "notification": {
+          "id": "a226def4-58f5-43c1-a6b0-dac07aace47a",
+          "channel": "IN_APP",
+          "user_id": "d1527bb5-109a-47b3-a87a-7dc2413b2632"
+        },
+        "subscription": {
+          "id": "13f03def-5896-44d3-9463-cce282c92c90",
+          "plan_code": "trial",
+          "status": "TRIALING",
+          "cancel_at_period_end": 0
+        }
+      },
+      "dbAfter": {
+        "users": 1,
+        "tenants": 1,
+        "businesses": 1,
+        "products": 1,
+        "carts": 1,
+        "cartItems": 1,
+        "orders": 1,
+        "payments": 1,
+        "deliveries": 1,
+        "proofs": 1,
+        "notifications": 1,
+        "notificationDeliveries": 1,
+        "subscriptions": 1,
+        "audits": 18,
+        "order": {
+          "id": "129e19f8-69c1-49c1-b11c-080fb174efed",
+          "state": "COMPLETED",
+          "total_cents": 1250
+        },
+        "payment": {
+          "id": "d2513fb7-2e3a-4a9e-b2c1-94925ddc9319",
+          "status": "REQUIRES_SETUP",
+          "amount_cents": 1250
+        },
+        "delivery": {
+          "id": "8c363adb-0980-4a5d-863f-d63919a1b8b9",
+          "state": "DELIVERED"
+        },
+        "notification": {
+          "id": "a226def4-58f5-43c1-a6b0-dac07aace47a",
+          "channel": "IN_APP",
+          "user_id": "d1527bb5-109a-47b3-a87a-7dc2413b2632"
+        },
+        "subscription": {
+          "id": "13f03def-5896-44d3-9463-cce282c92c90",
+          "plan_code": "trial",
+          "status": "TRIALING",
+          "cancel_at_period_end": 0
+        }
+      }
+    },
+    {
+      "step": "/api/platform/drivers",
+      "method": "POST",
+      "endpoint": "/api/platform/drivers",
+      "httpStatus": 201,
+      "response": {
+        "ok": true,
+        "driverId": "d0c1ad6f-ebe9-422c-a5ee-5cf0b492bb30",
+        "status": "AVAILABLE"
+      },
+      "dbBefore": {
+        "users": 1,
+        "tenants": 1,
+        "businesses": 1,
+        "products": 1,
+        "carts": 1,
+        "cartItems": 1,
+        "orders": 1,
+        "payments": 1,
+        "deliveries": 1,
+        "proofs": 1,
+        "notifications": 1,
+        "notificationDeliveries": 1,
+        "subscriptions": 1,
+        "audits": 18,
+        "order": {
+          "id": "129e19f8-69c1-49c1-b11c-080fb174efed",
+          "state": "COMPLETED",
+          "total_cents": 1250
+        },
+        "payment": {
+          "id": "d2513fb7-2e3a-4a9e-b2c1-94925ddc9319",
+          "status": "REQUIRES_SETUP",
+          "amount_cents": 1250
+        },
+        "delivery": {
+          "id": "8c363adb-0980-4a5d-863f-d63919a1b8b9",
+          "state": "DELIVERED"
+        },
+        "notification": {
+          "id": "a226def4-58f5-43c1-a6b0-dac07aace47a",
+          "channel": "IN_APP",
+          "user_id": "d1527bb5-109a-47b3-a87a-7dc2413b2632"
+        },
+        "subscription": {
+          "id": "13f03def-5896-44d3-9463-cce282c92c90",
+          "plan_code": "trial",
+          "status": "TRIALING",
+          "cancel_at_period_end": 0
+        }
+      },
+      "dbAfter": {
+        "users": 1,
+        "tenants": 1,
+        "businesses": 1,
+        "products": 1,
+        "carts": 1,
+        "cartItems": 1,
+        "orders": 1,
+        "payments": 1,
+        "deliveries": 1,
+        "proofs": 1,
+        "notifications": 1,
+        "notificationDeliveries": 1,
+        "subscriptions": 1,
+        "audits": 18,
+        "order": {
+          "id": "129e19f8-69c1-49c1-b11c-080fb174efed",
+          "state": "COMPLETED",
+          "total_cents": 1250
+        },
+        "payment": {
+          "id": "d2513fb7-2e3a-4a9e-b2c1-94925ddc9319",
+          "status": "REQUIRES_SETUP",
+          "amount_cents": 1250
+        },
+        "delivery": {
+          "id": "8c363adb-0980-4a5d-863f-d63919a1b8b9",
+          "state": "DELIVERED"
+        },
+        "notification": {
+          "id": "a226def4-58f5-43c1-a6b0-dac07aace47a",
+          "channel": "IN_APP",
+          "user_id": "d1527bb5-109a-47b3-a87a-7dc2413b2632"
+        },
+        "subscription": {
+          "id": "13f03def-5896-44d3-9463-cce282c92c90",
+          "plan_code": "trial",
+          "status": "TRIALING",
+          "cancel_at_period_end": 0
+        }
+      }
+    },
+    {
+      "step": "/api/platform/deliveries",
+      "method": "POST",
+      "endpoint": "/api/platform/deliveries",
+      "httpStatus": 201,
+      "response": {
+        "ok": true,
+        "deliveryId": "8c363adb-0980-4a5d-863f-d63919a1b8b9",
+        "state": "ASSIGNED"
+      },
+      "dbBefore": {
+        "users": 1,
+        "tenants": 1,
+        "businesses": 1,
+        "products": 1,
+        "carts": 1,
+        "cartItems": 1,
+        "orders": 1,
+        "payments": 1,
+        "deliveries": 1,
+        "proofs": 1,
+        "notifications": 1,
+        "notificationDeliveries": 1,
+        "subscriptions": 1,
+        "audits": 18,
+        "order": {
+          "id": "129e19f8-69c1-49c1-b11c-080fb174efed",
+          "state": "COMPLETED",
+          "total_cents": 1250
+        },
+        "payment": {
+          "id": "d2513fb7-2e3a-4a9e-b2c1-94925ddc9319",
+          "status": "REQUIRES_SETUP",
+          "amount_cents": 1250
+        },
+        "delivery": {
+          "id": "8c363adb-0980-4a5d-863f-d63919a1b8b9",
+          "state": "DELIVERED"
+        },
+        "notification": {
+          "id": "a226def4-58f5-43c1-a6b0-dac07aace47a",
+          "channel": "IN_APP",
+          "user_id": "d1527bb5-109a-47b3-a87a-7dc2413b2632"
+        },
+        "subscription": {
+          "id": "13f03def-5896-44d3-9463-cce282c92c90",
+          "plan_code": "trial",
+          "status": "TRIALING",
+          "cancel_at_period_end": 0
+        }
+      },
+      "dbAfter": {
+        "users": 1,
+        "tenants": 1,
+        "businesses": 1,
+        "products": 1,
+        "carts": 1,
+        "cartItems": 1,
+        "orders": 1,
+        "payments": 1,
+        "deliveries": 1,
+        "proofs": 1,
+        "notifications": 1,
+        "notificationDeliveries": 1,
+        "subscriptions": 1,
+        "audits": 18,
+        "order": {
+          "id": "129e19f8-69c1-49c1-b11c-080fb174efed",
+          "state": "COMPLETED",
+          "total_cents": 1250
+        },
+        "payment": {
+          "id": "d2513fb7-2e3a-4a9e-b2c1-94925ddc9319",
+          "status": "REQUIRES_SETUP",
+          "amount_cents": 1250
+        },
+        "delivery": {
+          "id": "8c363adb-0980-4a5d-863f-d63919a1b8b9",
+          "state": "DELIVERED"
+        },
+        "notification": {
+          "id": "a226def4-58f5-43c1-a6b0-dac07aace47a",
+          "channel": "IN_APP",
+          "user_id": "d1527bb5-109a-47b3-a87a-7dc2413b2632"
+        },
+        "subscription": {
+          "id": "13f03def-5896-44d3-9463-cce282c92c90",
+          "plan_code": "trial",
+          "status": "TRIALING",
+          "cancel_at_period_end": 0
+        }
+      }
+    },
+    {
+      "step": "/api/platform/deliveries/8c363adb-0980-4a5d-863f-d63919a1b8b9/accept",
+      "method": "POST",
+      "endpoint": "/api/platform/deliveries/8c363adb-0980-4a5d-863f-d63919a1b8b9/accept",
+      "httpStatus": 200,
+      "response": {
+        "ok": true,
+        "deliveryId": "8c363adb-0980-4a5d-863f-d63919a1b8b9",
+        "state": "ASSIGNED",
+        "accepted": true
+      },
+      "dbBefore": {
+        "users": 1,
+        "tenants": 1,
+        "businesses": 1,
+        "products": 1,
+        "carts": 1,
+        "cartItems": 1,
+        "orders": 1,
+        "payments": 1,
+        "deliveries": 1,
+        "proofs": 1,
+        "notifications": 1,
+        "notificationDeliveries": 1,
+        "subscriptions": 1,
+        "audits": 18,
+        "order": {
+          "id": "129e19f8-69c1-49c1-b11c-080fb174efed",
+          "state": "COMPLETED",
+          "total_cents": 1250
+        },
+        "payment": {
+          "id": "d2513fb7-2e3a-4a9e-b2c1-94925ddc9319",
+          "status": "REQUIRES_SETUP",
+          "amount_cents": 1250
+        },
+        "delivery": {
+          "id": "8c363adb-0980-4a5d-863f-d63919a1b8b9",
+          "state": "DELIVERED"
+        },
+        "notification": {
+          "id": "a226def4-58f5-43c1-a6b0-dac07aace47a",
+          "channel": "IN_APP",
+          "user_id": "d1527bb5-109a-47b3-a87a-7dc2413b2632"
+        },
+        "subscription": {
+          "id": "13f03def-5896-44d3-9463-cce282c92c90",
+          "plan_code": "trial",
+          "status": "TRIALING",
+          "cancel_at_period_end": 0
+        }
+      },
+      "dbAfter": {
+        "users": 1,
+        "tenants": 1,
+        "businesses": 1,
+        "products": 1,
+        "carts": 1,
+        "cartItems": 1,
+        "orders": 1,
+        "payments": 1,
+        "deliveries": 1,
+        "proofs": 1,
+        "notifications": 1,
+        "notificationDeliveries": 1,
+        "subscriptions": 1,
+        "audits": 18,
+        "order": {
+          "id": "129e19f8-69c1-49c1-b11c-080fb174efed",
+          "state": "COMPLETED",
+          "total_cents": 1250
+        },
+        "payment": {
+          "id": "d2513fb7-2e3a-4a9e-b2c1-94925ddc9319",
+          "status": "REQUIRES_SETUP",
+          "amount_cents": 1250
+        },
+        "delivery": {
+          "id": "8c363adb-0980-4a5d-863f-d63919a1b8b9",
+          "state": "DELIVERED"
+        },
+        "notification": {
+          "id": "a226def4-58f5-43c1-a6b0-dac07aace47a",
+          "channel": "IN_APP",
+          "user_id": "d1527bb5-109a-47b3-a87a-7dc2413b2632"
+        },
+        "subscription": {
+          "id": "13f03def-5896-44d3-9463-cce282c92c90",
+          "plan_code": "trial",
+          "status": "TRIALING",
+          "cancel_at_period_end": 0
+        }
+      }
+    },
+    {
+      "step": "/api/platform/deliveries/8c363adb-0980-4a5d-863f-d63919a1b8b9/state",
+      "method": "PATCH",
+      "endpoint": "/api/platform/deliveries/8c363adb-0980-4a5d-863f-d63919a1b8b9/state",
+      "httpStatus": 200,
+      "response": {
+        "ok": true,
+        "deliveryId": "8c363adb-0980-4a5d-863f-d63919a1b8b9",
+        "state": "PICKED_UP"
+      },
+      "dbBefore": {
+        "users": 1,
+        "tenants": 1,
+        "businesses": 1,
+        "products": 1,
+        "carts": 1,
+        "cartItems": 1,
+        "orders": 1,
+        "payments": 1,
+        "deliveries": 1,
+        "proofs": 1,
+        "notifications": 1,
+        "notificationDeliveries": 1,
+        "subscriptions": 1,
+        "audits": 18,
+        "order": {
+          "id": "129e19f8-69c1-49c1-b11c-080fb174efed",
+          "state": "COMPLETED",
+          "total_cents": 1250
+        },
+        "payment": {
+          "id": "d2513fb7-2e3a-4a9e-b2c1-94925ddc9319",
+          "status": "REQUIRES_SETUP",
+          "amount_cents": 1250
+        },
+        "delivery": {
+          "id": "8c363adb-0980-4a5d-863f-d63919a1b8b9",
+          "state": "DELIVERED"
+        },
+        "notification": {
+          "id": "a226def4-58f5-43c1-a6b0-dac07aace47a",
+          "channel": "IN_APP",
+          "user_id": "d1527bb5-109a-47b3-a87a-7dc2413b2632"
+        },
+        "subscription": {
+          "id": "13f03def-5896-44d3-9463-cce282c92c90",
+          "plan_code": "trial",
+          "status": "TRIALING",
+          "cancel_at_period_end": 0
+        }
+      },
+      "dbAfter": {
+        "users": 1,
+        "tenants": 1,
+        "businesses": 1,
+        "products": 1,
+        "carts": 1,
+        "cartItems": 1,
+        "orders": 1,
+        "payments": 1,
+        "deliveries": 1,
+        "proofs": 1,
+        "notifications": 1,
+        "notificationDeliveries": 1,
+        "subscriptions": 1,
+        "audits": 18,
+        "order": {
+          "id": "129e19f8-69c1-49c1-b11c-080fb174efed",
+          "state": "COMPLETED",
+          "total_cents": 1250
+        },
+        "payment": {
+          "id": "d2513fb7-2e3a-4a9e-b2c1-94925ddc9319",
+          "status": "REQUIRES_SETUP",
+          "amount_cents": 1250
+        },
+        "delivery": {
+          "id": "8c363adb-0980-4a5d-863f-d63919a1b8b9",
+          "state": "DELIVERED"
+        },
+        "notification": {
+          "id": "a226def4-58f5-43c1-a6b0-dac07aace47a",
+          "channel": "IN_APP",
+          "user_id": "d1527bb5-109a-47b3-a87a-7dc2413b2632"
+        },
+        "subscription": {
+          "id": "13f03def-5896-44d3-9463-cce282c92c90",
+          "plan_code": "trial",
+          "status": "TRIALING",
+          "cancel_at_period_end": 0
+        }
+      }
+    },
+    {
+      "step": "/api/platform/deliveries/8c363adb-0980-4a5d-863f-d63919a1b8b9/state",
+      "method": "PATCH",
+      "endpoint": "/api/platform/deliveries/8c363adb-0980-4a5d-863f-d63919a1b8b9/state",
+      "httpStatus": 200,
+      "response": {
+        "ok": true,
+        "deliveryId": "8c363adb-0980-4a5d-863f-d63919a1b8b9",
+        "state": "IN_TRANSIT"
+      },
+      "dbBefore": {
+        "users": 1,
+        "tenants": 1,
+        "businesses": 1,
+        "products": 1,
+        "carts": 1,
+        "cartItems": 1,
+        "orders": 1,
+        "payments": 1,
+        "deliveries": 1,
+        "proofs": 1,
+        "notifications": 1,
+        "notificationDeliveries": 1,
+        "subscriptions": 1,
+        "audits": 18,
+        "order": {
+          "id": "129e19f8-69c1-49c1-b11c-080fb174efed",
+          "state": "COMPLETED",
+          "total_cents": 1250
+        },
+        "payment": {
+          "id": "d2513fb7-2e3a-4a9e-b2c1-94925ddc9319",
+          "status": "REQUIRES_SETUP",
+          "amount_cents": 1250
+        },
+        "delivery": {
+          "id": "8c363adb-0980-4a5d-863f-d63919a1b8b9",
+          "state": "DELIVERED"
+        },
+        "notification": {
+          "id": "a226def4-58f5-43c1-a6b0-dac07aace47a",
+          "channel": "IN_APP",
+          "user_id": "d1527bb5-109a-47b3-a87a-7dc2413b2632"
+        },
+        "subscription": {
+          "id": "13f03def-5896-44d3-9463-cce282c92c90",
+          "plan_code": "trial",
+          "status": "TRIALING",
+          "cancel_at_period_end": 0
+        }
+      },
+      "dbAfter": {
+        "users": 1,
+        "tenants": 1,
+        "businesses": 1,
+        "products": 1,
+        "carts": 1,
+        "cartItems": 1,
+        "orders": 1,
+        "payments": 1,
+        "deliveries": 1,
+        "proofs": 1,
+        "notifications": 1,
+        "notificationDeliveries": 1,
+        "subscriptions": 1,
+        "audits": 18,
+        "order": {
+          "id": "129e19f8-69c1-49c1-b11c-080fb174efed",
+          "state": "COMPLETED",
+          "total_cents": 1250
+        },
+        "payment": {
+          "id": "d2513fb7-2e3a-4a9e-b2c1-94925ddc9319",
+          "status": "REQUIRES_SETUP",
+          "amount_cents": 1250
+        },
+        "delivery": {
+          "id": "8c363adb-0980-4a5d-863f-d63919a1b8b9",
+          "state": "DELIVERED"
+        },
+        "notification": {
+          "id": "a226def4-58f5-43c1-a6b0-dac07aace47a",
+          "channel": "IN_APP",
+          "user_id": "d1527bb5-109a-47b3-a87a-7dc2413b2632"
+        },
+        "subscription": {
+          "id": "13f03def-5896-44d3-9463-cce282c92c90",
+          "plan_code": "trial",
+          "status": "TRIALING",
+          "cancel_at_period_end": 0
+        }
+      }
+    },
+    {
+      "step": "/api/platform/deliveries/8c363adb-0980-4a5d-863f-d63919a1b8b9/proof",
+      "method": "POST",
+      "endpoint": "/api/platform/deliveries/8c363adb-0980-4a5d-863f-d63919a1b8b9/proof",
+      "httpStatus": 201,
+      "response": {
+        "ok": true,
+        "proofId": "cb12a19d-c927-45bb-a065-d38f59c7ff41",
+        "status": "RECORDED"
+      },
+      "dbBefore": {
+        "users": 1,
+        "tenants": 1,
+        "businesses": 1,
+        "products": 1,
+        "carts": 1,
+        "cartItems": 1,
+        "orders": 1,
+        "payments": 1,
+        "deliveries": 1,
+        "proofs": 1,
+        "notifications": 1,
+        "notificationDeliveries": 1,
+        "subscriptions": 1,
+        "audits": 18,
+        "order": {
+          "id": "129e19f8-69c1-49c1-b11c-080fb174efed",
+          "state": "COMPLETED",
+          "total_cents": 1250
+        },
+        "payment": {
+          "id": "d2513fb7-2e3a-4a9e-b2c1-94925ddc9319",
+          "status": "REQUIRES_SETUP",
+          "amount_cents": 1250
+        },
+        "delivery": {
+          "id": "8c363adb-0980-4a5d-863f-d63919a1b8b9",
+          "state": "DELIVERED"
+        },
+        "notification": {
+          "id": "a226def4-58f5-43c1-a6b0-dac07aace47a",
+          "channel": "IN_APP",
+          "user_id": "d1527bb5-109a-47b3-a87a-7dc2413b2632"
+        },
+        "subscription": {
+          "id": "13f03def-5896-44d3-9463-cce282c92c90",
+          "plan_code": "trial",
+          "status": "TRIALING",
+          "cancel_at_period_end": 0
+        }
+      },
+      "dbAfter": {
+        "users": 1,
+        "tenants": 1,
+        "businesses": 1,
+        "products": 1,
+        "carts": 1,
+        "cartItems": 1,
+        "orders": 1,
+        "payments": 1,
+        "deliveries": 1,
+        "proofs": 1,
+        "notifications": 1,
+        "notificationDeliveries": 1,
+        "subscriptions": 1,
+        "audits": 18,
+        "order": {
+          "id": "129e19f8-69c1-49c1-b11c-080fb174efed",
+          "state": "COMPLETED",
+          "total_cents": 1250
+        },
+        "payment": {
+          "id": "d2513fb7-2e3a-4a9e-b2c1-94925ddc9319",
+          "status": "REQUIRES_SETUP",
+          "amount_cents": 1250
+        },
+        "delivery": {
+          "id": "8c363adb-0980-4a5d-863f-d63919a1b8b9",
+          "state": "DELIVERED"
+        },
+        "notification": {
+          "id": "a226def4-58f5-43c1-a6b0-dac07aace47a",
+          "channel": "IN_APP",
+          "user_id": "d1527bb5-109a-47b3-a87a-7dc2413b2632"
+        },
+        "subscription": {
+          "id": "13f03def-5896-44d3-9463-cce282c92c90",
+          "plan_code": "trial",
+          "status": "TRIALING",
+          "cancel_at_period_end": 0
+        }
+      }
+    },
+    {
+      "step": "/api/platform/deliveries/8c363adb-0980-4a5d-863f-d63919a1b8b9/state",
+      "method": "PATCH",
+      "endpoint": "/api/platform/deliveries/8c363adb-0980-4a5d-863f-d63919a1b8b9/state",
+      "httpStatus": 200,
+      "response": {
+        "ok": true,
+        "deliveryId": "8c363adb-0980-4a5d-863f-d63919a1b8b9",
+        "state": "DELIVERED"
+      },
+      "dbBefore": {
+        "users": 1,
+        "tenants": 1,
+        "businesses": 1,
+        "products": 1,
+        "carts": 1,
+        "cartItems": 1,
+        "orders": 1,
+        "payments": 1,
+        "deliveries": 1,
+        "proofs": 1,
+        "notifications": 1,
+        "notificationDeliveries": 1,
+        "subscriptions": 1,
+        "audits": 18,
+        "order": {
+          "id": "129e19f8-69c1-49c1-b11c-080fb174efed",
+          "state": "COMPLETED",
+          "total_cents": 1250
+        },
+        "payment": {
+          "id": "d2513fb7-2e3a-4a9e-b2c1-94925ddc9319",
+          "status": "REQUIRES_SETUP",
+          "amount_cents": 1250
+        },
+        "delivery": {
+          "id": "8c363adb-0980-4a5d-863f-d63919a1b8b9",
+          "state": "DELIVERED"
+        },
+        "notification": {
+          "id": "a226def4-58f5-43c1-a6b0-dac07aace47a",
+          "channel": "IN_APP",
+          "user_id": "d1527bb5-109a-47b3-a87a-7dc2413b2632"
+        },
+        "subscription": {
+          "id": "13f03def-5896-44d3-9463-cce282c92c90",
+          "plan_code": "trial",
+          "status": "TRIALING",
+          "cancel_at_period_end": 0
+        }
+      },
+      "dbAfter": {
+        "users": 1,
+        "tenants": 1,
+        "businesses": 1,
+        "products": 1,
+        "carts": 1,
+        "cartItems": 1,
+        "orders": 1,
+        "payments": 1,
+        "deliveries": 1,
+        "proofs": 1,
+        "notifications": 1,
+        "notificationDeliveries": 1,
+        "subscriptions": 1,
+        "audits": 18,
+        "order": {
+          "id": "129e19f8-69c1-49c1-b11c-080fb174efed",
+          "state": "COMPLETED",
+          "total_cents": 1250
+        },
+        "payment": {
+          "id": "d2513fb7-2e3a-4a9e-b2c1-94925ddc9319",
+          "status": "REQUIRES_SETUP",
+          "amount_cents": 1250
+        },
+        "delivery": {
+          "id": "8c363adb-0980-4a5d-863f-d63919a1b8b9",
+          "state": "DELIVERED"
+        },
+        "notification": {
+          "id": "a226def4-58f5-43c1-a6b0-dac07aace47a",
+          "channel": "IN_APP",
+          "user_id": "d1527bb5-109a-47b3-a87a-7dc2413b2632"
+        },
+        "subscription": {
+          "id": "13f03def-5896-44d3-9463-cce282c92c90",
+          "plan_code": "trial",
+          "status": "TRIALING",
+          "cancel_at_period_end": 0
+        }
+      }
+    },
+    {
+      "step": "/api/platform/notifications",
+      "method": "POST",
+      "endpoint": "/api/platform/notifications",
+      "httpStatus": 201,
+      "response": {
+        "ok": true,
+        "notificationId": "a226def4-58f5-43c1-a6b0-dac07aace47a",
+        "status": "QUEUED",
+        "delivery": "queued"
+      },
+      "dbBefore": {
+        "users": 1,
+        "tenants": 1,
+        "businesses": 1,
+        "products": 1,
+        "carts": 1,
+        "cartItems": 1,
+        "orders": 1,
+        "payments": 1,
+        "deliveries": 1,
+        "proofs": 1,
+        "notifications": 1,
+        "notificationDeliveries": 1,
+        "subscriptions": 1,
+        "audits": 18,
+        "order": {
+          "id": "129e19f8-69c1-49c1-b11c-080fb174efed",
+          "state": "COMPLETED",
+          "total_cents": 1250
+        },
+        "payment": {
+          "id": "d2513fb7-2e3a-4a9e-b2c1-94925ddc9319",
+          "status": "REQUIRES_SETUP",
+          "amount_cents": 1250
+        },
+        "delivery": {
+          "id": "8c363adb-0980-4a5d-863f-d63919a1b8b9",
+          "state": "DELIVERED"
+        },
+        "notification": {
+          "id": "a226def4-58f5-43c1-a6b0-dac07aace47a",
+          "channel": "IN_APP",
+          "user_id": "d1527bb5-109a-47b3-a87a-7dc2413b2632"
+        },
+        "subscription": {
+          "id": "13f03def-5896-44d3-9463-cce282c92c90",
+          "plan_code": "trial",
+          "status": "TRIALING",
+          "cancel_at_period_end": 0
+        }
+      },
+      "dbAfter": {
+        "users": 1,
+        "tenants": 1,
+        "businesses": 1,
+        "products": 1,
+        "carts": 1,
+        "cartItems": 1,
+        "orders": 1,
+        "payments": 1,
+        "deliveries": 1,
+        "proofs": 1,
+        "notifications": 1,
+        "notificationDeliveries": 1,
+        "subscriptions": 1,
+        "audits": 18,
+        "order": {
+          "id": "129e19f8-69c1-49c1-b11c-080fb174efed",
+          "state": "COMPLETED",
+          "total_cents": 1250
+        },
+        "payment": {
+          "id": "d2513fb7-2e3a-4a9e-b2c1-94925ddc9319",
+          "status": "REQUIRES_SETUP",
+          "amount_cents": 1250
+        },
+        "delivery": {
+          "id": "8c363adb-0980-4a5d-863f-d63919a1b8b9",
+          "state": "DELIVERED"
+        },
+        "notification": {
+          "id": "a226def4-58f5-43c1-a6b0-dac07aace47a",
+          "channel": "IN_APP",
+          "user_id": "d1527bb5-109a-47b3-a87a-7dc2413b2632"
+        },
+        "subscription": {
+          "id": "13f03def-5896-44d3-9463-cce282c92c90",
+          "plan_code": "trial",
+          "status": "TRIALING",
+          "cancel_at_period_end": 0
+        }
+      }
+    },
+    {
+      "step": "/api/platform/notifications",
+      "method": "GET",
+      "endpoint": "/api/platform/notifications",
+      "httpStatus": 200,
+      "response": {
+        "ok": true,
+        "notifications": [
+          {
+            "id": "a226def4-58f5-43c1-a6b0-dac07aace47a",
+            "user_id": "d1527bb5-109a-47b3-a87a-7dc2413b2632",
+            "channel": "IN_APP",
+            "title": "Order delivered",
+            "body": "Order 129e19f8-69c1-49c1-b11c-080fb174efed delivered",
+            "status": "QUEUED",
+            "created_at": 1788335582559
+          }
+        ]
+      },
+      "dbBefore": {
+        "users": 1,
+        "tenants": 1,
+        "businesses": 1,
+        "products": 1,
+        "carts": 1,
+        "cartItems": 1,
+        "orders": 1,
+        "payments": 1,
+        "deliveries": 1,
+        "proofs": 1,
+        "notifications": 1,
+        "notificationDeliveries": 1,
+        "subscriptions": 1,
+        "audits": 18,
+        "order": {
+          "id": "129e19f8-69c1-49c1-b11c-080fb174efed",
+          "state": "COMPLETED",
+          "total_cents": 1250
+        },
+        "payment": {
+          "id": "d2513fb7-2e3a-4a9e-b2c1-94925ddc9319",
+          "status": "REQUIRES_SETUP",
+          "amount_cents": 1250
+        },
+        "delivery": {
+          "id": "8c363adb-0980-4a5d-863f-d63919a1b8b9",
+          "state": "DELIVERED"
+        },
+        "notification": {
+          "id": "a226def4-58f5-43c1-a6b0-dac07aace47a",
+          "channel": "IN_APP",
+          "user_id": "d1527bb5-109a-47b3-a87a-7dc2413b2632"
+        },
+        "subscription": {
+          "id": "13f03def-5896-44d3-9463-cce282c92c90",
+          "plan_code": "trial",
+          "status": "TRIALING",
+          "cancel_at_period_end": 0
+        }
+      },
+      "dbAfter": {
+        "users": 1,
+        "tenants": 1,
+        "businesses": 1,
+        "products": 1,
+        "carts": 1,
+        "cartItems": 1,
+        "orders": 1,
+        "payments": 1,
+        "deliveries": 1,
+        "proofs": 1,
+        "notifications": 1,
+        "notificationDeliveries": 1,
+        "subscriptions": 1,
+        "audits": 18,
+        "order": {
+          "id": "129e19f8-69c1-49c1-b11c-080fb174efed",
+          "state": "COMPLETED",
+          "total_cents": 1250
+        },
+        "payment": {
+          "id": "d2513fb7-2e3a-4a9e-b2c1-94925ddc9319",
+          "status": "REQUIRES_SETUP",
+          "amount_cents": 1250
+        },
+        "delivery": {
+          "id": "8c363adb-0980-4a5d-863f-d63919a1b8b9",
+          "state": "DELIVERED"
+        },
+        "notification": {
+          "id": "a226def4-58f5-43c1-a6b0-dac07aace47a",
+          "channel": "IN_APP",
+          "user_id": "d1527bb5-109a-47b3-a87a-7dc2413b2632"
+        },
+        "subscription": {
+          "id": "13f03def-5896-44d3-9463-cce282c92c90",
+          "plan_code": "trial",
+          "status": "TRIALING",
+          "cancel_at_period_end": 0
+        }
+      }
+    },
+    {
+      "step": "/api/platform/subscriptions",
+      "method": "POST",
+      "endpoint": "/api/platform/subscriptions",
+      "httpStatus": 201,
+      "response": {
+        "ok": true,
+        "subscriptionId": "13f03def-5896-44d3-9463-cce282c92c90",
+        "planCode": "trial",
+        "status": "TRIALING",
+        "currentPeriodEnd": 1790927582570,
+        "payment": "not-required"
+      },
+      "dbBefore": {
+        "users": 1,
+        "tenants": 1,
+        "businesses": 1,
+        "products": 1,
+        "carts": 1,
+        "cartItems": 1,
+        "orders": 1,
+        "payments": 1,
+        "deliveries": 1,
+        "proofs": 1,
+        "notifications": 1,
+        "notificationDeliveries": 1,
+        "subscriptions": 1,
+        "audits": 18,
+        "order": {
+          "id": "129e19f8-69c1-49c1-b11c-080fb174efed",
+          "state": "COMPLETED",
+          "total_cents": 1250
+        },
+        "payment": {
+          "id": "d2513fb7-2e3a-4a9e-b2c1-94925ddc9319",
+          "status": "REQUIRES_SETUP",
+          "amount_cents": 1250
+        },
+        "delivery": {
+          "id": "8c363adb-0980-4a5d-863f-d63919a1b8b9",
+          "state": "DELIVERED"
+        },
+        "notification": {
+          "id": "a226def4-58f5-43c1-a6b0-dac07aace47a",
+          "channel": "IN_APP",
+          "user_id": "d1527bb5-109a-47b3-a87a-7dc2413b2632"
+        },
+        "subscription": {
+          "id": "13f03def-5896-44d3-9463-cce282c92c90",
+          "plan_code": "trial",
+          "status": "TRIALING",
+          "cancel_at_period_end": 0
+        }
+      },
+      "dbAfter": {
+        "users": 1,
+        "tenants": 1,
+        "businesses": 1,
+        "products": 1,
+        "carts": 1,
+        "cartItems": 1,
+        "orders": 1,
+        "payments": 1,
+        "deliveries": 1,
+        "proofs": 1,
+        "notifications": 1,
+        "notificationDeliveries": 1,
+        "subscriptions": 1,
+        "audits": 18,
+        "order": {
+          "id": "129e19f8-69c1-49c1-b11c-080fb174efed",
+          "state": "COMPLETED",
+          "total_cents": 1250
+        },
+        "payment": {
+          "id": "d2513fb7-2e3a-4a9e-b2c1-94925ddc9319",
+          "status": "REQUIRES_SETUP",
+          "amount_cents": 1250
+        },
+        "delivery": {
+          "id": "8c363adb-0980-4a5d-863f-d63919a1b8b9",
+          "state": "DELIVERED"
+        },
+        "notification": {
+          "id": "a226def4-58f5-43c1-a6b0-dac07aace47a",
+          "channel": "IN_APP",
+          "user_id": "d1527bb5-109a-47b3-a87a-7dc2413b2632"
+        },
+        "subscription": {
+          "id": "13f03def-5896-44d3-9463-cce282c92c90",
+          "plan_code": "trial",
+          "status": "TRIALING",
+          "cancel_at_period_end": 0
+        }
+      }
+    },
+    {
+      "step": "/api/platform/subscription",
+      "method": "GET",
+      "endpoint": "/api/platform/subscription",
+      "httpStatus": 200,
+      "response": {
+        "ok": true,
+        "subscription": {
+          "id": "13f03def-5896-44d3-9463-cce282c92c90",
+          "plan_code": "trial",
+          "status": "TRIALING",
+          "current_period_start": 1788335582570,
+          "current_period_end": 1790927582570,
+          "cancel_at_period_end": 0,
+          "price_cents": 0,
+          "trial_days": 14
+        }
+      },
+      "dbBefore": {
+        "users": 1,
+        "tenants": 1,
+        "businesses": 1,
+        "products": 1,
+        "carts": 1,
+        "cartItems": 1,
+        "orders": 1,
+        "payments": 1,
+        "deliveries": 1,
+        "proofs": 1,
+        "notifications": 1,
+        "notificationDeliveries": 1,
+        "subscriptions": 1,
+        "audits": 18,
+        "order": {
+          "id": "129e19f8-69c1-49c1-b11c-080fb174efed",
+          "state": "COMPLETED",
+          "total_cents": 1250
+        },
+        "payment": {
+          "id": "d2513fb7-2e3a-4a9e-b2c1-94925ddc9319",
+          "status": "REQUIRES_SETUP",
+          "amount_cents": 1250
+        },
+        "delivery": {
+          "id": "8c363adb-0980-4a5d-863f-d63919a1b8b9",
+          "state": "DELIVERED"
+        },
+        "notification": {
+          "id": "a226def4-58f5-43c1-a6b0-dac07aace47a",
+          "channel": "IN_APP",
+          "user_id": "d1527bb5-109a-47b3-a87a-7dc2413b2632"
+        },
+        "subscription": {
+          "id": "13f03def-5896-44d3-9463-cce282c92c90",
+          "plan_code": "trial",
+          "status": "TRIALING",
+          "cancel_at_period_end": 0
+        }
+      },
+      "dbAfter": {
+        "users": 1,
+        "tenants": 1,
+        "businesses": 1,
+        "products": 1,
+        "carts": 1,
+        "cartItems": 1,
+        "orders": 1,
+        "payments": 1,
+        "deliveries": 1,
+        "proofs": 1,
+        "notifications": 1,
+        "notificationDeliveries": 1,
+        "subscriptions": 1,
+        "audits": 18,
+        "order": {
+          "id": "129e19f8-69c1-49c1-b11c-080fb174efed",
+          "state": "COMPLETED",
+          "total_cents": 1250
+        },
+        "payment": {
+          "id": "d2513fb7-2e3a-4a9e-b2c1-94925ddc9319",
+          "status": "REQUIRES_SETUP",
+          "amount_cents": 1250
+        },
+        "delivery": {
+          "id": "8c363adb-0980-4a5d-863f-d63919a1b8b9",
+          "state": "DELIVERED"
+        },
+        "notification": {
+          "id": "a226def4-58f5-43c1-a6b0-dac07aace47a",
+          "channel": "IN_APP",
+          "user_id": "d1527bb5-109a-47b3-a87a-7dc2413b2632"
+        },
+        "subscription": {
+          "id": "13f03def-5896-44d3-9463-cce282c92c90",
+          "plan_code": "trial",
+          "status": "TRIALING",
+          "cancel_at_period_end": 0
+        }
+      }
+    },
+    {
+      "step": "/api/platform/subscription/entitlements",
+      "method": "GET",
+      "endpoint": "/api/platform/subscription/entitlements",
+      "httpStatus": 200,
+      "response": {
+        "ok": true,
+        "subscription": {
+          "plan_code": "trial",
+          "status": "TRIALING",
+          "current_period_end": 1790927582570,
+          "name": "التجربة"
+        },
+        "features": [
+          {
+            "feature": "analytics.read",
+            "limit_value": null
+          },
+          {
+            "feature": "catalog.read",
+            "limit_value": null
+          }
+        ]
+      },
+      "dbBefore": {
+        "users": 1,
+        "tenants": 1,
+        "businesses": 1,
+        "products": 1,
+        "carts": 1,
+        "cartItems": 1,
+        "orders": 1,
+        "payments": 1,
+        "deliveries": 1,
+        "proofs": 1,
+        "notifications": 1,
+        "notificationDeliveries": 1,
+        "subscriptions": 1,
+        "audits": 18,
+        "order": {
+          "id": "129e19f8-69c1-49c1-b11c-080fb174efed",
+          "state": "COMPLETED",
+          "total_cents": 1250
+        },
+        "payment": {
+          "id": "d2513fb7-2e3a-4a9e-b2c1-94925ddc9319",
+          "status": "REQUIRES_SETUP",
+          "amount_cents": 1250
+        },
+        "delivery": {
+          "id": "8c363adb-0980-4a5d-863f-d63919a1b8b9",
+          "state": "DELIVERED"
+        },
+        "notification": {
+          "id": "a226def4-58f5-43c1-a6b0-dac07aace47a",
+          "channel": "IN_APP",
+          "user_id": "d1527bb5-109a-47b3-a87a-7dc2413b2632"
+        },
+        "subscription": {
+          "id": "13f03def-5896-44d3-9463-cce282c92c90",
+          "plan_code": "trial",
+          "status": "TRIALING",
+          "cancel_at_period_end": 0
+        }
+      },
+      "dbAfter": {
+        "users": 1,
+        "tenants": 1,
+        "businesses": 1,
+        "products": 1,
+        "carts": 1,
+        "cartItems": 1,
+        "orders": 1,
+        "payments": 1,
+        "deliveries": 1,
+        "proofs": 1,
+        "notifications": 1,
+        "notificationDeliveries": 1,
+        "subscriptions": 1,
+        "audits": 18,
+        "order": {
+          "id": "129e19f8-69c1-49c1-b11c-080fb174efed",
+          "state": "COMPLETED",
+          "total_cents": 1250
+        },
+        "payment": {
+          "id": "d2513fb7-2e3a-4a9e-b2c1-94925ddc9319",
+          "status": "REQUIRES_SETUP",
+          "amount_cents": 1250
+        },
+        "delivery": {
+          "id": "8c363adb-0980-4a5d-863f-d63919a1b8b9",
+          "state": "DELIVERED"
+        },
+        "notification": {
+          "id": "a226def4-58f5-43c1-a6b0-dac07aace47a",
+          "channel": "IN_APP",
+          "user_id": "d1527bb5-109a-47b3-a87a-7dc2413b2632"
+        },
+        "subscription": {
+          "id": "13f03def-5896-44d3-9463-cce282c92c90",
+          "plan_code": "trial",
+          "status": "TRIALING",
+          "cancel_at_period_end": 0
+        }
+      }
+    },
+    {
+      "step": "/api/platform/ai/search",
+      "method": "POST",
+      "endpoint": "/api/platform/ai/search",
+      "httpStatus": 200,
+      "response": {
+        "ok": true,
+        "engine": "lexical-fallback",
+        "providerStatus": "requires-setup",
+        "results": []
+      },
+      "dbBefore": {
+        "users": 1,
+        "tenants": 1,
+        "businesses": 1,
+        "products": 1,
+        "carts": 1,
+        "cartItems": 1,
+        "orders": 1,
+        "payments": 1,
+        "deliveries": 1,
+        "proofs": 1,
+        "notifications": 1,
+        "notificationDeliveries": 1,
+        "subscriptions": 1,
+        "audits": 18,
+        "order": {
+          "id": "129e19f8-69c1-49c1-b11c-080fb174efed",
+          "state": "COMPLETED",
+          "total_cents": 1250
+        },
+        "payment": {
+          "id": "d2513fb7-2e3a-4a9e-b2c1-94925ddc9319",
+          "status": "REQUIRES_SETUP",
+          "amount_cents": 1250
+        },
+        "delivery": {
+          "id": "8c363adb-0980-4a5d-863f-d63919a1b8b9",
+          "state": "DELIVERED"
+        },
+        "notification": {
+          "id": "a226def4-58f5-43c1-a6b0-dac07aace47a",
+          "channel": "IN_APP",
+          "user_id": "d1527bb5-109a-47b3-a87a-7dc2413b2632"
+        },
+        "subscription": {
+          "id": "13f03def-5896-44d3-9463-cce282c92c90",
+          "plan_code": "trial",
+          "status": "TRIALING",
+          "cancel_at_period_end": 0
+        }
+      },
+      "dbAfter": {
+        "users": 1,
+        "tenants": 1,
+        "businesses": 1,
+        "products": 1,
+        "carts": 1,
+        "cartItems": 1,
+        "orders": 1,
+        "payments": 1,
+        "deliveries": 1,
+        "proofs": 1,
+        "notifications": 1,
+        "notificationDeliveries": 1,
+        "subscriptions": 1,
+        "audits": 18,
+        "order": {
+          "id": "129e19f8-69c1-49c1-b11c-080fb174efed",
+          "state": "COMPLETED",
+          "total_cents": 1250
+        },
+        "payment": {
+          "id": "d2513fb7-2e3a-4a9e-b2c1-94925ddc9319",
+          "status": "REQUIRES_SETUP",
+          "amount_cents": 1250
+        },
+        "delivery": {
+          "id": "8c363adb-0980-4a5d-863f-d63919a1b8b9",
+          "state": "DELIVERED"
+        },
+        "notification": {
+          "id": "a226def4-58f5-43c1-a6b0-dac07aace47a",
+          "channel": "IN_APP",
+          "user_id": "d1527bb5-109a-47b3-a87a-7dc2413b2632"
+        },
+        "subscription": {
+          "id": "13f03def-5896-44d3-9463-cce282c92c90",
+          "plan_code": "trial",
+          "status": "TRIALING",
+          "cancel_at_period_end": 0
+        }
+      }
+    },
+    {
+      "step": "/api/platform/analytics/overview",
+      "method": "GET",
+      "endpoint": "/api/platform/analytics/overview",
+      "httpStatus": 200,
+      "response": {
+        "ok": true,
+        "source": "database",
+        "asOf": "2026-09-02T07:53:02.589Z",
+        "analytics": {
+          "user": {
+            "total": 1,
+            "active": 1
+          },
+          "business": {
+            "total": 1,
+            "active": 1
+          },
+          "marketplace": {
+            "products": 1,
+            "services": 0,
+            "active_ads": 0,
+            "orders": 1,
+            "bookings": 0
+          },
+          "financial": {
+            "payments": 1,
+            "authorized_or_captured_cents": 0,
+            "failed_payments": 0
+          },
+          "ai": {
+            "requests": 0,
+            "tokens": 0,
+            "features": 0
+          },
+          "platform": {
+            "deliveries": 1,
+            "notifications": 1,
+            "audit_events": 18
+          }
+        }
+      },
+      "dbBefore": {
+        "users": 1,
+        "tenants": 1,
+        "businesses": 1,
+        "products": 1,
+        "carts": 1,
+        "cartItems": 1,
+        "orders": 1,
+        "payments": 1,
+        "deliveries": 1,
+        "proofs": 1,
+        "notifications": 1,
+        "notificationDeliveries": 1,
+        "subscriptions": 1,
+        "audits": 18,
+        "order": {
+          "id": "129e19f8-69c1-49c1-b11c-080fb174efed",
+          "state": "COMPLETED",
+          "total_cents": 1250
+        },
+        "payment": {
+          "id": "d2513fb7-2e3a-4a9e-b2c1-94925ddc9319",
+          "status": "REQUIRES_SETUP",
+          "amount_cents": 1250
+        },
+        "delivery": {
+          "id": "8c363adb-0980-4a5d-863f-d63919a1b8b9",
+          "state": "DELIVERED"
+        },
+        "notification": {
+          "id": "a226def4-58f5-43c1-a6b0-dac07aace47a",
+          "channel": "IN_APP",
+          "user_id": "d1527bb5-109a-47b3-a87a-7dc2413b2632"
+        },
+        "subscription": {
+          "id": "13f03def-5896-44d3-9463-cce282c92c90",
+          "plan_code": "trial",
+          "status": "TRIALING",
+          "cancel_at_period_end": 0
+        }
+      },
+      "dbAfter": {
+        "users": 1,
+        "tenants": 1,
+        "businesses": 1,
+        "products": 1,
+        "carts": 1,
+        "cartItems": 1,
+        "orders": 1,
+        "payments": 1,
+        "deliveries": 1,
+        "proofs": 1,
+        "notifications": 1,
+        "notificationDeliveries": 1,
+        "subscriptions": 1,
+        "audits": 18,
+        "order": {
+          "id": "129e19f8-69c1-49c1-b11c-080fb174efed",
+          "state": "COMPLETED",
+          "total_cents": 1250
+        },
+        "payment": {
+          "id": "d2513fb7-2e3a-4a9e-b2c1-94925ddc9319",
+          "status": "REQUIRES_SETUP",
+          "amount_cents": 1250
+        },
+        "delivery": {
+          "id": "8c363adb-0980-4a5d-863f-d63919a1b8b9",
+          "state": "DELIVERED"
+        },
+        "notification": {
+          "id": "a226def4-58f5-43c1-a6b0-dac07aace47a",
+          "channel": "IN_APP",
+          "user_id": "d1527bb5-109a-47b3-a87a-7dc2413b2632"
+        },
+        "subscription": {
+          "id": "13f03def-5896-44d3-9463-cce282c92c90",
+          "plan_code": "trial",
+          "status": "TRIALING",
+          "cancel_at_period_end": 0
+        }
+      }
+    },
+    {
+      "step": "/api/platform/analytics/kpis",
+      "method": "GET",
+      "endpoint": "/api/platform/analytics/kpis",
+      "httpStatus": 200,
+      "response": {
+        "ok": true,
+        "source": "database",
+        "asOf": "2026-09-02T07:53:02.593Z",
+        "kpis": {
+          "sales": {
+            "orders": 1,
+            "gmv_cents": 1250,
+            "completed_gmv_cents": 1250
+          },
+          "inventory": {
+            "units": 2,
+            "sku_count": 1
+          },
+          "ai": {
+            "requests": 0
+          },
+          "members": {
+            "members": 1
+          }
+        }
+      },
+      "dbBefore": {
+        "users": 1,
+        "tenants": 1,
+        "businesses": 1,
+        "products": 1,
+        "carts": 1,
+        "cartItems": 1,
+        "orders": 1,
+        "payments": 1,
+        "deliveries": 1,
+        "proofs": 1,
+        "notifications": 1,
+        "notificationDeliveries": 1,
+        "subscriptions": 1,
+        "audits": 18,
+        "order": {
+          "id": "129e19f8-69c1-49c1-b11c-080fb174efed",
+          "state": "COMPLETED",
+          "total_cents": 1250
+        },
+        "payment": {
+          "id": "d2513fb7-2e3a-4a9e-b2c1-94925ddc9319",
+          "status": "REQUIRES_SETUP",
+          "amount_cents": 1250
+        },
+        "delivery": {
+          "id": "8c363adb-0980-4a5d-863f-d63919a1b8b9",
+          "state": "DELIVERED"
+        },
+        "notification": {
+          "id": "a226def4-58f5-43c1-a6b0-dac07aace47a",
+          "channel": "IN_APP",
+          "user_id": "d1527bb5-109a-47b3-a87a-7dc2413b2632"
+        },
+        "subscription": {
+          "id": "13f03def-5896-44d3-9463-cce282c92c90",
+          "plan_code": "trial",
+          "status": "TRIALING",
+          "cancel_at_period_end": 0
+        }
+      },
+      "dbAfter": {
+        "users": 1,
+        "tenants": 1,
+        "businesses": 1,
+        "products": 1,
+        "carts": 1,
+        "cartItems": 1,
+        "orders": 1,
+        "payments": 1,
+        "deliveries": 1,
+        "proofs": 1,
+        "notifications": 1,
+        "notificationDeliveries": 1,
+        "subscriptions": 1,
+        "audits": 18,
+        "order": {
+          "id": "129e19f8-69c1-49c1-b11c-080fb174efed",
+          "state": "COMPLETED",
+          "total_cents": 1250
+        },
+        "payment": {
+          "id": "d2513fb7-2e3a-4a9e-b2c1-94925ddc9319",
+          "status": "REQUIRES_SETUP",
+          "amount_cents": 1250
+        },
+        "delivery": {
+          "id": "8c363adb-0980-4a5d-863f-d63919a1b8b9",
+          "state": "DELIVERED"
+        },
+        "notification": {
+          "id": "a226def4-58f5-43c1-a6b0-dac07aace47a",
+          "channel": "IN_APP",
+          "user_id": "d1527bb5-109a-47b3-a87a-7dc2413b2632"
+        },
+        "subscription": {
+          "id": "13f03def-5896-44d3-9463-cce282c92c90",
+          "plan_code": "trial",
+          "status": "TRIALING",
+          "cancel_at_period_end": 0
+        }
+      }
+    }
+  ]
+}
