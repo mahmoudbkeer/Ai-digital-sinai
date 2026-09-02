@@ -76,6 +76,10 @@ struct MarketplaceView: View {
     @State private var products: [MarketplaceProduct] = []
     @State private var loading = true
     @State private var errorMessage = ""
+    @State private var searchQuery = ""
+    @State private var searchResults: [AiSearchResult] = []
+    @State private var searching = false
+    @State private var searchError = ""
 
     var body: some View {
         Group {
@@ -93,20 +97,41 @@ struct MarketplaceView: View {
                     Text("لا توجد منتجات منشورة")
                 }
             } else {
-                List(products) { product in
-                    NavigationLink {
-                        ProductDetailView(api: api, productId: product.id)
-                    } label: {
-                        VStack(alignment: .leading, spacing: 6) {
+                List {
+                    Section("AI Search") {
                         HStack {
-                            Text(product.name).font(.headline)
-                            Spacer()
-                            Text(String(format: "%.2f %@", Double(product.priceCents) / 100.0, product.currency))
+                            TextField("ابحث في المعرفة…", text: $searchQuery)
+                                .textFieldStyle(.roundedBorder)
+                            Button("بحث") { Task { await search() } }
+                                .disabled(searching || searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                         }
-                        if let category = product.category { Text(category).font(.caption) }
-                        if let description = product.description { Text(description) }
+                        if searching { ProgressView("جارٍ البحث…") }
+                        if !searchError.isEmpty { Text(searchError).foregroundStyle(.red) }
+                        ForEach(searchResults) { result in
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(result.title).font(.headline)
+                                Text(result.snippet)
+                                Text(result.sourceType).font(.caption).foregroundStyle(.secondary)
+                            }
                         }
-                        .padding(.vertical, 4)
+                    }
+                    Section("المنتجات") {
+                        ForEach(products) { product in
+                            NavigationLink {
+                                ProductDetailView(api: api, productId: product.id)
+                            } label: {
+                                VStack(alignment: .leading, spacing: 6) {
+                                    HStack {
+                                        Text(product.name).font(.headline)
+                                        Spacer()
+                                        Text(String(format: "%.2f %@", Double(product.priceCents) / 100.0, product.currency))
+                                    }
+                                    if let category = product.category { Text(category).font(.caption) }
+                                    if let description = product.description { Text(description) }
+                                }
+                                .padding(.vertical, 4)
+                            }
+                        }
                     }
                 }
             }
@@ -118,6 +143,22 @@ struct MarketplaceView: View {
             }
         }
         .task { await loadProducts() }
+    }
+
+    private func search() async {
+        searching = true
+        searchError = ""
+        defer { searching = false }
+        do {
+            let (result, loadedResults) = try await api.aiSearch(query: searchQuery)
+            if (200..<300).contains(result.statusCode) {
+                searchResults = loadedResults
+            } else {
+                searchError = "HTTP \(result.statusCode)"
+            }
+        } catch {
+            searchError = error.localizedDescription
+        }
     }
 
     private func loadProducts() async {

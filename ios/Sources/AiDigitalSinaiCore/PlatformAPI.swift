@@ -31,6 +31,20 @@ public struct MarketplaceProduct: Decodable, Sendable, Identifiable {
 
 public typealias ProductDetail = MarketplaceProduct
 
+public struct AiSearchResult: Decodable, Sendable, Identifiable {
+    public let documentID: String
+    public let title: String
+    public let snippet: String
+    public let sourceType: String
+    public let sourceRef: String?
+    public let chunkID: String?
+    enum CodingKeys: String, CodingKey {
+        case documentID = "document_id", title, snippet
+        case sourceType = "source_type", sourceRef = "source_ref", chunkID = "chunk_id"
+    }
+    public var id: String { documentID + ":" + (chunkID ?? "") }
+}
+
 public struct PlatformNotification: Decodable, Sendable, Identifiable {
     public let id: String
     public let userID: String
@@ -118,6 +132,10 @@ private struct NotificationEnvelope: Decodable {
     let notifications: [PlatformNotification]
 }
 
+private struct AiSearchEnvelope: Decodable {
+    let results: [AiSearchResult]
+}
+
 private struct CartEnvelope: Decodable {
     let cart: Cart?
     let items: [CartItem]
@@ -152,6 +170,19 @@ public final class PlatformAPI {
         try await authenticate(path: "/api/platform/auth/register", body: [
             "email": email, "password": password, "displayName": displayName, "tenantName": tenantName
         ])
+    }
+
+    public func aiSearch(query: String) async throws -> (APIResult, [AiSearchResult]) {
+        var request = URLRequest(url: baseURL.appendingPathComponent("api/platform/ai/search"))
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        applyAuth(to: &request)
+        request.httpBody = try JSONSerialization.data(withJSONObject: ["query": query])
+        let (data, response) = try await session.data(for: request)
+        let http = response as! HTTPURLResponse
+        let result = APIResult(statusCode: http.statusCode, data: data)
+        let envelope = try JSONDecoder().decode(AiSearchEnvelope.self, from: data)
+        return (result, envelope.results)
     }
 
     public func notifications() async throws -> (APIResult, [PlatformNotification]) {
