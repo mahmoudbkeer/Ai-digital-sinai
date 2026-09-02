@@ -1,0 +1,7 @@
+Product Detail + Subscription Android API test evidence
+Command: ./gradlew :app:testDebugUnitTest :app:assembleDebug --no-daemon
+Result: BUILD SUCCESSFUL
+
+Product Detail test executes PlatformApi.productDetail("product-1") against OkHttp MockWebServer and verifies GET /api/platform/products/product-1, Bearer token, x-tenant-id, and all fields: id, business_id, sku, name, description, category, price_cents, currency, status, created_at, updated_at. The Marketplace detail action invokes this method and renders the returned fields in Compose.
+
+Subscription tests execute PlatformApi.subscription() and subscriptionEntitlements() against OkHttp MockWebServer and verify GET /api/platform/subscription and GET /api/platform/subscription/entitlements, Bearer token, x-tenant-id, planCode, status, and entitlement feature values. The Compose Subscription section renders plan, status, price, trial days, and features.

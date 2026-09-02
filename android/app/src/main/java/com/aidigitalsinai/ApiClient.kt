@@ -93,6 +93,20 @@ data class AnalyticsOverview(
     val notifications: Int
 )
 
+data class SubscriptionSnapshot(
+    val id: String?,
+    val planCode: String,
+    val status: String,
+    val priceCents: Int,
+    val trialDays: Int
+)
+
+data class SubscriptionEntitlements(
+    val planCode: String,
+    val status: String,
+    val features: Map<String, String>
+)
+
 class PlatformApi(private val baseUrl: String, private val session: SessionStoreContract) {
     fun login(email: String, password: String): ApiResult = request("POST", "/api/platform/auth/login", JSONObject().apply {
         put("email", email)
@@ -103,6 +117,41 @@ class PlatformApi(private val baseUrl: String, private val session: SessionStore
             val tenants = result.body.optJSONArray("tenants")
             session.tenantId = tenants?.optJSONObject(0)?.optString("tenant_id")
         }
+    }
+
+    fun subscription(): Pair<ApiResult, SubscriptionSnapshot?> {
+        val result = request("GET", "/api/platform/subscription", null, authenticated = true)
+        val item = result.body.optJSONObject("subscription")
+        val subscription = item?.let {
+            SubscriptionSnapshot(
+                id = it.optString("id").ifBlank { null },
+                planCode = it.optString("plan_code"),
+                status = it.optString("status"),
+                priceCents = it.optInt("price_cents"),
+                trialDays = it.optInt("trial_days")
+            )
+        }
+        return result to subscription
+    }
+
+    fun subscriptionEntitlements(): Pair<ApiResult, SubscriptionEntitlements?> {
+        val result = request("GET", "/api/platform/subscription/entitlements", null, authenticated = true)
+        val item = result.body.optJSONObject("subscription")
+        val features = buildMap {
+            val values = result.body.optJSONArray("features") ?: return@buildMap
+            for (index in 0 until values.length()) {
+                val feature = values.optJSONObject(index) ?: continue
+                put(feature.optString("feature"), feature.optString("limit_value"))
+            }
+        }
+        val entitlements = item?.let {
+            SubscriptionEntitlements(
+                planCode = it.optString("plan_code"),
+                status = it.optString("status"),
+                features = features
+            )
+        }
+        return result to entitlements
     }
 
     fun analyticsOverview(): Pair<ApiResult, AnalyticsOverview> {

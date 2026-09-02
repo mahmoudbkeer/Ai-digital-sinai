@@ -66,6 +66,9 @@ private fun LoginScreen(api: PlatformApi, store: SessionStore) {
     var searchLoading by remember { mutableStateOf(false) }
     var analytics by remember { mutableStateOf<AnalyticsOverview?>(null) }
     var analyticsLoading by remember { mutableStateOf(false) }
+    var subscription by remember { mutableStateOf<SubscriptionSnapshot?>(null) }
+    var entitlements by remember { mutableStateOf<SubscriptionEntitlements?>(null) }
+    var subscriptionLoading by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
     Column(
@@ -106,7 +109,13 @@ private fun LoginScreen(api: PlatformApi, store: SessionStore) {
                         val (analyticsResult, loadedAnalytics) = withContext(Dispatchers.IO) { api.analyticsOverview() }
                         analytics = loadedAnalytics
                         analyticsLoading = false
-                        "نجح الاتصال: HTTP ${result.status}. Marketplace HTTP ${productsResult.status}. Cart HTTP ${cartResult.status}. Notifications HTTP ${notificationsResult.status}. Analytics HTTP ${analyticsResult.status}. tenant=${store.tenantId}"
+                        subscriptionLoading = true
+                        val (_, loadedSubscription) = withContext(Dispatchers.IO) { api.subscription() }
+                        val (_, loadedEntitlements) = withContext(Dispatchers.IO) { api.subscriptionEntitlements() }
+                        subscription = loadedSubscription
+                        entitlements = loadedEntitlements
+                        subscriptionLoading = false
+                        "نجح الاتصال: HTTP ${result.status}. Marketplace HTTP ${productsResult.status}. Cart HTTP ${cartResult.status}. Notifications HTTP ${notificationsResult.status}. Analytics HTTP ${analyticsResult.status}. Subscription loaded. tenant=${store.tenantId}"
                     } else {
                         "فشل الطلب: HTTP ${result.status} — ${result.body.optString("message", "تعذر الاتصال")}" 
                     }
@@ -248,6 +257,21 @@ private fun LoginScreen(api: PlatformApi, store: SessionStore) {
                         Text("Notifications: ${overview.notifications}")
                     }
                 }
+            }
+            Text("Subscription", style = MaterialTheme.typography.headlineSmall)
+            if (subscriptionLoading) CircularProgressIndicator()
+            else {
+                subscription?.let { plan ->
+                    Card(modifier = Modifier.fillMaxWidth()) {
+                        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                            Text("Plan: ${plan.planCode}")
+                            Text("Status: ${plan.status}")
+                            Text("Price: ${plan.priceCents / 100.0} EGP")
+                            Text("Trial days: ${plan.trialDays}")
+                            entitlements?.features?.forEach { (feature, limit) -> Text("$feature: $limit") }
+                        }
+                    }
+                } ?: Text("لا يوجد اشتراك لهذا المستأجر.")
             }
         }
     }
