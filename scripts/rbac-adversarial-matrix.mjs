@@ -31,6 +31,15 @@ try{
   ["POS","/api/platform/pos/sessions",["Owner","Manager"]]
  ];
  for(const [resource,path,allowedRoles] of batch1){ for(const label of Object.keys(roles)){const response=await call(path,{headers:h(roleUsers[label])}); const expected=allowedRoles.includes(label)||label==="Admin"||label==="Super Admin"; note(`batch1 ${resource} role=${label}`,expected?response.status!==403:response.status===403,`Expected ${expected?"ALLOW":"DENY"}, Actual HTTP ${response.status}`);} const idor=await call(path,{headers:h(roleUsers.Owner,b.tenantId)}); note(`batch1 ${resource} tenant mismatch`,idor.status===403,`HTTP ${idor.status}`); }
+ const batch2=[
+  ["CRM/Customer","/api/platform/customers",["Owner","Manager","Employee","Service Provider"]],
+  ["Employee","/api/platform/employees",["Owner","Manager"]],
+  ["Supplier","/api/platform/suppliers",["Owner","Manager"]],
+  ["Catalog/Marketplace","/api/platform/marketplace/catalog",["Owner","Manager","Employee","Consumer"]],
+  ["Marketplace Offers","/api/platform/offers",["Owner","Manager","Employee","Consumer"]],
+  ["Marketplace Reviews","/api/platform/marketplace/reviews",["Owner","Manager","Employee","Consumer"]]
+ ];
+ for(const [resource,path,allowedRoles] of batch2){ for(const label of Object.keys(roles)){const response=await call(path,{headers:h(roleUsers[label])}); const expected=allowedRoles.includes(label)||label==="Admin"||label==="Super Admin"; note(`batch2 ${resource} role=${label}`,expected?response.status!==403:response.status===403,`Expected ${expected?"ALLOW":"DENY"}, Actual HTTP ${response.status}`);} const idor=await call(path,{headers:h(roleUsers.Owner,b.tenantId)}); note(`batch2 ${resource} tenant mismatch`,idor.status===403,`HTTP ${idor.status}`); }
  const hb=h(b); const product=await call("/api/platform/products",{method:"POST",headers:hb,body:JSON.stringify({businessId:b.businessId,sku:`B-${Date.now()}`,name:"Tenant B Product",priceCents:500})}); note("create Tenant B product",product.status===201,`HTTP ${product.status}`); const p=await product.json();
  await call("/api/platform/inventory/movements",{method:"POST",headers:hb,body:JSON.stringify({branchId:b.branchId,productId:p.productId,quantityDelta:3,reason:"rbac",idempotencyKey:`rbac-stock-${Date.now()}`})});
  const or=await call("/api/platform/orders",{method:"POST",headers:hb,body:JSON.stringify({businessId:b.businessId,branchId:b.branchId,items:[{productId:p.productId,quantity:1}]})}); note("create Tenant B order",or.status===201,`HTTP ${or.status}`); const o=await or.json();

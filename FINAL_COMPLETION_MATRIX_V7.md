@@ -68,6 +68,8 @@ Mobile                   20% ×  2% = 0.40
 
 ## Exact remaining gaps
 
+**resource-ID IDOR يُختبر فقط حيث يوجد GET-by-ID endpoint فعلي؛ الموارد collection-only تُختبر على مستوى route-level tenant isolation فقط، وتُعدّ ذلك تغطيتها القصوى الممكنة.**
+
 1. Managed PostgreSQL production activation and encrypted offsite restore drill.
 2. Managed Redis queues, workers, retry/DLQ, locks, and distributed idempotency.
 3. Object Storage production bucket, malware scanning, retention, and deletion evidence.
