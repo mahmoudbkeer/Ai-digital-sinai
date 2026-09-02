@@ -37,8 +37,7 @@ public struct AnalyticsOverview: Decodable, Sendable {
     public let notifications: Int
 
     public init(from decoder: Decoder) throws {
-        let root = try decoder.container(keyedBy: RootKeys.self)
-        let analytics = try root.nestedContainer(keyedBy: AnalyticsKeys.self, forKey: .analytics)
+        let analytics = try decoder.container(keyedBy: AnalyticsKeys.self)
         let marketplace = try analytics.nestedContainer(keyedBy: MarketplaceKeys.self, forKey: .marketplace)
         let platform = try analytics.nestedContainer(keyedBy: PlatformKeys.self, forKey: .platform)
         orders = try marketplace.decode(Int.self, forKey: .orders)
@@ -46,7 +45,6 @@ public struct AnalyticsOverview: Decodable, Sendable {
         notifications = try platform.decode(Int.self, forKey: .notifications)
     }
 
-    private enum RootKeys: String, CodingKey { case analytics }
     private enum AnalyticsKeys: String, CodingKey { case marketplace, platform }
     private enum MarketplaceKeys: String, CodingKey { case orders }
     private enum PlatformKeys: String, CodingKey { case deliveries, notifications }
