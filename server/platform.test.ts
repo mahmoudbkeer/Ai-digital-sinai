@@ -160,7 +160,7 @@ describe("platform core", () => {
     expect(campaign.status).toBe(201);
     const notification = await request("/api/platform/notifications", { method: "POST", headers, body: JSON.stringify({ userId: a.userId, channel: "EMAIL", title: "تنبيه", body: "اختبار" }) });
     expect(notification.status).toBe(201);
-    await expect(notification.json()).resolves.toMatchObject({ delivery: "requires-setup" });
+    await expect(notification.json()).resolves.toMatchObject({ delivery: "queued" });
   });
 
   it("requires delivery proof and blocks sensitive agent actions", async () => {

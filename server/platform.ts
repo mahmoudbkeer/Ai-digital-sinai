@@ -17,13 +17,11 @@ import {
   type AsyncDataPlane,
 } from "./dataPlane";
 import { resolvePaymentProvider } from "./paymentProviders";
-import {
-  resolveNotificationProvider,
-  type NotificationChannel,
-} from "./notificationProviders";
+import { type NotificationChannel } from "./notificationProviders";
 import { resolveAIProvider } from "./aiProviders";
 import { createTotpSecret, createTotpUri, verifyTotp } from "./mfa";
 import { chunkDocument, resolveEmbeddingProvider } from "./rag";
+import { resolveRedisProvider } from "./integrations";
 
 export const ROLES = [
   "SUPER_ADMIN",
@@ -2034,21 +2032,28 @@ export function createPlatformRouter(): Router {
         if (delivery.attempts >= 5)
           throw httpError(429, "retry-limit", "تم تجاوز حد إعادة المحاولة.");
         const channel = delivery.provider.toUpperCase() as NotificationChannel;
-        const provider = resolveNotificationProvider(channel);
-        const result = await provider.enqueue({
-          recipientUserId: delivery.user_id,
+        const job = {
+          type: "notification" as const,
+          id: randomUUID(),
+          tenantId: context.tenantId,
+          notificationId: req.params.notificationId,
+          deliveryId: delivery.id,
+          userId: delivery.user_id,
+          channel,
           title: delivery.title,
           body: delivery.body,
-        });
-        const nextStatus = result.status;
+          attempts: delivery.attempts,
+        };
+        const queued = await resolveRedisProvider().enqueue("notifications", JSON.stringify(job), 86_400);
+        const nextStatus = queued === "QUEUED" ? "QUEUED" : "REQUIRES_SETUP";
         await db
           .prepare(
-            "UPDATE notification_deliveries SET status = ?, attempts = attempts + 1, last_error = ?, next_attempt_at = ?, updated_at = ? WHERE id = ? AND tenant_id = ?"
+            "UPDATE notification_deliveries SET status = ?, last_error = ?, next_attempt_at = ?, updated_at = ? WHERE id = ? AND tenant_id = ?"
           )
           .run(
             nextStatus,
-            result.error ?? null,
-            nextStatus === "QUEUED" ? now() : null,
+            queued === "QUEUED" ? null : "Redis queue unavailable.",
+            queued === "QUEUED" ? now() : null,
             now(),
             delivery.id,
             context.tenantId
@@ -2063,7 +2068,7 @@ export function createPlatformRouter(): Router {
           {
             provider: delivery.provider,
             status: nextStatus,
-            error: result.error,
+            error: queued === "QUEUED" ? undefined : "Redis queue unavailable.",
           }
         );
         return res.status(202).json({
@@ -2125,25 +2130,36 @@ export function createPlatformRouter(): Router {
             body.trim(),
             now()
           );
-        const provider = resolveNotificationProvider(notificationChannel);
-        const delivery = await provider.enqueue({
-          recipientUserId: userId,
-          title: title.trim(),
-          body: body.trim(),
-        });
-        const deliveryStatus = delivery.status;
+        const deliveryId = randomUUID();
+        const deliveryStatus = "QUEUED";
         await db
           .prepare(
-            "INSERT INTO notification_deliveries (id, tenant_id, notification_id, provider, status, attempts, updated_at) VALUES (?, ?, ?, ?, ?, 0, ?)"
+            "INSERT INTO notification_deliveries (id, tenant_id, notification_id, provider, status, attempts, next_attempt_at, updated_at) VALUES (?, ?, ?, ?, ?, 0, ?, ?)"
           )
           .run(
-            randomUUID(),
+            deliveryId,
             context.tenantId,
             notificationId,
             notificationChannel.toLowerCase(),
             deliveryStatus,
+            now(),
             now()
           );
+        const queued = await resolveRedisProvider().enqueue("notifications", JSON.stringify({
+          type: "notification",
+          id: randomUUID(),
+          tenantId: context.tenantId,
+          notificationId,
+          deliveryId,
+          userId,
+          channel: notificationChannel,
+          title: title.trim(),
+          body: body.trim(),
+        }), 86_400);
+        if (queued !== "QUEUED") {
+          await db.prepare("UPDATE notification_deliveries SET status = 'REQUIRES_SETUP', last_error = ?, next_attempt_at = NULL, updated_at = ? WHERE id = ? AND tenant_id = ?").run("Redis queue unavailable.", now(), deliveryId, context.tenantId);
+        }
+        const delivery = { status: queued === "QUEUED" ? "QUEUED" : "REQUIRES_SETUP", error: queued === "QUEUED" ? undefined : "Redis queue unavailable." };
         await recordAudit(
           db,
           context,

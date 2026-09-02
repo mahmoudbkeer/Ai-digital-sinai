@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { resolveRedisProvider } from "../server/integrations.ts";
+import { isNotificationJob, markNotificationDlq, markNotificationRetry, processNotificationJob } from "../server/notificationWorker.ts";
 
 const queue = process.env.WORKER_QUEUE ?? "default";
 const dlq = `${queue}.dlq`;
@@ -18,14 +19,20 @@ async function handle(raw) {
   if (!job.id) job.id = `${Date.now()}-${processed}`;
   try {
     if (job.fail === true) throw new Error("job requested failure");
+    const result = isNotificationJob(job)
+      ? await processNotificationJob(job)
+      : { status: "PROCESSED" };
     processed += 1;
-    console.log(JSON.stringify({ status: "PROCESSED", queue, jobId: job.id, attempts }));
+    console.log(JSON.stringify({ status: result.status === "DELIVERED" ? "DELIVERED" : "PROCESSED", queue, jobId: job.id, attempts }));
   } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (isNotificationJob(job) && attempts < maxAttempts) await markNotificationRetry(job);
     if (attempts < maxAttempts) {
       await redis.enqueue(queue, JSON.stringify({ ...job, attempts }), 86_400);
       console.error(JSON.stringify({ status: "RETRY_QUEUED", queue, jobId: job.id, attempts }));
     } else {
-      await redis.enqueue(dlq, JSON.stringify({ ...job, attempts, error: error instanceof Error ? error.message : String(error) }), 2_592_000);
+      if (isNotificationJob(job)) await markNotificationDlq(job, message);
+      await redis.enqueue(dlq, JSON.stringify({ ...job, attempts, error: message }), 2_592_000);
       console.error(JSON.stringify({ status: "DLQ", queue, jobId: job.id, attempts }));
     }
   }

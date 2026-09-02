@@ -182,32 +182,61 @@ export function resolveRedisProvider(): RedisProvider {
     const socket: Socket = tls
       ? (connectTls({ host: parsed.hostname, port, servername: parsed.hostname }) as Socket)
       : connectTcp({ host: parsed.hostname, port });
-    const chunks: Buffer[] = [];
-    const frame = `*${parts.length}\r\n${parts.map(part => `$${Buffer.byteLength(part)}\r\n${part}\r\n`).join("")}`;
+    const encode = (commandParts: string[]) =>
+      `*${commandParts.length}\r\n${commandParts.map(part => `$${Buffer.byteLength(part)}\r\n${part}\r\n`).join("")}`;
+    const password = parsed.password ? decodeURIComponent(parsed.password) : undefined;
+    const database = parsed.pathname.length > 1 ? parsed.pathname.slice(1) : undefined;
+    const frames = [
+      ...(password ? [encode(["AUTH", password])] : []),
+      ...(database ? [encode(["SELECT", database])] : []),
+      encode(parts),
+    ];
+    const expectedReplies = frames.length;
+    type RespValue = { value: string | null; next: number };
+    const parse = (buffer: Buffer, offset: number): RespValue | undefined => {
+      const marker = String.fromCharCode(buffer[offset] ?? 0);
+      const lineEnd = buffer.indexOf("\r\n", offset + 1, "utf8");
+      if (lineEnd < 0) return undefined;
+      const line = buffer.toString("utf8", offset + 1, lineEnd);
+      if (marker === "+" || marker === ":") return { value: line, next: lineEnd + 2 };
+      if (marker === "-") throw new Error(`Redis command failed: ${line}`);
+      if (marker === "$") {
+        const length = Number(line);
+        if (length === -1) return { value: null, next: lineEnd + 2 };
+        const bodyStart = lineEnd + 2;
+        const bodyEnd = bodyStart + length;
+        if (buffer.length < bodyEnd + 2) return undefined;
+        return { value: buffer.toString("utf8", bodyStart, bodyEnd), next: bodyEnd + 2 };
+      }
+      throw new Error("Unsupported Redis RESP response");
+    };
     return new Promise((resolve, reject) => {
       let settled = false;
-      const finish = (callback: () => void) => { if (!settled) { settled = true; socket.destroy(); callback(); } };
+      let buffer = Buffer.alloc(0);
+      let offset = 0;
+      let replies = 0;
+      let last: string | null = null;
+      const finish = (callback: () => void) => {
+        if (!settled) { settled = true; socket.destroy(); callback(); }
+      };
       socket.setTimeout(Number(process.env.REDIS_TIMEOUT_MS ?? 3000));
-      socket.on("connect", () => {
-        const password = parsed.password ? decodeURIComponent(parsed.password) : undefined;
-        const database = parsed.pathname.length > 1 ? parsed.pathname.slice(1) : undefined;
-        const auth = password ? `*2\r\n$4\r\nAUTH\r\n$${Buffer.byteLength(password)}\r\n${password}\r\n` : "";
-        const select = database ? `*2\r\n$6\r\nSELECT\r\n$${Buffer.byteLength(database)}\r\n${database}\r\n` : "";
-        socket.write(auth + select + frame);
+      socket.on("connect", () => socket.write(frames.join("")));
+      socket.on("data", chunk => {
+        if (settled) return;
+        buffer = Buffer.concat([buffer, Buffer.from(chunk)]);
+        try {
+          while (replies < expectedReplies) {
+            const parsedReply = parse(buffer, offset);
+            if (!parsedReply) return;
+            offset = parsedReply.next;
+            replies += 1;
+            last = parsedReply.value;
+          }
+          finish(() => resolve(last));
+        } catch (error) {
+          finish(() => reject(error));
+        }
       });
-      socket.on("data", chunk => chunks.push(Buffer.from(chunk)));
-      socket.on("end", () => finish(() => {
-        const response = Buffer.concat(chunks).toString("utf8").trim();
-        const lines = response.split("\r\n");
-        const markerIndex = lines.reduce((index, line, current) =>
-          /^[+\-:$*]/.test(line) ? current : index, -1);
-        const marker = lines[markerIndex] ?? response;
-        if (marker.startsWith("-")) reject(new Error("Redis command failed"));
-        else if (marker === "$-1") resolve(null);
-        else if (marker.startsWith("$")) resolve(lines[markerIndex + 1] ?? null);
-        else if (marker.startsWith(":")) resolve(marker.slice(1));
-        else resolve(marker.startsWith("+") ? marker.slice(1) : marker);
-      }));
       socket.on("timeout", () => finish(() => reject(new Error("Redis timeout"))));
       socket.on("error", error => finish(() => reject(error)));
     });

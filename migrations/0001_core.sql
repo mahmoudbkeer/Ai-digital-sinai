@@ -439,7 +439,7 @@ CREATE TABLE IF NOT EXISTS notifications (
   channel TEXT NOT NULL CHECK (channel IN ('IN_APP','PUSH','SMS','EMAIL')),
   title TEXT NOT NULL,
   body TEXT NOT NULL,
-  status TEXT NOT NULL DEFAULT 'QUEUED' CHECK (status IN ('QUEUED','SENT','FAILED','READ')),
+  status TEXT NOT NULL DEFAULT 'QUEUED' CHECK (status IN ('QUEUED','SENT','DELIVERED','FAILED','READ')),
   created_at INTEGER NOT NULL,
   UNIQUE (tenant_id, id)
 );
@@ -626,7 +626,7 @@ CREATE TABLE IF NOT EXISTS notification_deliveries (
   tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
   notification_id TEXT NOT NULL REFERENCES notifications(id) ON DELETE CASCADE,
   provider TEXT NOT NULL,
-  status TEXT NOT NULL CHECK (status IN ('QUEUED','SENT','FAILED','REQUIRES_SETUP')),
+  status TEXT NOT NULL CHECK (status IN ('QUEUED','SENT','DELIVERED','FAILED','REQUIRES_SETUP')),
   attempts INTEGER NOT NULL DEFAULT 0 CHECK (attempts >= 0),
   last_error TEXT,
   next_attempt_at INTEGER,
