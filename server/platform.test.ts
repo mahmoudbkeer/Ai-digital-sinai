@@ -186,6 +186,16 @@ describe("platform core", () => {
     await expect(activeAds.json()).resolves.toMatchObject({ ads: [expect.objectContaining({ id: adId, status: "ACTIVE" })] });
   });
 
+  it("returns database-backed analytics across user, business, marketplace, financial, AI, and platform domains", async () => {
+    const identity = await register("analytics-a@example.com", "Analytics Tenant");
+    const headers = auth(identity);
+    const subscription = await request("/api/platform/subscriptions", { method: "POST", headers, body: JSON.stringify({ planCode: "trial" }) });
+    expect(subscription.status).toBe(201);
+    const overview = await request("/api/platform/analytics/overview", { headers });
+    expect(overview.status).toBe(200);
+    await expect(overview.json()).resolves.toMatchObject({ source: "database", analytics: { user: expect.any(Object), business: expect.any(Object), marketplace: expect.any(Object), financial: expect.any(Object), ai: expect.any(Object), platform: expect.any(Object) } });
+  });
+
   it("requires delivery proof and blocks sensitive agent actions", async () => {
     const identity = await register("owner-k@example.com", "Tenant K"); const headers = auth(identity);
     const productResponse = await request("/api/platform/products", { method: "POST", headers, body: JSON.stringify({ businessId: identity.businessId, sku: "SKU-DELIVERY", name: "منتج التسليم", priceCents: 200 }) }); const { productId } = await productResponse.json() as { productId: string };
