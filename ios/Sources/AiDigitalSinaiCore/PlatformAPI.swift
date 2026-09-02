@@ -149,7 +149,7 @@ public final class PlatformAPI {
             id: nested?.id,
             branchID: nested?.branchID,
             items: nested?.items.isEmpty == false ? nested!.items : envelope.items,
-            totalCents: nested?.totalCents ?? envelope.totalCents
+            totalCents: (nested?.totalCents ?? 0) > 0 ? (nested?.totalCents ?? 0) : envelope.totalCents
         )
         return (result, cart)
     }
