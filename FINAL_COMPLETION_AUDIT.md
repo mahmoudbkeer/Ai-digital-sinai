@@ -289,3 +289,17 @@ The current adversarial script explicitly exercises **5 concrete cross-tenant re
 `pnpm test:security:adversarial` was rerun on 2026-09-02 and returned exit code 0 with the existing 64 abstract checks and 5 concrete IDOR resource checks passing. This is evidence of the existing scope only, not evidence of the unimplemented 23-resource exhaustive matrix.
 
 Super Admin authenticated runtime remains unverified because no real browser session or credential entry was available in this execution. No bypass or synthetic Super Admin mutation was used.
+
+## Super Admin local runtime proof — 2026-09-02
+
+تمت إضافة إثبات HTTP داخل `scripts/rbac-adversarial-matrix.mjs` باستخدام مستخدم Super Admin seeded داخل SQLite الاختباري ثم تسجيل دخوله عبر `/api/platform/auth/login` للحصول على session token حقيقي. بعد ذلك نفّذ الاختبار:
+
+1. `GET /api/platform/admin/feature-flags` وأثبت `200`.
+2. `PATCH /api/platform/admin/feature-flags/:key` بتعديل فعلي لعلم feature flag وأثبت `200`.
+3. `GET /api/platform/admin/audit` وأثبت وجود `admin.feature_flag.update` للـkey المعدل.
+
+هذا يثبت Login → Session → Read → Mutation → Audit Event محليًا. الـseed الداخلي كافٍ لإثبات المسار في بيئة الاختبار؛ لا يلزم Gmail لإثبات code/runtime المحلي. Gmail الحقيقي مطلوب فقط لإثبات حساب الإنتاج الفعلي وربط ملكيته، وليس لاختبار العقد الخادمي المحلي.
+
+## RBAC scope remains explicit
+
+`pnpm test:security:adversarial` ما زال يثبت 64 abstract role-operation checks و5 concrete IDOR resource families: Product, Order, Invoice, Payment Intent, Customer. لم يتم الادعاء بتحويل ذلك إلى exhaustive 28-resource Role × Resource × Action matrix؛ الـ23 resource families المتبقية تحتاج fixtures ومسارات IDOR/action-specific مستقلة قبل تسميتها مكتملة.
