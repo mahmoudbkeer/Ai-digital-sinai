@@ -1,0 +1,11 @@
+Product Detail Android API test evidence
+Command: ./gradlew :app:testDebugUnitTest :app:assembleDebug --no-daemon
+Result: BUILD SUCCESSFUL
+Test: PlatformApiProductDetailTest.productDetailBuildsAuthenticatedGetAndParsesAllFields
+
+The test executes PlatformApi.productDetail("product-1") against OkHttp MockWebServer and verifies:
+GET /api/platform/products/product-1 -> HTTP 200
+Authorization: Bearer detail-token
+x-tenant-id: tenant-detail
+Parsed fields: id, business_id, sku, name, description, category, price_cents, currency, status, created_at, updated_at.
+The Marketplace card opens the detail action, which invokes productDetail(product.id) and renders the returned fields in Compose.

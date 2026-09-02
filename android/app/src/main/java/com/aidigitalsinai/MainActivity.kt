@@ -52,6 +52,8 @@ private fun LoginScreen(api: PlatformApi, store: SessionStore) {
     var loading by remember { mutableStateOf(false) }
     var marketplaceLoading by remember { mutableStateOf(false) }
     var products by remember { mutableStateOf(emptyList<MarketplaceProduct>()) }
+    var selectedProduct by remember { mutableStateOf<ProductDetail?>(null) }
+    var detailLoading by remember { mutableStateOf(false) }
     var authenticated by remember { mutableStateOf(store.token != null && store.tenantId != null) }
     var cartLoading by remember { mutableStateOf(false) }
     var cart by remember { mutableStateOf<CartSnapshot?>(null) }
@@ -132,6 +134,14 @@ private fun LoginScreen(api: PlatformApi, store: SessionStore) {
                             product.category?.let { Text(it, style = MaterialTheme.typography.labelMedium) }
                             product.description?.let { Text(it) }
                             Button(onClick = {
+                                detailLoading = true
+                                scope.launch {
+                                    val (_, detail) = withContext(Dispatchers.IO) { api.productDetail(product.id) }
+                                    selectedProduct = detail
+                                    detailLoading = false
+                                }
+                            }, enabled = !detailLoading) { Text("التفاصيل") }
+                            Button(onClick = {
                                 cartLoading = true
                                 scope.launch {
                                     val result = withContext(Dispatchers.IO) {
@@ -144,6 +154,22 @@ private fun LoginScreen(api: PlatformApi, store: SessionStore) {
                                 }
                             }, enabled = !cartLoading) { Text("أضف للسلة") }
                         }
+                    }
+                }
+            }
+            if (detailLoading) CircularProgressIndicator()
+            selectedProduct?.let { detail ->
+                Card(modifier = Modifier.fillMaxWidth()) {
+                    Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                        Text("Product Detail", style = MaterialTheme.typography.titleLarge)
+                        Text("${detail.name} — ${detail.priceCents / 100.0} ${detail.currency}")
+                        Text("SKU: ${detail.sku}")
+                        Text("Business: ${detail.businessId}")
+                        Text("Category: ${detail.category ?: "—"}")
+                        Text("Status: ${detail.status}")
+                        detail.description?.let { Text(it) }
+                        Text("Created: ${detail.createdAt}")
+                        Text("Updated: ${detail.updatedAt}")
                     }
                 }
             }

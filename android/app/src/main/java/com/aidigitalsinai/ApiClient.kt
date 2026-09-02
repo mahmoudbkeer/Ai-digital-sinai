@@ -35,6 +35,20 @@ data class MarketplaceProduct(
     val category: String?
 )
 
+data class ProductDetail(
+    val id: String,
+    val businessId: String,
+    val sku: String,
+    val name: String,
+    val description: String?,
+    val category: String?,
+    val priceCents: Int,
+    val currency: String,
+    val status: String,
+    val createdAt: Long,
+    val updatedAt: Long
+)
+
 data class CartItem(
     val id: String,
     val productId: String,
@@ -185,6 +199,27 @@ class PlatformApi(private val baseUrl: String, private val session: SessionStore
             currency = result.body.optString("currency")
         ) else null
         return result to checkout
+    }
+
+    fun productDetail(productId: String): Pair<ApiResult, ProductDetail?> {
+        val result = request("GET", "/api/platform/products/$productId", null, authenticated = true)
+        val item = result.body.optJSONObject("product")
+        val product = item?.let {
+            ProductDetail(
+                id = it.optString("id"),
+                businessId = it.optString("business_id"),
+                sku = it.optString("sku"),
+                name = it.optString("name"),
+                description = it.optString("description").ifBlank { null },
+                category = it.optString("category").ifBlank { null },
+                priceCents = it.optInt("price_cents"),
+                currency = it.optString("currency"),
+                status = it.optString("status"),
+                createdAt = it.optLong("created_at"),
+                updatedAt = it.optLong("updated_at")
+            )
+        }
+        return result to product
     }
 
     fun products(): Pair<ApiResult, List<MarketplaceProduct>> {
