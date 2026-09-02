@@ -54,6 +54,21 @@ public struct Cart: Decodable, Sendable {
         case id, branchID = "branch_id", items
         case totalCents = "totalCents"
     }
+
+    public init(id: String?, branchID: String?, items: [CartItem], totalCents: Int) {
+        self.id = id
+        self.branchID = branchID
+        self.items = items
+        self.totalCents = totalCents
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decodeIfPresent(String.self, forKey: .id)
+        branchID = try container.decodeIfPresent(String.self, forKey: .branchID)
+        items = try container.decodeIfPresent([CartItem].self, forKey: .items) ?? []
+        totalCents = try container.decodeIfPresent(Int.self, forKey: .totalCents) ?? 0
+    }
 }
 
 public struct CheckoutResult: Decodable, Sendable {
@@ -129,7 +144,13 @@ public final class PlatformAPI {
         let http = response as! HTTPURLResponse
         let result = APIResult(statusCode: http.statusCode, data: data)
         let envelope = try JSONDecoder().decode(CartEnvelope.self, from: data)
-        let cart = envelope.cart ?? Cart(id: nil, branchID: nil, items: envelope.items, totalCents: envelope.totalCents)
+        let nested = envelope.cart
+        let cart = Cart(
+            id: nested?.id,
+            branchID: nested?.branchID,
+            items: nested?.items.isEmpty == false ? nested!.items : envelope.items,
+            totalCents: nested?.totalCents ?? envelope.totalCents
+        )
         return (result, cart)
     }
 
