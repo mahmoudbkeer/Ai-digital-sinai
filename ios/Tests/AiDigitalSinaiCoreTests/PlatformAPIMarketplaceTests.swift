@@ -15,7 +15,7 @@ final class PlatformAPIMarketplaceTests: XCTestCase {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [MarketplaceURLProtocol.self]
         let api = PlatformAPI(baseURL: URL(string: "https://api.example.test")!, session: URLSession(configuration: configuration))
-        api.authSession = AuthSession(token: "marketplace-token", tenantID: "tenant-marketplace", branchID: nil)
+        api.setAuthSession(AuthSession(token: "marketplace-token", tenantID: "tenant-marketplace", branchID: nil))
 
         let (result, products) = try await api.products()
 

@@ -54,6 +54,10 @@ public final class PlatformAPI {
         self.session = session
     }
 
+    public func setAuthSession(_ session: AuthSession) {
+        authSession = session
+    }
+
     public func login(email: String, password: String) async throws -> (APIResult, AuthSession?) {
         try await authenticate(path: "/api/platform/auth/login", body: ["email": email, "password": password])
     }
