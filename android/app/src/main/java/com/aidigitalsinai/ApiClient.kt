@@ -66,6 +66,13 @@ data class PlatformNotification(
     val status: String
 )
 
+data class AiSearchResult(
+    val documentId: String,
+    val title: String,
+    val snippet: String,
+    val sourceType: String
+)
+
 class PlatformApi(private val baseUrl: String, private val session: SessionStoreContract) {
     fun login(email: String, password: String): ApiResult = request("POST", "/api/platform/auth/login", JSONObject().apply {
         put("email", email)
@@ -76,6 +83,25 @@ class PlatformApi(private val baseUrl: String, private val session: SessionStore
             val tenants = result.body.optJSONArray("tenants")
             session.tenantId = tenants?.optJSONObject(0)?.optString("tenant_id")
         }
+    }
+
+    fun aiSearch(query: String): Pair<ApiResult, List<AiSearchResult>> {
+        val result = request("POST", "/api/platform/ai/search", JSONObject().apply {
+            put("query", query)
+        }, authenticated = true)
+        val values = buildList {
+            val items = result.body.optJSONArray("results") ?: return@buildList
+            for (index in 0 until items.length()) {
+                val item = items.optJSONObject(index) ?: continue
+                add(AiSearchResult(
+                    documentId = item.optString("document_id"),
+                    title = item.optString("title"),
+                    snippet = item.optString("snippet"),
+                    sourceType = item.optString("source_type")
+                ))
+            }
+        }
+        return result to values
     }
 
     fun notifications(): Pair<ApiResult, List<PlatformNotification>> {

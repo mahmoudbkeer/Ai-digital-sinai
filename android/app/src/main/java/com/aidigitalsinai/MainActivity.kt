@@ -58,6 +58,10 @@ private fun LoginScreen(api: PlatformApi, store: SessionStore) {
     var checkoutMessage by remember { mutableStateOf("") }
     var notifications by remember { mutableStateOf(emptyList<PlatformNotification>()) }
     var notificationLoading by remember { mutableStateOf(false) }
+    var searchQuery by remember { mutableStateOf("") }
+    var searchResults by remember { mutableStateOf(emptyList<AiSearchResult>()) }
+    var searchMessage by remember { mutableStateOf("") }
+    var searchLoading by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
     Column(
@@ -170,6 +174,35 @@ private fun LoginScreen(api: PlatformApi, store: SessionStore) {
                         Text(notification.title, style = MaterialTheme.typography.titleMedium)
                         Text(notification.body)
                         Text("${notification.channel} / ${notification.status}", style = MaterialTheme.typography.labelMedium)
+                    }
+                }
+            }
+            Text("AI Search", style = MaterialTheme.typography.headlineSmall)
+            OutlinedTextField(
+                value = searchQuery,
+                onValueChange = { searchQuery = it },
+                label = { Text("ابحث في المعرفة") },
+                modifier = Modifier.fillMaxWidth()
+            )
+            Button(
+                onClick = {
+                    searchLoading = true
+                    scope.launch {
+                        val (result, loadedResults) = withContext(Dispatchers.IO) { api.aiSearch(searchQuery) }
+                        searchResults = loadedResults
+                        searchLoading = false
+                        searchMessage = "AI Search HTTP ${result.status} — ${loadedResults.size} نتيجة"
+                    }
+                },
+                enabled = !searchLoading && searchQuery.isNotBlank()
+            ) { if (searchLoading) CircularProgressIndicator() else Text("بحث") }
+            if (searchMessage.isNotBlank()) Text(searchMessage, color = MaterialTheme.colorScheme.primary)
+            searchResults.forEach { item ->
+                Card(modifier = Modifier.fillMaxWidth()) {
+                    Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text(item.title, style = MaterialTheme.typography.titleMedium)
+                        Text(item.snippet)
+                        Text(item.sourceType, style = MaterialTheme.typography.labelMedium)
                     }
                 }
             }

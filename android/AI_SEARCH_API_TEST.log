@@ -1,0 +1,15 @@
+AI Search Android API test evidence
+Command: ./gradlew :app:testDebugUnitTest :app:assembleDebug --no-daemon
+Result: BUILD SUCCESSFUL
+Test: PlatformApiAiSearchTest.aiSearchSendsQueryAndParsesResults
+
+The test executes PlatformApi.aiSearch("Coffee product") against OkHttp MockWebServer and verifies:
+POST /api/platform/ai/search -> HTTP 200
+Authorization: Bearer ai-token
+x-tenant-id: tenant-ai
+JSON query: Coffee product
+Parsed result count: 1
+Parsed document_id: doc-1
+Parsed title: Catalog
+Parsed snippet: Coffee product knowledge
+The Compose home screen contains an Arabic search field and invokes aiSearch(query) on the search button.
