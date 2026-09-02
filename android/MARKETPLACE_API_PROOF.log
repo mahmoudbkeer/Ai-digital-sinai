@@ -1,0 +1,17 @@
+Android Marketplace listing API proof
+Date: 2026-09-02
+Backend: existing AI Digital Sinai API, same tenant-scoped platform contract
+
+POST /api/platform/products
+HTTP 201
+Response: {"ok":true,"productId":"76bf8c3d-ae33-4c3c-beb4-8cd36b366c44"}
+
+GET /api/platform/products
+HTTP 200
+Response: {"ok":true,"products":[{"id":"76bf8c3d-ae33-4c3c-beb4-8cd36b366c44","name":"Web Acceptance Product","category":"local","price_cents":1250,"currency":"EGP","status":"active"}]}
+
+GET /api/platform/products/76bf8c3d-ae33-4c3c-beb4-8cd36b366c44
+HTTP 200
+Response: {"ok":true,"product":{"id":"76bf8c3d-ae33-4c3c-beb4-8cd36b366c44","name":"Web Acceptance Product","price_cents":1250,"currency":"EGP","status":"active"}}
+
+Result: PASS — Android PlatformApi.products() consumes GET /api/platform/products and maps the returned product fields into the Compose listing model. Authentication remains Bearer token + x-tenant-id.

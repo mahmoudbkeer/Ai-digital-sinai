@@ -18,6 +18,15 @@ class SessionStore(context: Context) {
 
 data class ApiResult(val status: Int, val body: JSONObject)
 
+data class MarketplaceProduct(
+    val id: String,
+    val name: String,
+    val description: String?,
+    val priceCents: Int,
+    val currency: String,
+    val category: String?
+)
+
 class PlatformApi(private val baseUrl: String, private val session: SessionStore) {
     fun login(email: String, password: String): ApiResult = request("POST", "/api/platform/auth/login", JSONObject().apply {
         put("email", email)
@@ -28,6 +37,25 @@ class PlatformApi(private val baseUrl: String, private val session: SessionStore
             val tenants = result.body.optJSONArray("tenants")
             session.tenantId = tenants?.optJSONObject(0)?.optString("tenant_id")
         }
+    }
+
+    fun products(): Pair<ApiResult, List<MarketplaceProduct>> {
+        val result = request("GET", "/api/platform/products", null, authenticated = true)
+        val values = buildList {
+            val items = result.body.optJSONArray("products") ?: return@buildList
+            for (index in 0 until items.length()) {
+                val item = items.optJSONObject(index) ?: continue
+                add(MarketplaceProduct(
+                    id = item.optString("id"),
+                    name = item.optString("name"),
+                    description = item.optString("description").ifBlank { null },
+                    priceCents = item.optInt("price_cents"),
+                    currency = item.optString("currency", "EGP"),
+                    category = item.optString("category").ifBlank { null }
+                ))
+            }
+        }
+        return result to values
     }
 
     fun register(email: String, password: String, displayName: String, tenantName: String): ApiResult = request("POST", "/api/platform/auth/register", JSONObject().apply {
