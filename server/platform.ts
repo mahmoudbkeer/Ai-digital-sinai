@@ -131,6 +131,8 @@ const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     "ai.read",
     "notification.read",
     "notification.manage",
+    "advertising.read",
+    "advertising.manage",
     "audit.read",
   ],
   ACCOUNTANT: [
@@ -2228,6 +2230,28 @@ export function createPlatformRouter(): Router {
   );
 
   router.get(
+    "/analytics/overview",
+    authenticate,
+    async (req: AuthenticatedRequest, res, next) => {
+      try {
+        const context = currentContext(req);
+        assertScope(context, context.tenantId, "business.read");
+        const db = getDataPlane();
+        await assertEntitlement(db, context, "analytics.read");
+        const [users, businesses, marketplace, financial, ai, platform] = await Promise.all([
+          db.prepare("SELECT COUNT(*) AS total, SUM(CASE WHEN status = 'active' THEN 1 ELSE 0 END) AS active FROM tenant_members tm JOIN users u ON u.id = tm.user_id WHERE tm.tenant_id = ?").get(context.tenantId),
+          db.prepare("SELECT COUNT(*) AS total, SUM(CASE WHEN status = 'active' THEN 1 ELSE 0 END) AS active FROM businesses WHERE tenant_id = ?").get(context.tenantId),
+          db.prepare("SELECT (SELECT COUNT(*) FROM products WHERE tenant_id = ? AND status = 'active') AS products, (SELECT COUNT(*) FROM services WHERE tenant_id = ? AND status = 'active') AS services, (SELECT COUNT(*) FROM ads WHERE tenant_id = ? AND status = 'ACTIVE' AND (expires_at IS NULL OR expires_at > ?)) AS active_ads, (SELECT COUNT(*) FROM orders WHERE tenant_id = ?) AS orders, (SELECT COUNT(*) FROM service_bookings WHERE tenant_id = ?) AS bookings").get(context.tenantId, context.tenantId, context.tenantId, now(), context.tenantId, context.tenantId),
+          db.prepare("SELECT COUNT(*) AS payments, COALESCE(SUM(CASE WHEN status IN ('CAPTURED','AUTHORIZED') THEN amount_cents ELSE 0 END), 0) AS authorized_or_captured_cents, COALESCE(SUM(CASE WHEN status = 'FAILED' THEN 1 ELSE 0 END), 0) AS failed_payments FROM payment_intents WHERE tenant_id = ?").get(context.tenantId),
+          db.prepare("SELECT COUNT(*) AS requests, COALESCE(SUM(input_tokens + output_tokens), 0) AS tokens, COUNT(DISTINCT feature) AS features FROM ai_usage WHERE tenant_id = ?").get(context.tenantId),
+          db.prepare("SELECT (SELECT COUNT(*) FROM deliveries WHERE tenant_id = ?) AS deliveries, (SELECT COUNT(*) FROM notifications WHERE tenant_id = ?) AS notifications, (SELECT COUNT(*) FROM audit_logs WHERE tenant_id = ?) AS audit_events").get(context.tenantId, context.tenantId, context.tenantId),
+        ]);
+        return res.json({ ok: true, source: "database", asOf: new Date().toISOString(), analytics: { user: users, business: businesses, marketplace, financial, ai, platform } });
+      } catch (error) { next(error); }
+    }
+  );
+
+  router.get(
     "/admin/users",
     authenticate,
     async (req: AuthenticatedRequest, res, next) => {
@@ -3275,6 +3299,63 @@ export function createPlatformRouter(): Router {
     }
   );
 
+  router.post(
+    "/ads",
+    authenticate,
+    async (req: AuthenticatedRequest, res, next) => {
+      try {
+        const context = currentContext(req);
+        assertScope(context, context.tenantId, "advertising.manage");
+        const { resourceType, resourceId, placement, budgetCents, durationDays } = req.body ?? {};
+        const type = typeof resourceType === "string" ? resourceType.toUpperCase() : "";
+        if (!["PRODUCT", "SERVICE", "BUSINESS"].includes(type) || !isNonEmptyString(resourceId, 100) || !isNonEmptyString(placement, 80)) throw httpError(400, "invalid-ad", "نوع المورد ومعرفه وموضع الإعلان مطلوبة.");
+        const budget = budgetCents == null ? null : validateMoney(budgetCents, "budgetCents");
+        const duration = durationDays == null ? null : validatePositiveInteger(durationDays, "durationDays");
+        if (budget == null && duration == null) throw httpError(400, "invalid-ad", "الميزانية أو مدة الإعلان مطلوبة.");
+        const db = getDataPlane();
+        const resourceTable = type === "PRODUCT" ? "products" : type === "SERVICE" ? "services" : "businesses";
+        if (!await db.prepare(`SELECT id FROM ${resourceTable} WHERE id = ? AND tenant_id = ?`).get(resourceId, context.tenantId)) throw httpError(404, "resource-not-found", "المورد غير موجود داخل المستأجر الحالي.");
+        const adId = randomUUID();
+        await db.prepare("INSERT INTO ads (id, tenant_id, resource_type, resource_id, placement, status, budget_cents, duration_days, created_by, created_at) VALUES (?, ?, ?, ?, ?, 'PENDING', ?, ?, ?, ?)").run(adId, context.tenantId, type, resourceId, placement.trim(), budget, duration, context.userId, now());
+        await recordAudit(db, context, "ad.create", "ad", adId, req.requestId, { resourceType: type, resourceId, placement: placement.trim() });
+        return res.status(201).json({ ok: true, adId, status: "PENDING" });
+      } catch (error) { next(error); }
+    }
+  );
+
+  router.patch(
+    "/ads/:adId/review",
+    authenticate,
+    async (req: AuthenticatedRequest, res, next) => {
+      try {
+        const context = currentContext(req);
+        if (!["SUPER_ADMIN", "PLATFORM_ADMIN"].includes(context.role)) throw httpError(403, "admin-required", "مراجعة الإعلانات متاحة لمسؤول المنصة فقط.");
+        const decision = typeof req.body?.status === "string" ? req.body.status.toUpperCase() : "";
+        if (!["APPROVED", "REJECTED", "ACTIVE", "EXPIRED"].includes(decision)) throw httpError(400, "invalid-review", "قرار المراجعة غير صالح.");
+        const db = getDataPlane();
+        const platformWide = ["SUPER_ADMIN", "PLATFORM_ADMIN"].includes(context.role);
+        const ad = await db.prepare(`SELECT id, tenant_id, status FROM ads WHERE id = ? ${platformWide ? "" : "AND tenant_id = ?"}`).get(...(platformWide ? [req.params.adId] : [req.params.adId, context.tenantId])) as { id: string; tenant_id: string; status: string } | undefined;
+        if (!ad) throw httpError(404, "ad-not-found", "الإعلان غير موجود داخل النطاق المسموح.");
+        await db.prepare(`UPDATE ads SET status = ?, reviewed_by = ?, reviewed_at = ? WHERE id = ? ${platformWide ? "" : "AND tenant_id = ?"}`).run(...(platformWide ? [decision, context.userId, now(), req.params.adId] : [decision, context.userId, now(), req.params.adId, context.tenantId]));
+        await recordAudit(db, context, `ad.${decision.toLowerCase()}`, "ad", req.params.adId, req.requestId, { from: ad.status, to: decision });
+        return res.json({ ok: true, adId: req.params.adId, status: decision });
+      } catch (error) { next(error); }
+    }
+  );
+
+  router.get(
+    "/ads/active",
+    authenticate,
+    async (req: AuthenticatedRequest, res, next) => {
+      try {
+        const context = currentContext(req);
+        assertScope(context, context.tenantId, "advertising.read");
+        const ads = await getDataPlane().prepare("SELECT id, resource_type, resource_id, placement, status, budget_cents, duration_days, expires_at FROM ads WHERE tenant_id = ? AND status = 'ACTIVE' AND (expires_at IS NULL OR expires_at > ?) ORDER BY created_at DESC LIMIT 100").all(context.tenantId, now());
+        return res.json({ ok: true, ads });
+      } catch (error) { next(error); }
+    }
+  );
+
   router.get(
     "/marketplace/catalog",
     authenticate,
@@ -3293,10 +3374,17 @@ export function createPlatformRouter(): Router {
             "SELECT id, 'SERVICE' AS offering_type, business_id, NULL AS code, name, description, category, price_cents, 'EGP' AS currency, status FROM services WHERE tenant_id = ? AND status = 'active'"
           )
           .all(context.tenantId);
+        const activeAds = await db.prepare("SELECT id AS ad_id, resource_type, resource_id, placement FROM ads WHERE tenant_id = ? AND status = 'ACTIVE' AND (expires_at IS NULL OR expires_at > ?)").all(context.tenantId, now()) as Array<{ ad_id: string; resource_type: string; resource_id: string; placement: string }>;
+        const sponsored = [];
+        for (const ad of activeAds) {
+          const table = ad.resource_type === "PRODUCT" ? "products" : ad.resource_type === "SERVICE" ? "services" : "businesses";
+          const resource = await db.prepare(`SELECT id, name FROM ${table} WHERE id = ? AND tenant_id = ?`).get(ad.resource_id, context.tenantId);
+          if (resource) sponsored.push({ ...(resource as Record<string, unknown>), offering_type: ad.resource_type, sponsored: true, ad_id: ad.ad_id, placement: ad.placement });
+        }
         return res.json({
           ok: true,
           source: "database",
-          offerings: [...products, ...services],
+          offerings: [...sponsored, ...products, ...services],
         });
       } catch (error) {
         next(error);

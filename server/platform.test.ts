@@ -1,7 +1,7 @@
 import express from "express";
 import { createServer, type Server } from "node:http";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { resetDatabaseForTests } from "./database";
+import { getDatabase, resetDatabaseForTests } from "./database";
 import { createPlatformRouter, platformErrorHandler } from "./platform";
 import { totpForTest } from "./mfa";
 
@@ -161,6 +161,29 @@ describe("platform core", () => {
     const notification = await request("/api/platform/notifications", { method: "POST", headers, body: JSON.stringify({ userId: a.userId, channel: "EMAIL", title: "تنبيه", body: "اختبار" }) });
     expect(notification.status).toBe(201);
     await expect(notification.json()).resolves.toMatchObject({ delivery: "queued" });
+  });
+
+  it("implements ads lifecycle, tenant isolation, RBAC, and marketplace placement", async () => {
+    const a = await register("ads-a@example.com", "Ads Tenant A");
+    const b = await register("ads-b@example.com", "Ads Tenant B");
+    const headers = auth(a);
+    const productResponse = await request("/api/platform/products", { method: "POST", headers, body: JSON.stringify({ businessId: a.businessId, sku: "AD-SKU", name: "منتج معلن", priceCents: 500 }) });
+    const { productId } = await productResponse.json() as { productId: string };
+    const created = await request("/api/platform/ads", { method: "POST", headers, body: JSON.stringify({ resourceType: "PRODUCT", resourceId: productId, placement: "FEATURED", budgetCents: 1000, durationDays: 7 }) });
+    expect(created.status).toBe(201);
+    const { adId } = await created.json() as { adId: string };
+    const crossTenant = await request(`/api/platform/ads/${adId}/review`, { method: "PATCH", headers: auth(b), body: JSON.stringify({ status: "ACTIVE" }) });
+    expect(crossTenant.status).toBe(403);
+    const ownerReview = await request(`/api/platform/ads/${adId}/review`, { method: "PATCH", headers, body: JSON.stringify({ status: "ACTIVE" }) });
+    expect(ownerReview.status).toBe(403);
+    getDatabase().prepare("UPDATE tenant_members SET role = 'PLATFORM_ADMIN' WHERE tenant_id = ? AND user_id = ?").run(a.tenantId, a.userId);
+    const approved = await request(`/api/platform/ads/${adId}/review`, { method: "PATCH", headers, body: JSON.stringify({ status: "ACTIVE" }) });
+    expect(approved.status).toBe(200);
+    const catalog = await request("/api/platform/marketplace/catalog", { headers });
+    expect(catalog.status).toBe(200);
+    await expect(catalog.json()).resolves.toMatchObject({ offerings: expect.arrayContaining([expect.objectContaining({ ad_id: adId, sponsored: true })]) });
+    const activeAds = await request("/api/platform/ads/active", { headers });
+    await expect(activeAds.json()).resolves.toMatchObject({ ads: [expect.objectContaining({ id: adId, status: "ACTIVE" })] });
   });
 
   it("requires delivery proof and blocks sensitive agent actions", async () => {
