@@ -23,6 +23,14 @@ try{
  const superAdmin=roleUsers["Super Admin"]; const adminRead=await call("/api/platform/admin/feature-flags",{headers:h(superAdmin)}); note("super-admin authenticated feature-flag read",adminRead.status===200,`HTTP ${adminRead.status}`);
  const flagKey=`rbac.test.${Date.now()}`; const adminMutation=await call(`/api/platform/admin/feature-flags/${flagKey}`,{method:"PATCH",headers:h(superAdmin),body:JSON.stringify({enabled:true,rolloutPercent:100,metadata:{source:"adversarial-runtime"}})}); note("super-admin feature-flag mutation",adminMutation.status===200,`HTTP ${adminMutation.status}`);
  const adminAudit=await call("/api/platform/admin/audit?limit=50",{headers:h(superAdmin)}); const adminAuditPayload=await adminAudit.json(); note("super-admin mutation audit event",adminAudit.status===200 && adminAuditPayload.audit?.some((entry)=>entry.action==="admin.feature_flag.update" && entry.resource_id===flagKey),`HTTP ${adminAudit.status}, audit event for ${flagKey}`);
+ const batch1=[
+  ["Purchase","/api/platform/purchases",["Owner"]],
+  ["Expense","/api/platform/expenses",["Owner","Manager"]],
+  ["Inventory","/api/platform/inventory",["Owner","Manager","Employee"]],
+  ["Subscription","/api/platform/subscription",["Owner"]],
+  ["POS","/api/platform/pos/sessions",["Owner","Manager"]]
+ ];
+ for(const [resource,path,allowedRoles] of batch1){ for(const label of Object.keys(roles)){const response=await call(path,{headers:h(roleUsers[label])}); const expected=allowedRoles.includes(label)||label==="Admin"||label==="Super Admin"; note(`batch1 ${resource} role=${label}`,expected?response.status!==403:response.status===403,`Expected ${expected?"ALLOW":"DENY"}, Actual HTTP ${response.status}`);} const idor=await call(path,{headers:h(roleUsers.Owner,b.tenantId)}); note(`batch1 ${resource} tenant mismatch`,idor.status===403,`HTTP ${idor.status}`); }
  const hb=h(b); const product=await call("/api/platform/products",{method:"POST",headers:hb,body:JSON.stringify({businessId:b.businessId,sku:`B-${Date.now()}`,name:"Tenant B Product",priceCents:500})}); note("create Tenant B product",product.status===201,`HTTP ${product.status}`); const p=await product.json();
  await call("/api/platform/inventory/movements",{method:"POST",headers:hb,body:JSON.stringify({branchId:b.branchId,productId:p.productId,quantityDelta:3,reason:"rbac",idempotencyKey:`rbac-stock-${Date.now()}`})});
  const or=await call("/api/platform/orders",{method:"POST",headers:hb,body:JSON.stringify({businessId:b.businessId,branchId:b.branchId,items:[{productId:p.productId,quantity:1}]})}); note("create Tenant B order",or.status===201,`HTTP ${or.status}`); const o=await or.json();
