@@ -52,6 +52,7 @@ class PlatformApiProductsTest {
 
     private class FakeSession(
         override var token: String?,
-        override var tenantId: String?
+        override var tenantId: String?,
+        override var branchId: String? = null
     ) : SessionStoreContract
 }

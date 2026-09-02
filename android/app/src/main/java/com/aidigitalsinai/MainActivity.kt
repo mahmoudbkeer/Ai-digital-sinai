@@ -53,6 +53,9 @@ private fun LoginScreen(api: PlatformApi, store: SessionStore) {
     var marketplaceLoading by remember { mutableStateOf(false) }
     var products by remember { mutableStateOf(emptyList<MarketplaceProduct>()) }
     var authenticated by remember { mutableStateOf(store.token != null && store.tenantId != null) }
+    var cartLoading by remember { mutableStateOf(false) }
+    var cart by remember { mutableStateOf<CartSnapshot?>(null) }
+    var checkoutMessage by remember { mutableStateOf("") }
     val scope = rememberCoroutineScope()
 
     Column(
@@ -83,7 +86,9 @@ private fun LoginScreen(api: PlatformApi, store: SessionStore) {
                         val (productsResult, loadedProducts) = withContext(Dispatchers.IO) { api.products() }
                         products = loadedProducts
                         marketplaceLoading = false
-                        "نجح الاتصال: HTTP ${result.status}. Marketplace HTTP ${productsResult.status}. tenant=${store.tenantId}"
+                        val (cartResult, loadedCart) = withContext(Dispatchers.IO) { api.cart() }
+                        cart = loadedCart
+                        "نجح الاتصال: HTTP ${result.status}. Marketplace HTTP ${productsResult.status}. Cart HTTP ${cartResult.status}. tenant=${store.tenantId}"
                     } else {
                         "فشل الطلب: HTTP ${result.status} — ${result.body.optString("message", "تعذر الاتصال")}" 
                     }
@@ -110,10 +115,46 @@ private fun LoginScreen(api: PlatformApi, store: SessionStore) {
                             }
                             product.category?.let { Text(it, style = MaterialTheme.typography.labelMedium) }
                             product.description?.let { Text(it) }
+                            Button(onClick = {
+                                cartLoading = true
+                                scope.launch {
+                                    val result = withContext(Dispatchers.IO) {
+                                        api.addCartItem(product.id, 1, store.branchId)
+                                    }
+                                    val (_, loadedCart) = withContext(Dispatchers.IO) { api.cart() }
+                                    cart = loadedCart
+                                    cartLoading = false
+                                    checkoutMessage = "تمت إضافة المنتج: HTTP ${result.status}"
+                                }
+                            }, enabled = !cartLoading) { Text("أضف للسلة") }
                         }
                     }
                 }
             }
+            Text("Cart", style = MaterialTheme.typography.headlineSmall)
+            if (cartLoading) CircularProgressIndicator()
+            cart?.items?.forEach { item ->
+                Text("${item.name} × ${item.quantity} — ${item.lineTotalCents / 100.0} EGP")
+            }
+            Text("الإجمالي: ${cart?.totalCents?.div(100.0) ?: 0.0} EGP")
+            Button(
+                onClick = {
+                    cartLoading = true
+                    scope.launch {
+                        val (result, checkout) = withContext(Dispatchers.IO) {
+                            store.branchId?.let { api.checkout(it) } ?: (ApiResult(400, org.json.JSONObject().put("message", "branchId مطلوب")) to null)
+                        }
+                        cartLoading = false
+                        checkoutMessage = if (checkout != null) {
+                            "تم إنشاء الطلب: ${checkout.orderId} — الحالة: ${checkout.state} — HTTP ${result.status}"
+                        } else {
+                            "تعذر إتمام الشراء: HTTP ${result.status} — ${result.body.optString("message", "branchId مطلوب")}"
+                        }
+                    }
+                },
+                enabled = !cartLoading && !cart?.items.isNullOrEmpty()
+            ) { Text("إتمام الشراء") }
+            if (checkoutMessage.isNotBlank()) Text(checkoutMessage, color = MaterialTheme.colorScheme.primary)
         }
     }
 }

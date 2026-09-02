@@ -1,0 +1,14 @@
+Cart + Checkout Android API test evidence
+Date: 2026-09-02
+Command: ./gradlew :app:testDebugUnitTest :app:assembleDebug --no-daemon
+Result: BUILD SUCCESSFUL
+
+Tests execute the Android PlatformApi implementation against OkHttp MockWebServer:
+- PlatformApiCartCheckoutTest.cartBuildsAuthenticatedGetAndParsesItems
+  GET /api/platform/cart -> HTTP 200; verifies Bearer token, x-tenant-id, cart id/status, item product id, and totalCents.
+- PlatformApiCartCheckoutTest.addCartItemBuildsAuthenticatedPostWithExpectedJson
+  POST /api/platform/cart/items -> HTTP 201; verifies Bearer token, x-tenant-id, productId, quantity, branchId, and cartId parsing.
+- PlatformApiCartCheckoutTest.checkoutBuildsAuthenticatedPostAndParsesOrderState
+  POST /api/platform/cart/checkout -> HTTP 201; verifies Bearer token, x-tenant-id, branchId, orderId, state=PENDING, totalCents, and currency.
+
+The Compose UI invokes addCartItem(), cart(), and checkout() from the same Android PlatformApi class. The checkout result is rendered with orderId and state.
