@@ -1,0 +1,13 @@
+Notifications Android API test evidence
+Command: ./gradlew :app:testDebugUnitTest :app:assembleDebug --no-daemon
+Result: BUILD SUCCESSFUL
+Test: PlatformApiNotificationsTest.notificationsBuildsAuthenticatedGetAndParsesChannelAndStatus
+
+The test executes PlatformApi.notifications() against OkHttp MockWebServer and verifies:
+GET /api/platform/notifications -> HTTP 200
+Authorization: Bearer notification-token
+x-tenant-id: tenant-notification
+Parsed channel: IN_APP
+Parsed status: DELIVERED
+Parsed title: Order delivered
+The Compose screen renders title, body, channel, and status after the authenticated load.

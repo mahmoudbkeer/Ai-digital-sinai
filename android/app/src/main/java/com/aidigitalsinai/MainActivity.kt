@@ -56,6 +56,8 @@ private fun LoginScreen(api: PlatformApi, store: SessionStore) {
     var cartLoading by remember { mutableStateOf(false) }
     var cart by remember { mutableStateOf<CartSnapshot?>(null) }
     var checkoutMessage by remember { mutableStateOf("") }
+    var notifications by remember { mutableStateOf(emptyList<PlatformNotification>()) }
+    var notificationLoading by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
     Column(
@@ -88,7 +90,11 @@ private fun LoginScreen(api: PlatformApi, store: SessionStore) {
                         marketplaceLoading = false
                         val (cartResult, loadedCart) = withContext(Dispatchers.IO) { api.cart() }
                         cart = loadedCart
-                        "نجح الاتصال: HTTP ${result.status}. Marketplace HTTP ${productsResult.status}. Cart HTTP ${cartResult.status}. tenant=${store.tenantId}"
+                        notificationLoading = true
+                        val (notificationsResult, loadedNotifications) = withContext(Dispatchers.IO) { api.notifications() }
+                        notifications = loadedNotifications
+                        notificationLoading = false
+                        "نجح الاتصال: HTTP ${result.status}. Marketplace HTTP ${productsResult.status}. Cart HTTP ${cartResult.status}. Notifications HTTP ${notificationsResult.status}. tenant=${store.tenantId}"
                     } else {
                         "فشل الطلب: HTTP ${result.status} — ${result.body.optString("message", "تعذر الاتصال")}" 
                     }
@@ -155,6 +161,18 @@ private fun LoginScreen(api: PlatformApi, store: SessionStore) {
                 enabled = !cartLoading && !cart?.items.isNullOrEmpty()
             ) { Text("إتمام الشراء") }
             if (checkoutMessage.isNotBlank()) Text(checkoutMessage, color = MaterialTheme.colorScheme.primary)
+            Text("Notifications", style = MaterialTheme.typography.headlineSmall)
+            if (notificationLoading) CircularProgressIndicator()
+            else if (notifications.isEmpty()) Text("لا توجد إشعارات.")
+            else notifications.forEach { notification ->
+                Card(modifier = Modifier.fillMaxWidth()) {
+                    Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text(notification.title, style = MaterialTheme.typography.titleMedium)
+                        Text(notification.body)
+                        Text("${notification.channel} / ${notification.status}", style = MaterialTheme.typography.labelMedium)
+                    }
+                }
+            }
         }
     }
 }

@@ -58,6 +58,14 @@ data class CheckoutResult(
     val currency: String
 )
 
+data class PlatformNotification(
+    val id: String,
+    val channel: String,
+    val title: String,
+    val body: String,
+    val status: String
+)
+
 class PlatformApi(private val baseUrl: String, private val session: SessionStoreContract) {
     fun login(email: String, password: String): ApiResult = request("POST", "/api/platform/auth/login", JSONObject().apply {
         put("email", email)
@@ -68,6 +76,24 @@ class PlatformApi(private val baseUrl: String, private val session: SessionStore
             val tenants = result.body.optJSONArray("tenants")
             session.tenantId = tenants?.optJSONObject(0)?.optString("tenant_id")
         }
+    }
+
+    fun notifications(): Pair<ApiResult, List<PlatformNotification>> {
+        val result = request("GET", "/api/platform/notifications", null, authenticated = true)
+        val values = buildList {
+            val items = result.body.optJSONArray("notifications") ?: return@buildList
+            for (index in 0 until items.length()) {
+                val item = items.optJSONObject(index) ?: continue
+                add(PlatformNotification(
+                    id = item.optString("id"),
+                    channel = item.optString("channel"),
+                    title = item.optString("title"),
+                    body = item.optString("body"),
+                    status = item.optString("status")
+                ))
+            }
+        }
+        return result to values
     }
 
     fun cart(): Pair<ApiResult, CartSnapshot> {
