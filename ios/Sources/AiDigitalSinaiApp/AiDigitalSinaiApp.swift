@@ -141,6 +141,7 @@ struct MarketplaceView: View {
             ToolbarItemGroup(placement: .automatic) {
                 NavigationLink("الإشعارات") { NotificationsView(api: api) }
                 NavigationLink("Analytics") { AnalyticsView(api: api) }
+                NavigationLink("Subscription") { SubscriptionView(api: api) }
             }
         }
         .task { await loadProducts() }
@@ -316,6 +317,71 @@ struct CartCheckoutView: View {
     }
 }
 
+
+struct SubscriptionView: View {
+    let api: PlatformAPI
+    @State private var subscription: SubscriptionSnapshot?
+    @State private var entitlements: SubscriptionEntitlements?
+    @State private var loading = true
+    @State private var errorMessage = ""
+
+    var body: some View {
+        Group {
+            if loading {
+                ProgressView("تحميل الاشتراك…")
+            } else if !errorMessage.isEmpty {
+                VStack(spacing: 8) {
+                    Image(systemName: "exclamationmark.triangle")
+                    Text("تعذر تحميل الاشتراك")
+                    Text(errorMessage)
+                }
+            } else {
+                List {
+                    Section("الخطة") {
+                        if let subscription {
+                            LabeledContent("Plan Code", value: subscription.planCode)
+                            LabeledContent("الحالة", value: subscription.status)
+                            LabeledContent("السعر بالسنت", value: String(subscription.priceCents))
+                            LabeledContent("أيام التجربة", value: String(subscription.trialDays))
+                        } else {
+                            Text("لا يوجد اشتراك")
+                        }
+                    }
+                    Section("الامتيازات") {
+                        if let entitlements {
+                            LabeledContent("Plan Code", value: entitlements.planCode)
+                            LabeledContent("الحالة", value: entitlements.status)
+                            ForEach(entitlements.features.keys.sorted(), id: \.self) { feature in
+                                LabeledContent(feature, value: entitlements.features[feature] ?? "")
+                            }
+                        } else {
+                            Text("لا توجد امتيازات")
+                        }
+                    }
+                }
+            }
+        }
+        .navigationTitle("Subscription")
+        .task { await loadSubscription() }
+    }
+
+    private func loadSubscription() async {
+        do {
+            let (subscriptionResult, loadedSubscription) = try await api.subscription()
+            let (entitlementResult, loadedEntitlements) = try await api.subscriptionEntitlements()
+            guard (200..<300).contains(subscriptionResult.statusCode), (200..<300).contains(entitlementResult.statusCode) else {
+                errorMessage = "Subscription HTTP \(subscriptionResult.statusCode), Entitlements HTTP \(entitlementResult.statusCode)"
+                loading = false
+                return
+            }
+            subscription = loadedSubscription
+            entitlements = loadedEntitlements
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+        loading = false
+    }
+}
 
 struct AnalyticsView: View {
     let api: PlatformAPI

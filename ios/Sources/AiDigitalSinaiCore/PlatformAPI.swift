@@ -31,6 +31,24 @@ public struct MarketplaceProduct: Decodable, Sendable, Identifiable {
 
 public typealias ProductDetail = MarketplaceProduct
 
+public struct SubscriptionSnapshot: Decodable, Sendable {
+    public let id: String?
+    public let planCode: String
+    public let status: String
+    public let priceCents: Int
+    public let trialDays: Int
+    enum CodingKeys: String, CodingKey {
+        case id, planCode = "plan_code", status
+        case priceCents = "price_cents", trialDays = "trial_days"
+    }
+}
+
+public struct SubscriptionEntitlements: Decodable, Sendable {
+    public let planCode: String
+    public let status: String
+    public let features: [String: String]
+}
+
 public struct AnalyticsOverview: Decodable, Sendable {
     public let orders: Int
     public let deliveries: Int
@@ -159,6 +177,27 @@ private struct AnalyticsEnvelope: Decodable {
     let analytics: AnalyticsOverview
 }
 
+private struct SubscriptionEnvelope: Decodable {
+    let subscription: SubscriptionSnapshot?
+}
+
+private struct SubscriptionEntitlementsEnvelope: Decodable {
+    let subscription: SubscriptionEntitlementIdentity?
+    let features: [SubscriptionFeature]
+}
+
+private struct SubscriptionEntitlementIdentity: Decodable {
+    let planCode: String
+    let status: String
+    enum CodingKeys: String, CodingKey { case planCode = "plan_code", status }
+}
+
+private struct SubscriptionFeature: Decodable {
+    let feature: String
+    let limitValue: String
+    enum CodingKeys: String, CodingKey { case feature, limitValue = "limit_value" }
+}
+
 private struct CartEnvelope: Decodable {
     let cart: Cart?
     let items: [CartItem]
@@ -193,6 +232,35 @@ public final class PlatformAPI {
         try await authenticate(path: "/api/platform/auth/register", body: [
             "email": email, "password": password, "displayName": displayName, "tenantName": tenantName
         ])
+    }
+
+    public func subscription() async throws -> (APIResult, SubscriptionSnapshot?) {
+        var request = URLRequest(url: baseURL.appendingPathComponent("api/platform/subscription"))
+        request.httpMethod = "GET"
+        applyAuth(to: &request)
+        let (data, response) = try await session.data(for: request)
+        let http = response as! HTTPURLResponse
+        let result = APIResult(statusCode: http.statusCode, data: data)
+        let envelope = try JSONDecoder().decode(SubscriptionEnvelope.self, from: data)
+        return (result, envelope.subscription)
+    }
+
+    public func subscriptionEntitlements() async throws -> (APIResult, SubscriptionEntitlements?) {
+        var request = URLRequest(url: baseURL.appendingPathComponent("api/platform/subscription/entitlements"))
+        request.httpMethod = "GET"
+        applyAuth(to: &request)
+        let (data, response) = try await session.data(for: request)
+        let http = response as! HTTPURLResponse
+        let result = APIResult(statusCode: http.statusCode, data: data)
+        let envelope = try JSONDecoder().decode(SubscriptionEntitlementsEnvelope.self, from: data)
+        let entitlements = envelope.subscription.map {
+            SubscriptionEntitlements(
+                planCode: $0.planCode,
+                status: $0.status,
+                features: Dictionary(uniqueKeysWithValues: envelope.features.map { ($0.feature, $0.limitValue) })
+            )
+        }
+        return (result, entitlements)
     }
 
     public func analyticsOverview() async throws -> (APIResult, AnalyticsOverview) {
