@@ -4,6 +4,7 @@ import { spawn } from "node:child_process";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { randomUUID } from "node:crypto";
 const { DatabaseSync } = createRequire(import.meta.url)("node:sqlite");
 const port = process.env.RBAC_PORT || "4340"; const base = `http://127.0.0.1:${port}`;
 const dir = mkdtempSync(join(tmpdir(), "sinai-rbac-")); const dbPath = join(dir, "rbac.sqlite"); let server; const checks=[];
@@ -20,6 +21,7 @@ try{
  const a=await register(`rbac-a-${Date.now()}@example.com`,`RBAC Tenant A`); const b=await register(`rbac-b-${Date.now()}@example.com`,`RBAC Tenant B`);
  const db=new DatabaseSync(dbPath); const roleUsers={};
  for(const [label,role] of Object.entries(roles)){const email=`rbac-${role.toLowerCase()}-${Date.now()}@example.com`; const u=await register(email,`Role ${label}`); db.prepare("INSERT INTO tenant_members (tenant_id,user_id,role,permissions_json,created_at) VALUES (?,?,?,?,?)").run(a.tenantId,u.userId,role,"[]",Date.now()); roleUsers[label]={...(await login(email)),userId:u.userId,tenantId:a.tenantId}; }
+ const fixtureNow=Date.now(); db.prepare("INSERT INTO subscriptions (id,tenant_id,plan_code,status,current_period_start,current_period_end,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?)").run(randomUUID(),a.tenantId,"trial","TRIALING",fixtureNow,fixtureNow+30*24*60*60*1000,fixtureNow,fixtureNow);
  const superAdmin=roleUsers["Super Admin"]; const adminRead=await call("/api/platform/admin/feature-flags",{headers:h(superAdmin)}); note("super-admin authenticated feature-flag read",adminRead.status===200,`HTTP ${adminRead.status}`);
  const flagKey=`rbac.test.${Date.now()}`; const adminMutation=await call(`/api/platform/admin/feature-flags/${flagKey}`,{method:"PATCH",headers:h(superAdmin),body:JSON.stringify({enabled:true,rolloutPercent:100,metadata:{source:"adversarial-runtime"}})}); note("super-admin feature-flag mutation",adminMutation.status===200,`HTTP ${adminMutation.status}`);
  const adminAudit=await call("/api/platform/admin/audit?limit=50",{headers:h(superAdmin)}); const adminAuditPayload=await adminAudit.json(); note("super-admin mutation audit event",adminAudit.status===200 && adminAuditPayload.audit?.some((entry)=>entry.action==="admin.feature_flag.update" && entry.resource_id===flagKey),`HTTP ${adminAudit.status}, audit event for ${flagKey}`);
@@ -40,6 +42,16 @@ try{
   ["Marketplace Reviews","/api/platform/marketplace/reviews",["Owner","Manager","Employee","Consumer"]]
  ];
  for(const [resource,path,allowedRoles] of batch2){ for(const label of Object.keys(roles)){const response=await call(path,{headers:h(roleUsers[label])}); const expected=allowedRoles.includes(label)||label==="Admin"||label==="Super Admin"; note(`batch2 ${resource} role=${label}`,expected?response.status!==403:response.status===403,`Expected ${expected?"ALLOW":"DENY"}, Actual HTTP ${response.status}`);} const idor=await call(path,{headers:h(roleUsers.Owner,b.tenantId)}); note(`batch2 ${resource} tenant mismatch`,idor.status===403,`HTTP ${idor.status}`); }
+ const batch3=[
+  ["Analytics","/api/platform/analytics/kpis",["Owner","Manager","Employee","Service Provider","Admin","Super Admin"]],
+  ["AI Advisor","/api/platform/ai/advisor/insights",["Owner","Manager","Employee","Service Provider","Consumer","Admin","Super Admin"]],
+  ["Report","/api/platform/reports/summary",["Owner","Manager","Admin","Super Admin"]],
+  ["Notification","/api/platform/notifications",["Owner","Manager","Admin","Super Admin"]],
+  ["Service Booking","/api/platform/service-bookings",["Owner","Manager","Employee","Service Provider","Consumer","Driver","Admin","Super Admin"]],
+  ["Admin","/api/platform/admin/overview",["Admin","Super Admin"]],
+  ["Audit","/api/platform/audit",["Owner","Manager","Admin","Super Admin"]]
+ ];
+ for(const [resource,path,allowedRoles] of batch3){ for(const label of Object.keys(roles)){const response=await call(path,{headers:h(roleUsers[label])}); const expected=allowedRoles.includes(label); note(`batch3 ${resource} role=${label}`,expected?response.status!==403:response.status===403,`Expected ${expected?"ALLOW":"DENY"}, Actual HTTP ${response.status}`);} const idor=await call(path,{headers:h(roleUsers.Owner,b.tenantId)}); note(`batch3 ${resource} tenant mismatch`,idor.status===403,`HTTP ${idor.status}`); }
  const hb=h(b); const product=await call("/api/platform/products",{method:"POST",headers:hb,body:JSON.stringify({businessId:b.businessId,sku:`B-${Date.now()}`,name:"Tenant B Product",priceCents:500})}); note("create Tenant B product",product.status===201,`HTTP ${product.status}`); const p=await product.json();
  await call("/api/platform/inventory/movements",{method:"POST",headers:hb,body:JSON.stringify({branchId:b.branchId,productId:p.productId,quantityDelta:3,reason:"rbac",idempotencyKey:`rbac-stock-${Date.now()}`})});
  const or=await call("/api/platform/orders",{method:"POST",headers:hb,body:JSON.stringify({businessId:b.businessId,branchId:b.branchId,items:[{productId:p.productId,quantity:1}]})}); note("create Tenant B order",or.status===201,`HTTP ${or.status}`); const o=await or.json();

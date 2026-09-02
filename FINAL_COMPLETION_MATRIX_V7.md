@@ -113,3 +113,9 @@ The weighted score remains an engineering progress measure only; it is not evide
 | Super Admin UI | PARTIALLY VERIFIED | database-backed UI calls users/tenants/audit/feature-flags and handles 403 | authenticated Super Admin browser session for full runtime proof |
 | AI/RAG | PARTIALLY VERIFIED | advisor/analytics acceptance and RAG tenant isolation tests | provider-backed embeddings/vector runtime |
 | Production/Release | BLOCKED_EXTERNAL_DEPENDENCY | local checks and truthful readiness gates | managed Postgres/Redis/storage, monitoring, WAF, restore drill, Android signing |
+
+## RBAC final verified scope — 2026-09-02
+
+The adversarial fixture now seeds an active `trial` subscription for Tenant A. The trial plan provides `catalog.read` and `analytics.read`, so Analytics, AI Advisor, Forecast, and catalog entitlement checks are exercised with a valid entitlement rather than conflating entitlement denial with role denial. Batch 3 route probes passed for Analytics, AI Advisor, Reports, Notifications, Service Bookings, Admin, and Audit, including Tenant A token plus Tenant B tenant header returning `403`.
+
+The current executable matrix covers **22/28 resource families** by concrete IDOR or route-level tenant isolation. Six families are structurally unavailable for the requested collection/IDOR test: Ledger (write-only; no GET), Business (no collection GET), Branch (no collection GET), Advertising (no GET collection route), plus two service-specific resource families without independent GET-by-ID routes. These are not counted as verified until an actual read route exists.
