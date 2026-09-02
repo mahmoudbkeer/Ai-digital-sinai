@@ -2886,10 +2886,13 @@ export function createPlatformRouter(): Router {
         const results = (
           await db
             .prepare(
-              "SELECT d.id AS document_id, d.title, d.source_type, d.source_ref, c.id AS chunk_id, substr(c.content, 1, 500) AS snippet, d.permission_scope_json FROM ai_documents d JOIN ai_chunks c ON c.document_id = d.id AND c.tenant_id = d.tenant_id WHERE d.tenant_id = ? AND d.status = 'ACTIVE' AND c.content LIKE ? ORDER BY d.updated_at DESC LIMIT 20"
+              "SELECT d.id AS document_id, d.title, d.source_type, d.source_ref, c.id AS chunk_id, substr(c.content, 1, 500) AS snippet, d.permission_scope_json FROM ai_documents d JOIN ai_chunks c ON c.document_id = d.id AND c.tenant_id = d.tenant_id WHERE d.tenant_id = ? AND d.status = 'ACTIVE' AND c.content LIKE ? ORDER BY d.updated_at DESC LIMIT 50"
             )
             .all(context.tenantId, term)
-        ).map(row => {
+        ).filter(row => {
+          const scope = parseJson<unknown>((row as { permission_scope_json: string }).permission_scope_json, []);
+          return !Array.isArray(scope) || scope.length === 0 || scope.some(permission => context.permissions.includes(permission as Permission));
+        }).slice(0, 20).map(row => {
           const item = row as { permission_scope_json: string };
           return { ...item, permission_scope_json: undefined };
         });
