@@ -14,7 +14,7 @@ final class PlatformAPICartCheckoutTests: XCTestCase {
                 return (response!, data)
             case ("POST", "/api/platform/cart/items"):
                 XCTAssertEqual(request.value(forHTTPHeaderField: "Content-Type"), "application/json")
-                let body = try XCTUnwrap(request.httpBody ?? CartCheckoutURLProtocol.readBodyStream(request.httpBodyStream))
+                let body = try XCTUnwrap(request.httpBody ?? PlatformAPICartCheckoutTests.readBodyStream(request.httpBodyStream))
                 let json = try XCTUnwrap(JSONSerialization.jsonObject(with: body) as? [String: Any])
                 XCTAssertEqual(json["productId"] as? String, "p-1")
                 XCTAssertEqual(json["quantity"] as? Int, 2)
@@ -23,7 +23,7 @@ final class PlatformAPICartCheckoutTests: XCTestCase {
                 return (response!, Data(#"{"ok":true,"cartId":"cart-1"}"#.utf8))
             case ("POST", "/api/platform/cart/checkout"):
                 XCTAssertEqual(request.value(forHTTPHeaderField: "Content-Type"), "application/json")
-                let body = try XCTUnwrap(request.httpBody ?? CartCheckoutURLProtocol.readBodyStream(request.httpBodyStream))
+                let body = try XCTUnwrap(request.httpBody ?? PlatformAPICartCheckoutTests.readBodyStream(request.httpBodyStream))
                 let json = try XCTUnwrap(JSONSerialization.jsonObject(with: body) as? [String: Any])
                 XCTAssertEqual(json["branchId"] as? String, "branch-1")
                 let response = HTTPURLResponse(url: try XCTUnwrap(request.url), statusCode: 201, httpVersion: nil, headerFields: nil)
