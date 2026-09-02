@@ -24,8 +24,6 @@ struct LoginView: View {
             Form {
                 Section("AI DIGITAL SINAI") {
                     TextField("البريد الإلكتروني", text: $email)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
                     SecureField("كلمة المرور", text: $password)
                     if registerMode {
                         TextField("الاسم", text: $displayName)
