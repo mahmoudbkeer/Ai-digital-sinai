@@ -3279,6 +3279,20 @@ export function createPlatformRouter(): Router {
     }
   );
 
+  router.get(
+    "/services/:serviceId",
+    authenticate,
+    async (req: AuthenticatedRequest, res, next) => {
+      try {
+        const context = currentContext(req);
+        assertScope(context, context.tenantId, "product.read");
+        const service = await getDataPlane().prepare("SELECT id, business_id, name, description, category, price_cents, duration_minutes, status FROM services WHERE id = ? AND tenant_id = ? AND status <> 'archived'").get(req.params.serviceId, context.tenantId);
+        if (!service) throw httpError(404, "service-not-found", "الخدمة غير موجودة داخل المستأجر الحالي.");
+        return res.json({ ok: true, service });
+      } catch (error) { next(error); }
+    }
+  );
+
   router.post(
     "/services",
     authenticate,
@@ -3829,6 +3843,20 @@ export function createPlatformRouter(): Router {
       } catch (error) {
         next(error);
       }
+    }
+  );
+
+  router.get(
+    "/products/:productId",
+    authenticate,
+    async (req: AuthenticatedRequest, res, next) => {
+      try {
+        const context = currentContext(req);
+        assertScope(context, context.tenantId, "product.read");
+        const product = await getDataPlane().prepare("SELECT id, business_id, sku, name, description, category, price_cents, currency, status, created_at, updated_at FROM products WHERE id = ? AND tenant_id = ? AND status <> 'archived'").get(req.params.productId, context.tenantId);
+        if (!product) throw httpError(404, "product-not-found", "المنتج غير موجود داخل المستأجر الحالي.");
+        return res.json({ ok: true, product });
+      } catch (error) { next(error); }
     }
   );
 
