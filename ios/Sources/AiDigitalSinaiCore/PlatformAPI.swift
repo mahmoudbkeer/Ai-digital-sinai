@@ -9,6 +9,26 @@ public struct APIResult: Sendable {
     }
 }
 
+public struct MarketplaceProduct: Decodable, Sendable, Identifiable {
+    public let id: String
+    public let businessID: String
+    public let sku: String
+    public let name: String
+    public let description: String?
+    public let category: String?
+    public let priceCents: Int
+    public let currency: String
+    public let status: String
+    public let createdAt: Int64
+    public let updatedAt: Int64
+
+    enum CodingKeys: String, CodingKey {
+        case id, businessID = "business_id", sku, name, description, category
+        case priceCents = "price_cents", currency, status
+        case createdAt = "created_at", updatedAt = "updated_at"
+    }
+}
+
 public struct AuthSession: Codable, Sendable {
     public let token: String
     public let tenantID: String?
@@ -18,6 +38,10 @@ public struct AuthSession: Codable, Sendable {
         self.tenantID = tenantID
         self.branchID = branchID
     }
+}
+
+private struct ProductEnvelope: Decodable {
+    let products: [MarketplaceProduct]
 }
 
 public final class PlatformAPI {
@@ -38,6 +62,26 @@ public final class PlatformAPI {
         try await authenticate(path: "/api/platform/auth/register", body: [
             "email": email, "password": password, "displayName": displayName, "tenantName": tenantName
         ])
+    }
+
+    public func products() async throws -> (APIResult, [MarketplaceProduct]) {
+        var request = URLRequest(url: baseURL.appendingPathComponent("api/platform/products"))
+        request.httpMethod = "GET"
+        applyAuth(to: &request)
+        let (data, response) = try await session.data(for: request)
+        let http = response as! HTTPURLResponse
+        let result = APIResult(statusCode: http.statusCode, data: data)
+        let envelope = try JSONDecoder().decode(ProductEnvelope.self, from: data)
+        return (result, envelope.products)
+    }
+
+    private func applyAuth(to request: inout URLRequest) {
+        if let authSession {
+            request.setValue("Bearer \(authSession.token)", forHTTPHeaderField: "Authorization")
+            if let tenantID = authSession.tenantID {
+                request.setValue(tenantID, forHTTPHeaderField: "x-tenant-id")
+            }
+        }
     }
 
     private func authenticate(path: String, body: [String: String]) async throws -> (APIResult, AuthSession?) {
