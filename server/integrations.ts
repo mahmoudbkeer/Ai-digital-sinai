@@ -161,6 +161,7 @@ export type RedisProvider = {
     ttlSeconds?: number
   ): Promise<"OK" | "REQUIRES_SETUP">;
   del(key: string): Promise<number>;
+  ping(): Promise<"PONG" | "REQUIRES_SETUP">;
   enqueue(queue: string, payload: string, ttlSeconds?: number): Promise<"QUEUED" | "REQUIRES_SETUP">;
   dequeue(queue: string): Promise<string | null>;
 };
@@ -265,6 +266,11 @@ export function resolveRedisProvider(): RedisProvider {
         expiresAt: ttlSeconds ? Date.now() + ttlSeconds * 1000 : undefined,
       });
       return "OK";
+    },
+    async ping() {
+      if (!ready) return "REQUIRES_SETUP" as const;
+      if (!redisUrl) return "PONG" as const;
+      try { return (await command(["PING"])) === "PONG" ? "PONG" as const : "REQUIRES_SETUP" as const; } catch { return "REQUIRES_SETUP" as const; }
     },
     async del(key) {
       if (ready) {

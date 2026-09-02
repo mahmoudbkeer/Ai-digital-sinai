@@ -17,6 +17,7 @@ import { checkPostgres, isPostgresUrl } from "./postgres";
 import {
   assertRuntimeEnvironment,
   getIntegrationReadiness,
+  resolveRedisProvider,
 } from "./integrations";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -321,13 +322,14 @@ async function startServer() {
     });
     return res.status(202).json(response);
   });
-  app.get("/api/health", (_req, res) =>
-    res.json({
-      ok: true,
-      service: "ai-digital-sinai-web",
-      timestamp: new Date().toISOString(),
-    })
-  );
+  app.get("/api/health", async (_req, res) => {
+    let database = false;
+    try { getDataPlane(); database = true; } catch {}
+    const redisConfigured = Boolean(process.env.REDIS_URL?.trim());
+    const redis = redisConfigured ? await resolveRedisProvider().ping() : "LOCAL_MEMORY";
+    const ok = database && (!redisConfigured || redis === "PONG");
+    res.status(ok ? 200 : 503).json({ ok, service: "ai-digital-sinai-web", timestamp: new Date().toISOString(), checks: { database, redis } });
+  });
   app.get("/api/readiness", async (_req, res) => {
     const postgresConfigured = isPostgresUrl();
     let database = false;
@@ -348,12 +350,15 @@ async function startServer() {
           error instanceof Error ? error.message : "sqlite unavailable";
       }
     }
+    const redisConfigured = Boolean(process.env.REDIS_URL?.trim());
+    const redis = redisConfigured ? await resolveRedisProvider().ping() : "LOCAL_MEMORY";
     const checks = {
       commandContext: Boolean(
         process.env.COMMAND_CONTEXT_SECRET ?? process.env.JWT_SECRET
       ),
       paymentWebhook: Boolean(process.env.PAYMENT_WEBHOOK_SECRET),
       database,
+      redis: !redisConfigured || redis === "PONG",
       businessDataPlane: database,
       productionDatabase:
         process.env.NODE_ENV === "production" ? postgresConfigured : true,
@@ -365,6 +370,7 @@ async function startServer() {
       databaseProvider,
       databaseDetail,
       checks,
+      runtime: { redis },
       integrations: getIntegrationReadiness(),
       message: ready
         ? "الخدمات الأساسية مهيأة."
