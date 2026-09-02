@@ -1,0 +1,13 @@
+Analytics Android API test evidence
+Command: ./gradlew :app:testDebugUnitTest :app:assembleDebug --no-daemon
+Result: BUILD SUCCESSFUL
+Test: PlatformApiAnalyticsTest.analyticsOverviewBuildsAuthenticatedGetAndParsesCoreCounts
+
+The test executes PlatformApi.analyticsOverview() against OkHttp MockWebServer and verifies:
+GET /api/platform/analytics/overview -> HTTP 200
+Authorization: Bearer analytics-token
+x-tenant-id: tenant-analytics
+Parsed analytics.marketplace.orders: 7
+Parsed analytics.platform.deliveries: 5
+Parsed analytics.platform.notifications: 9
+The Compose home screen renders the three read-only metrics after authenticated loading.

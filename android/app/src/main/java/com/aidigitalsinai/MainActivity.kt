@@ -62,6 +62,8 @@ private fun LoginScreen(api: PlatformApi, store: SessionStore) {
     var searchResults by remember { mutableStateOf(emptyList<AiSearchResult>()) }
     var searchMessage by remember { mutableStateOf("") }
     var searchLoading by remember { mutableStateOf(false) }
+    var analytics by remember { mutableStateOf<AnalyticsOverview?>(null) }
+    var analyticsLoading by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
     Column(
@@ -98,7 +100,11 @@ private fun LoginScreen(api: PlatformApi, store: SessionStore) {
                         val (notificationsResult, loadedNotifications) = withContext(Dispatchers.IO) { api.notifications() }
                         notifications = loadedNotifications
                         notificationLoading = false
-                        "نجح الاتصال: HTTP ${result.status}. Marketplace HTTP ${productsResult.status}. Cart HTTP ${cartResult.status}. Notifications HTTP ${notificationsResult.status}. tenant=${store.tenantId}"
+                        analyticsLoading = true
+                        val (analyticsResult, loadedAnalytics) = withContext(Dispatchers.IO) { api.analyticsOverview() }
+                        analytics = loadedAnalytics
+                        analyticsLoading = false
+                        "نجح الاتصال: HTTP ${result.status}. Marketplace HTTP ${productsResult.status}. Cart HTTP ${cartResult.status}. Notifications HTTP ${notificationsResult.status}. Analytics HTTP ${analyticsResult.status}. tenant=${store.tenantId}"
                     } else {
                         "فشل الطلب: HTTP ${result.status} — ${result.body.optString("message", "تعذر الاتصال")}" 
                     }
@@ -203,6 +209,17 @@ private fun LoginScreen(api: PlatformApi, store: SessionStore) {
                         Text(item.title, style = MaterialTheme.typography.titleMedium)
                         Text(item.snippet)
                         Text(item.sourceType, style = MaterialTheme.typography.labelMedium)
+                    }
+                }
+            }
+            Text("Analytics", style = MaterialTheme.typography.headlineSmall)
+            if (analyticsLoading) CircularProgressIndicator()
+            else analytics?.let { overview ->
+                Card(modifier = Modifier.fillMaxWidth()) {
+                    Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text("Orders: ${overview.orders}")
+                        Text("Deliveries: ${overview.deliveries}")
+                        Text("Notifications: ${overview.notifications}")
                     }
                 }
             }

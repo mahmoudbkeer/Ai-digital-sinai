@@ -73,6 +73,12 @@ data class AiSearchResult(
     val sourceType: String
 )
 
+data class AnalyticsOverview(
+    val orders: Int,
+    val deliveries: Int,
+    val notifications: Int
+)
+
 class PlatformApi(private val baseUrl: String, private val session: SessionStoreContract) {
     fun login(email: String, password: String): ApiResult = request("POST", "/api/platform/auth/login", JSONObject().apply {
         put("email", email)
@@ -83,6 +89,18 @@ class PlatformApi(private val baseUrl: String, private val session: SessionStore
             val tenants = result.body.optJSONArray("tenants")
             session.tenantId = tenants?.optJSONObject(0)?.optString("tenant_id")
         }
+    }
+
+    fun analyticsOverview(): Pair<ApiResult, AnalyticsOverview> {
+        val result = request("GET", "/api/platform/analytics/overview", null, authenticated = true)
+        val analytics = result.body.optJSONObject("analytics")
+        val marketplace = analytics?.optJSONObject("marketplace")
+        val platform = analytics?.optJSONObject("platform")
+        return result to AnalyticsOverview(
+            orders = marketplace?.optInt("orders") ?: 0,
+            deliveries = platform?.optInt("deliveries") ?: 0,
+            notifications = platform?.optInt("notifications") ?: 0
+        )
     }
 
     fun aiSearch(query: String): Pair<ApiResult, List<AiSearchResult>> {
