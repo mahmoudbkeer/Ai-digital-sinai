@@ -9,7 +9,23 @@ final class PlatformAPIAISearchTests: XCTestCase {
             XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer ai-token")
             XCTAssertEqual(request.value(forHTTPHeaderField: "x-tenant-id"), "tenant-ai")
             XCTAssertEqual(request.value(forHTTPHeaderField: "Content-Type"), "application/json")
-            let body = try XCTUnwrap(request.httpBody)
+            let body: Data
+            if let httpBody = request.httpBody {
+                body = httpBody
+            } else if let stream = request.httpBodyStream {
+                stream.open()
+                defer { stream.close() }
+                var collected = Data()
+                var buffer = [UInt8](repeating: 0, count: 1024)
+                while stream.hasBytesAvailable {
+                    let count = stream.read(&buffer, maxLength: buffer.count)
+                    if count <= 0 { break }
+                    collected.append(buffer, count: count)
+                }
+                body = collected
+            } else {
+                throw AISearchTestError.missingBody
+            }
             let json = try XCTUnwrap(JSONSerialization.jsonObject(with: body) as? [String: String])
             XCTAssertEqual(json["query"], "Coffee product")
             let response = HTTPURLResponse(url: try XCTUnwrap(request.url), statusCode: 200, httpVersion: nil, headerFields: ["Content-Type": "application/json"])
@@ -32,6 +48,10 @@ final class PlatformAPIAISearchTests: XCTestCase {
         XCTAssertEqual(searchResults[0].chunkID, "chunk-1")
         XCTAssertEqual(searchResults[0].snippet, "Coffee product knowledge")
     }
+}
+
+private enum AISearchTestError: Error {
+    case missingBody
 }
 
 private final class AISearchURLProtocol: URLProtocol {
