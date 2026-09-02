@@ -22,7 +22,8 @@
     "test:staging:api": "node scripts/postgres-critical-smoke.mjs",
     "backup": "node scripts/backup.mjs",
     "restore": "node scripts/restore.mjs",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "acceptance:logistics": "node scripts/acceptance-logistics.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",

@@ -1702,6 +1702,9 @@ export function createPlatformRouter(): Router {
                 "UPDATE drivers SET status = 'ASSIGNED' WHERE id = ? AND tenant_id = ?"
               )
               .run(driverId, context.tenantId);
+          await db
+            .prepare("UPDATE orders SET state = 'OUT_FOR_DELIVERY', updated_at = ? WHERE id = ? AND tenant_id = ? AND state IN ('CONFIRMED','PROCESSING','READY')")
+            .run(timestamp, orderId, context.tenantId);
           await recordAudit(
             db,
             context,
@@ -1726,7 +1729,8 @@ export function createPlatformRouter(): Router {
     async (req: AuthenticatedRequest, res, next) => {
       try {
         const context = currentContext(req);
-        assertScope(context, context.tenantId, "order.manage");
+        if (!context.permissions.includes("order.manage") && !context.permissions.includes("order.read"))
+          throw httpError(403, "delivery-forbidden", "لا يملك المستخدم صلاحية تسجيل الإثبات.");
         const { proofType, storageRef, recipientName } = req.body ?? {};
         if (
           !["PHOTO", "SIGNATURE", "OTP", "NOTE"].includes(proofType) ||
@@ -1740,13 +1744,15 @@ export function createPlatformRouter(): Router {
         const db = getDataPlane();
         const delivery = (await db
           .prepare(
-            "SELECT id, state FROM deliveries WHERE id = ? AND tenant_id = ?"
+            "SELECT d.id, d.state, d.driver_id, dr.user_id AS driver_user_id FROM deliveries d LEFT JOIN drivers dr ON dr.id = d.driver_id AND dr.tenant_id = d.tenant_id WHERE d.id = ? AND d.tenant_id = ?"
           )
           .get(req.params.deliveryId, context.tenantId)) as
-          | { id: string; state: string }
+          | { id: string; state: string; driver_id: string | null; driver_user_id: string | null }
           | undefined;
         if (!delivery)
           throw httpError(404, "delivery-not-found", "التسليم غير موجود.");
+        if (!context.permissions.includes("order.manage") && delivery.driver_user_id !== context.userId)
+          throw httpError(403, "delivery-forbidden", "هذه المهمة ليست مسندة إلى السائق الحالي.");
         if (["CANCELLED", "FAILED"].includes(delivery.state))
           throw httpError(
             409,
@@ -1785,13 +1791,30 @@ export function createPlatformRouter(): Router {
     }
   );
 
+  router.post(
+    "/deliveries/:deliveryId/accept",
+    authenticate,
+    async (req: AuthenticatedRequest, res, next) => {
+      try {
+        const context = currentContext(req);
+        assertScope(context, context.tenantId, "order.read");
+        const db = getDataPlane();
+        const delivery = await db.prepare("SELECT d.id, d.driver_id, d.state, dr.user_id AS driver_user_id FROM deliveries d LEFT JOIN drivers dr ON dr.id = d.driver_id AND dr.tenant_id = d.tenant_id WHERE d.id = ? AND d.tenant_id = ?").get(req.params.deliveryId, context.tenantId) as { id: string; driver_id: string | null; driver_user_id: string | null; state: string } | undefined;
+        if (!delivery) throw httpError(404, "delivery-not-found", "التسليم غير موجود.");
+        if (delivery.driver_user_id !== context.userId) throw httpError(403, "driver-forbidden", "هذه المهمة ليست مسندة إلى السائق الحالي.");
+        if (delivery.state !== "ASSIGNED") throw httpError(409, "invalid-accept-state", "لا يمكن قبول هذه المهمة في حالتها الحالية.");
+        await recordAudit(db, context, "delivery.accept", "delivery", delivery.id, req.requestId);
+        return res.json({ ok: true, deliveryId: delivery.id, state: delivery.state, accepted: true });
+      } catch (error) { next(error); }
+    }
+  );
+
   router.patch(
     "/deliveries/:deliveryId/state",
     authenticate,
     async (req: AuthenticatedRequest, res, next) => {
       try {
         const context = currentContext(req);
-        assertScope(context, context.tenantId, "order.approve");
         const transitions: Record<string, string[]> = {
           CREATED: ["ASSIGNED", "CANCELLED"],
           PENDING: ["ASSIGNED", "CANCELLED"],
@@ -1808,11 +1831,14 @@ export function createPlatformRouter(): Router {
         const db = getDataPlane();
         const delivery = (await db
           .prepare(
-            "SELECT id, state, driver_id FROM deliveries WHERE id = ? AND tenant_id = ?"
+            "SELECT d.id, d.state, d.driver_id, dr.user_id AS driver_user_id FROM deliveries d LEFT JOIN drivers dr ON dr.id = d.driver_id AND dr.tenant_id = d.tenant_id WHERE d.id = ? AND d.tenant_id = ?"
           )
           .get(req.params.deliveryId, context.tenantId)) as
-          | { id: string; state: string; driver_id: string | null }
+          | { id: string; state: string; driver_id: string | null; driver_user_id: string | null }
           | undefined;
+        const driverMayUpdate = delivery?.driver_user_id === context.userId && ["PICKED_UP", "IN_TRANSIT", "DELIVERED"].includes(state);
+        if (!context.permissions.includes("order.approve") && !driverMayUpdate)
+          throw httpError(403, "delivery-forbidden", "لا يملك المستخدم صلاحية تحديث هذه المهمة.");
         if (!delivery)
           throw httpError(
             404,
@@ -1843,6 +1869,10 @@ export function createPlatformRouter(): Router {
             "UPDATE deliveries SET state = ?, updated_at = ? WHERE id = ? AND tenant_id = ?"
           )
           .run(state, now(), delivery.id, context.tenantId);
+        if (state === "DELIVERED")
+          await db
+            .prepare("UPDATE orders SET state = 'COMPLETED', updated_at = ? WHERE id = (SELECT order_id FROM deliveries WHERE id = ? AND tenant_id = ?) AND tenant_id = ?")
+            .run(now(), delivery.id, context.tenantId, context.tenantId);
         await db
           .prepare(
             "INSERT INTO delivery_events (id, tenant_id, delivery_id, state, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?)"
