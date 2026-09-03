@@ -22,12 +22,16 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.Dispatchers
@@ -51,7 +55,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         val store = SessionStore(this)
         val api = PlatformApi(BuildConfig.API_BASE_URL, store)
-        setContent { MaterialTheme(colorScheme = AppLightColorScheme) { Surface { LoginScreen(api, store) } } }
+        setContent { CompositionLocalProvider(LocalLayoutDirection provides if (java.util.Locale.getDefault().language == "ar") LayoutDirection.Rtl else LayoutDirection.Ltr) { MaterialTheme(colorScheme = AppLightColorScheme) { Surface { LoginScreen(api, store) } } } }
     }
 }
 
@@ -89,10 +93,10 @@ private fun LoginScreen(api: PlatformApi, store: SessionStore) {
         modifier = Modifier.fillMaxSize().padding(PaddingValues(24.dp)),
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
-        Text("AI DIGITAL SINAI", style = MaterialTheme.typography.headlineMedium)
-        Text(if (registerMode) "إنشاء مساحة عمل" else "تسجيل الدخول", style = MaterialTheme.typography.titleLarge)
-        OutlinedTextField(email, { email = it }, label = { Text("البريد الإلكتروني") }, modifier = Modifier.fillMaxWidth())
-        OutlinedTextField(password, { password = it }, label = { Text("كلمة المرور") }, visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth())
+        Text(stringResource(R.string.brand_name), style = MaterialTheme.typography.headlineMedium)
+        Text(stringResource(if (registerMode) R.string.create_account else R.string.login_title), style = MaterialTheme.typography.titleLarge)
+        OutlinedTextField(email, { email = it }, label = { Text(stringResource(R.string.email)) }, modifier = Modifier.fillMaxWidth())
+        OutlinedTextField(password, { password = it }, label = { Text(stringResource(R.string.password)) }, visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth())
         if (registerMode) {
             OutlinedTextField(displayName, { displayName = it }, label = { Text("الاسم") }, modifier = Modifier.fillMaxWidth())
             OutlinedTextField(tenantName, { tenantName = it }, label = { Text("اسم النشاط") }, modifier = Modifier.fillMaxWidth())
@@ -137,9 +141,9 @@ private fun LoginScreen(api: PlatformApi, store: SessionStore) {
             },
             enabled = !loading && email.isNotBlank() && password.isNotBlank(),
             modifier = Modifier.fillMaxWidth()
-        ) { if (loading) CircularProgressIndicator() else Text(if (registerMode) "تسجيل" else "دخول") }
+        ) { if (loading) CircularProgressIndicator() else Text(stringResource(if (registerMode) R.string.register else R.string.sign_in)) }
         Button(onClick = { registerMode = !registerMode; message = "" }, modifier = Modifier.fillMaxWidth()) {
-            Text(if (registerMode) "لدي حساب بالفعل" else "إنشاء حساب جديد")
+            Text(stringResource(if (registerMode) R.string.existing_account else R.string.create_account))
         }
         if (message.isNotBlank()) Text(message, color = MaterialTheme.colorScheme.primary)
         if (authenticated) {

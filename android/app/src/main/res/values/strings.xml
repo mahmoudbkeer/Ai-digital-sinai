@@ -1,0 +1,10 @@
+<resources>
+    <string name="brand_name">AI DIGITAL SINAI</string>
+    <string name="login_title">تسجيل الدخول</string>
+    <string name="email">البريد الإلكتروني</string>
+    <string name="password">كلمة المرور</string>
+    <string name="register">تسجيل</string>
+    <string name="sign_in">دخول</string>
+    <string name="existing_account">لدي حساب بالفعل</string>
+    <string name="create_account">إنشاء حساب جديد</string>
+</resources>

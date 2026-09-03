@@ -1,0 +1,10 @@
+<resources>
+    <string name="brand_name">AI DIGITAL SINAI</string>
+    <string name="login_title">Sign in</string>
+    <string name="email">Email</string>
+    <string name="password">Password</string>
+    <string name="register">Register</string>
+    <string name="sign_in">Sign in</string>
+    <string name="existing_account">I already have an account</string>
+    <string name="create_account">Create a new account</string>
+</resources>
