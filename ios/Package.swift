@@ -10,8 +10,7 @@ let package = Package(
     ],
     targets: [
         .target(name: "AiDigitalSinaiCore"),
-        .executableTarget(name: "AiDigitalSinaiApp", dependencies: ["AiDigitalSinaiCore"]),
+        .executableTarget(name: "AiDigitalSinaiApp", dependencies: ["AiDigitalSinaiCore"], resources: [.process("Resources")]),
         .testTarget(name: "AiDigitalSinaiCoreTests", dependencies: ["AiDigitalSinaiCore"])
     ]
 )
-

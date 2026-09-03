@@ -7,6 +7,7 @@ struct AiDigitalSinaiApp: App {
         WindowGroup {
             LoginView()
                 .tint(DesignTokens.sinaiTide)
+                .environment(\.layoutDirection, Locale.current.language.languageCode?.identifier == "ar" ? .rightToLeft : .leftToRight)
         }
     }
 }
@@ -30,19 +31,19 @@ struct LoginView: View {
             } else {
             Form {
                 Section("AI DIGITAL SINAI") {
-                    TextField("البريد الإلكتروني", text: $email)
-                    SecureField("كلمة المرور", text: $password)
+                    TextField(LocalizedStringKey("email"), text: $email)
+                    SecureField(LocalizedStringKey("password"), text: $password)
                     if registerMode {
-                        TextField("الاسم", text: $displayName)
-                        TextField("اسم النشاط", text: $tenantName)
+                        TextField(LocalizedStringKey("name"), text: $displayName)
+                        TextField(LocalizedStringKey("business_name"), text: $tenantName)
                     }
                 }
                 Section {
-                    Button(registerMode ? "تسجيل" : "دخول") {
+                    Button(LocalizedStringKey(registerMode ? "register" : "sign_in")) {
                         Task { await submit() }
                     }
                     .disabled(loading || email.isEmpty || password.isEmpty)
-                    Button(registerMode ? "لدي حساب بالفعل" : "إنشاء حساب جديد") {
+                    Button(LocalizedStringKey(registerMode ? "existing_account" : "create_account")) {
                         registerMode.toggle()
                         message = ""
                     }
@@ -50,7 +51,7 @@ struct LoginView: View {
                 if loading { ProgressView() }
                 if !message.isEmpty { Text(message).foregroundStyle(DesignTokens.sinaiTide) }
             }
-            .navigationTitle(registerMode ? "إنشاء مساحة عمل" : "تسجيل الدخول")
+            .navigationTitle(LocalizedStringKey(registerMode ? "create_account" : "login_title"))
             }
         }
     }
