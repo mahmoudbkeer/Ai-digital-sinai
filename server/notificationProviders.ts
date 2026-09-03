@@ -52,7 +52,7 @@ function configuredEndpoint(channel: NotificationChannel) {
     const account = serviceAccount();
     return Boolean(process.env.FCM_PROJECT_ID?.trim() && account);
   }
-  if (channel === "EMAIL") return Boolean(process.env.EMAIL_PROVIDER_API_KEY?.trim() && process.env.NOTIFICATION_PROVIDER_API_URL?.trim());
+  if (channel === "EMAIL") return Boolean(process.env.SENDGRID_API_KEY?.trim() && process.env.SENDGRID_FROM_EMAIL?.trim());
   return channel === "IN_APP";
 }
 
@@ -80,11 +80,12 @@ async function enqueueFcm(input: NotificationInput): Promise<{ status: Notificat
 }
 
 async function enqueueGenericEmail(input: NotificationInput): Promise<{ status: NotificationDeliveryStatus; error?: string }> {
-  const endpoint = process.env.NOTIFICATION_PROVIDER_API_URL;
-  const apiKey = process.env.EMAIL_PROVIDER_API_KEY?.trim();
-  if (!apiKey || !endpoint || !input.recipientEmail) return { status: "REQUIRES_SETUP", error: "Email provider endpoint, key, and recipient email are required." };
+  const endpoint = "https://api.sendgrid.com/v3/mail/send";
+  const apiKey = process.env.SENDGRID_API_KEY?.trim();
+  const from = process.env.SENDGRID_FROM_EMAIL?.trim();
+  if (!apiKey || !from || !input.recipientEmail) return { status: "REQUIRES_SETUP", error: "SendGrid API key, sender, and recipient email are required." };
   try {
-    const response = await requestWithTimeout(endpoint, { method: "POST", headers: { authorization: `Bearer ${apiKey}`, "content-type": "application/json" }, body: JSON.stringify({ channel: "EMAIL", recipientEmail: input.recipientEmail, title: input.title, body: input.body }) });
+    const response = await requestWithTimeout(endpoint, { method: "POST", headers: { authorization: `Bearer ${apiKey}`, "content-type": "application/json" }, body: JSON.stringify({ personalizations: [{ to: [{ email: input.recipientEmail }] }], from: { email: from }, subject: input.title, content: [{ type: "text/plain", value: input.body }] }) });
     if (!response.ok) return { status: "FAILED", error: `Email provider returned HTTP ${response.status}.` };
     return { status: "QUEUED" };
   } catch (error) { return { status: "FAILED", error: error instanceof Error && error.name === "AbortError" ? "SendGrid request timeout." : "SendGrid request failed." }; }
