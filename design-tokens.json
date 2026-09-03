@@ -1,0 +1,38 @@
+{
+  "$schema": "https://design-tokens.github.io/community-group/format/",
+  "name": "AI Digital Sinai — Future Coast",
+  "source": "ideas.md",
+  "color": {
+    "brand": {
+      "primary": { "value": "#0E7C7B", "description": "Sinai Tide; primary actions and active data markers" },
+      "secondary": { "value": "#102A43", "description": "Sea navy; trust, headings and dark surfaces" },
+      "accent": { "value": "#E8D3B4", "description": "Warm sand accent" },
+      "highlight": { "value": "#D97559", "description": "Coral highlight" }
+    },
+    "status": {
+      "success": { "value": "#15704F" },
+      "warning": { "value": "#956318" },
+      "error": { "value": "#9D4C3A" },
+      "info": { "value": "#176A67" }
+    },
+    "light": {
+      "background": { "value": "#FCFAF6" },
+      "surface": { "value": "#FFFFFF" },
+      "surfaceMuted": { "value": "#F3F0EA" },
+      "text": { "value": "#15202B" },
+      "textMuted": { "value": "#657481" },
+      "border": { "value": "#D9E3E3" },
+      "borderStrong": { "value": "#B8DED8" }
+    },
+    "dark": {
+      "background": { "value": "#102A43" },
+      "surface": { "value": "#173B59" },
+      "surfaceMuted": { "value": "#214866" },
+      "text": { "value": "#FCFAF6" },
+      "textMuted": { "value": "#C1D0D3" },
+      "border": { "value": "#496B7D" },
+      "borderStrong": { "value": "#74CBC2" }
+    }
+  },
+  "radius": { "md": { "value": "1rem" }, "pill": { "value": "999px" } }
+}

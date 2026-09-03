@@ -3,7 +3,20 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
-:root { --primary:#0E7C7B; --navy:#102A43; --ink:#15202B; --cream:#FCFAF6; --sand:#E8D3B4; --coral:#D97559; --line:#D9E3E3; --muted:#657481; --radius:1rem; }
+:root {
+  /* Generated from /design-tokens.json — Future Coast identity. */
+  --color-brand-primary:#0E7C7B; --color-brand-secondary:#102A43; --color-brand-accent:#E8D3B4; --color-brand-highlight:#D97559;
+  --color-success:#15704F; --color-warning:#956318; --color-error:#9D4C3A; --color-info:#176A67;
+  --color-background:#FCFAF6; --color-surface:#FFFFFF; --color-surface-muted:#F3F0EA;
+  --color-text:#15202B; --color-text-muted:#657481; --color-border:#D9E3E3; --color-border-strong:#B8DED8;
+  --color-dark-background:#102A43; --color-dark-surface:#173B59; --color-dark-text:#FCFAF6; --color-dark-text-muted:#C1D0D3;
+  --primary:var(--color-brand-primary); --navy:var(--color-brand-secondary); --ink:var(--color-text); --cream:var(--color-background);
+  --sand:var(--color-brand-accent); --coral:var(--color-brand-highlight); --line:var(--color-border); --muted:var(--color-text-muted); --radius:1rem;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --color-background:var(--color-dark-background); --color-surface:var(--color-dark-surface); --color-text:var(--color-dark-text); --color-text-muted:var(--color-dark-text-muted); --color-border:#496B7D; --color-border-strong:#74CBC2; }
+}
+
 * { box-sizing:border-box; }
 html { scroll-behavior:smooth; }
 body { margin:0; background:var(--cream); color:var(--ink); font-family:'IBM Plex Sans Arabic',sans-serif; }
