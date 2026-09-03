@@ -4,7 +4,10 @@ import AiDigitalSinaiCore
 @main
 struct AiDigitalSinaiApp: App {
     var body: some Scene {
-        WindowGroup { LoginView() }
+        WindowGroup {
+            LoginView()
+                .tint(DesignTokens.sinaiTide)
+        }
     }
 }
 
@@ -45,7 +48,7 @@ struct LoginView: View {
                     }
                 }
                 if loading { ProgressView() }
-                if !message.isEmpty { Text(message).foregroundStyle(.blue) }
+                if !message.isEmpty { Text(message).foregroundStyle(DesignTokens.sinaiTide) }
             }
             .navigationTitle(registerMode ? "إنشاء مساحة عمل" : "تسجيل الدخول")
             }
@@ -106,7 +109,7 @@ struct MarketplaceView: View {
                                 .disabled(searching || searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                         }
                         if searching { ProgressView("جارٍ البحث…") }
-                        if !searchError.isEmpty { Text(searchError).foregroundStyle(.red) }
+                        if !searchError.isEmpty { Text(searchError).foregroundStyle(DesignTokens.error) }
                         ForEach(searchResults) { result in
                             VStack(alignment: .leading, spacing: 4) {
                                 Text(result.title).font(.headline)
@@ -273,7 +276,7 @@ struct CartCheckoutView: View {
                     .disabled(loading || cart?.items.isEmpty != false || api.authSession?.branchID == nil)
             }
             if loading { ProgressView() }
-            if !message.isEmpty { Text(message).foregroundStyle(.blue) }
+            if !message.isEmpty { Text(message).foregroundStyle(DesignTokens.sinaiTide) }
             if let order {
                 Section("الطلب") {
                     LabeledContent("Order ID", value: order.orderID)
