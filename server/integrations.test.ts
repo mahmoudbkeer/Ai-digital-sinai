@@ -5,6 +5,7 @@ import {
   resolveObjectStorageProvider,
   resolveRedisProvider,
 } from "./integrations";
+import { isPostgresUrl } from "./postgres";
 import { resolveAIProvider } from "./aiProviders";
 
 afterEach(() => {
@@ -93,6 +94,17 @@ describe("runtime integration contracts", () => {
     const storage = resolveObjectStorageProvider();
     await expect(storage.createUploadIntent({ tenantId: "tenant-a", objectKey: "docs/file.pdf", contentType: "application/pdf", sizeBytes: 100 })).resolves.toMatchObject({ status: "READY", objectKey: "tenant-a/docs/file.pdf", uploadUrl: expect.stringContaining("signature=") });
     await expect(storage.createDownloadUrl({ tenantId: "tenant-a", objectKey: "../tenant-b/private.pdf" })).resolves.toMatchObject({ status: "REQUIRES_SETUP" });
+  });
+
+  it("accepts managed PostgreSQL and Redis URLs through standard protocols", async () => {
+    vi.stubEnv("DATABASE_URL", "postgresql://app:secret@db.example.test:5432/app?sslmode=require");
+    vi.stubEnv("REDIS_URL", "rediss://:secret@cache.example.test:6380/2");
+    expect(isPostgresUrl()).toBe(true);
+    expect(getIntegrationReadiness()).toMatchObject({ productionDatabase: "configured", redis: "configured" });
+    const redis = resolveRedisProvider();
+    expect(redis.status).toBe("configured");
+    expect(await redis.set("migration-check", "value")).toBe("REQUIRES_SETUP");
+    expect(await redis.get("migration-check")).toBeNull();
   });
 
   it("reports unconfigured AI gateway without fabricating a result", async () => {
