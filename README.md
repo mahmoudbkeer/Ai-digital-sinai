@@ -53,6 +53,25 @@
 
 يستخدم التشغيل المحلي `SQLITE_PATH` اختيارياً، وإلا تُحفظ القاعدة في `.data/ai-digital-sinai.sqlite` غير المتعقبة. ملفات `migrations/0001_core.sql` إلى `migrations/0004_mfa.sql` هي مصدر SQLite، ونسخ `migrations/postgres/` مصدر PostgreSQL. في الإنتاج يتطلب startup `DATABASE_URL` PostgreSQL و`COMMAND_CONTEXT_SECRET`؛ لا يسمح بـSQLite إلا عبر `ALLOW_SQLITE_PRODUCTION_TEST=1` في الاختبارات المحلية. لا ينبغي تشغيل rollback على إنتاج دون نسخة احتياطية واختبار استعادة. الحالة الحالية **Business Core Implemented / Production Verification Pending**؛ ما تبقى من Redis/queues وObject Storage/CDN ومزودات الدفع والإشعارات وvector provider يعتمد على إعدادات خارجية موثقة صراحة في `DEPLOYMENT.md` و`CURRENT_IMPLEMENTATION_MAP.md`.
 
+## متغيرات البيئة المطلوبة لكل مزوّد
+
+| المزوّد | المتغيرات المطلوبة | السلوك عند الغياب |
+|---|---|---|
+| Firebase Cloud Messaging | `FCM_PROJECT_ID` و`FCM_SERVICE_ACCOUNT_JSON`، مع `deviceToken` لكل Push | حالة `REQUIRES_SETUP`؛ لا يتم إرسال Push ولا تُسجّل تسوية وهمية |
+| SendGrid | `SENDGRID_API_KEY` و`SENDGRID_FROM_EMAIL` | حالة `REQUIRES_SETUP`؛ لا يتم ادعاء إرسال Email |
+| PostgreSQL المُدار | `DATABASE_URL=postgresql://...` أو `postgres://...`، و`COMMAND_CONTEXT_SECRET` و`PAYMENT_WEBHOOK_SECRET` في الإنتاج | يبقى SQLite للتطوير/الاختبار فقط، ويرفض startup الإنتاجي SQLite إلا عبر bypass اختبار صريح |
+| Redis المُدار | `REDIS_URL=redis://...` أو `rediss://...`، مع كلمة المرور وقاعدة المسار عند الحاجة | لا يستخدم النظام memory fallback عند وجود URL أو في production؛ يعيد `REQUIRES_SETUP` عند فشل الاتصال |
+
+بعد إدخال القيم الحقيقية لا يحتاج الكود إلى تعديل: أعد تشغيل الخادم، طبّق migrations، ثم افحص `/api/readiness` وشغّل اختبارات smoke/staging المناسبة. يجب حفظ JSON الخاص بـFirebase كسر في مدير أسرار، لا في Git أو الواجهة.
+
+## SQLite مقابل PostgreSQL وRedis المحلي مقابل Redis المُدار
+
+يستخدم الحد البرمجي نفسه `DATABASE_URL` للتبديل إلى PostgreSQL القياسي، وتستخدم طبقة البيانات placeholders موحدة وتنفذ migrations PostgreSQL مستقلة. مع ذلك، توجد فروق يجب الانتباه لها في الانتقال الفعلي: PostgreSQL أشد صرامة في أنواع البيانات والقيود وforeign keys، والتزامن يعتمد على transactions وrow-level locking بدل SQLite file locking؛ كما أن ترتيب/حساسية النصوص والفهارس قد تختلف، ولذلك يجب اختبار pagination وunique constraints وNULL/collation على staging. اختبارات tenant isolation على PostgreSQL staging مطلوبة قبل الإنتاج، ولا يكفي نجاح SQLite وحده. يجب أيضًا تنفيذ migration lock والـrestore drill على قاعدة مُدارة.
+
+يستخدم Redis المُدار نفس RESP القياسي؛ يدعم الكود `redis://` و`rediss://`، وAUTH من بيانات URL، واختيار database من path، وعمليات `GET/SET/DEL/PING/LPUSH/RPOP/EXPIRE`. الفرق التشغيلي الأساسي أن Redis المُدار شبكة خارجية ذات TLS وtimeouts وموارد مشتركة، لذلك لا يُسمح بالاعتماد على memory fallback عند وجود `REDIS_URL` أو في production، ويجب اختبار latency وreconnect وqueue durability وACL/TLS لدى المزوّد.
+
+أثبتت اختبارات العقد المحلية قبول PostgreSQL URLs وRedis URLs القياسية، ورفض fallback عند عنوان Redis غير قابل للوصول، دون الحاجة إلى حساب مُدار حقيقي.
+
 ## Kashier configuration
 
 يستخدم adapter Kashier متغيرات `KASHIER_MID` و`KASHIER_API_KEY` و`KASHIER_MODE=test|live`. ويمكن تخصيص `KASHIER_API_URL` و`KASHIER_PAYMENT_SESSIONS_PATH` للاختبار أو لمطابقة حساب Kashier المفعّل. لا تُحفظ المفاتيح في Git ولا تُمرر إلى العميل. توقيع callback يُتحقق منه بخوارزمية HMAC-SHA256 على ترتيب حقول Kashier الموثق، ثم يمر الحدث عبر نفس مسار `Payment Status → Order → Invoice → Ledger` وidempotency الموجود. عندما لا تكون الاعتمادات موجودة، يعيد إنشاء الـintent أو الـrequest حالة `REQUIRES_SETUP` ولا يستدعي Kashier.

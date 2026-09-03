@@ -9,7 +9,7 @@
 |---|---:|---:|---|---|---|---|
 | Production Infrastructure | 45 | 60 | BLOCKED_EXTERNAL_DEPENDENCY | startup gate، health/readiness، PostgreSQL staging، Redis worker contract | managed production, WAF, external monitoring | staging + CI + worker |
 | Security | 70 | 78 | IMPLEMENTED / EXTERNAL SETUP | HSTS، CSP، CORS، MFA، IDOR، SQLi، XSS input، rate-limit، webhook replay، secret scan | WAF، DAST/pentest، full dependency scan including dev tools | `pnpm test:security:adversarial`, `pnpm audit --prod` |
-| PostgreSQL/Data | 90 | 90 | VERIFIED | migrations 1–4، pooling، FK، composite tenant constraints، rollback، ledger balance | managed production/offsite drill | `pnpm test:staging` |
+| PostgreSQL/Data | 90 | 92 | VERIFIED / EXTERNAL SETUP | migrations 1–8، pooling، FK، composite tenant constraints، rollback، ledger balance، standard `DATABASE_URL` contract | managed production/offsite drill، staging tenant-isolation evidence لكل release | `pnpm test:staging` + integration URL contract |
 | Identity | 82 | 84 | VERIFIED | registration/login/session/revoke/reset/MFA، MFA abuse lock | device verification، email delivery | 42 tests |
 | Tenant Isolation | 82 | 86 | VERIFIED | token/tenant mismatch denial، AI tenant isolation، IDOR smoke | complete 20-domain adversarial matrix | staging + adversarial smoke |
 | RBAC/ABAC | 75 | 75 | PARTIALLY_IMPLEMENTED | server-side permission/scope/entitlements; 64 abstract role × operation checks; 5 concrete cross-tenant IDOR resources | exhaustive 8-role × 28 resource-family × applicable-action matrix | `scripts/rbac-adversarial-matrix.mjs`; exact reconciliation below |
@@ -23,9 +23,9 @@
 | Finance/Payments | 65 | 74 | IMPLEMENTED / REQUIRES_SETUP | balanced journals، payment intent، Kashier session adapter، Kashier HMAC callback، webhook replay/idempotency، Payment Status → Order → Invoice → Ledger، truthful failure handling | KASHIER_MID/KASHIER_API_KEY الحقيقية، sandbox/runtime evidence، refunds، settlement/reconciliation | `server/payment*.test.ts` + mock webhook + CI |
 | Subscriptions | 65 | 65 | PARTIALLY_IMPLEMENTED | trial/plans/cancel/renew/entitlements | provider webhook/grace automation | platform tests |
 | Logistics | 65 | 65 | PARTIALLY_IMPLEMENTED | state machine/driver/vehicle/proof | GPS/tracking provider/zones/pricing | delivery tests |
-| Redis | 60 | 72 | IMPLEMENTED / REQUIRES_SETUP | RESP get/set/del/TTL، LPUSH/RPOP queue، worker، retry/DLQ، no production memory fallback | managed Redis، distributed locks/rate limits | integration tests + `scripts/queue-worker.mjs` |
+| Redis | 60 | 75 | IMPLEMENTED / REQUIRES_SETUP | RESP get/set/del/TTL، LPUSH/RPOP queue، worker، retry/DLQ، `redis://`/`rediss://`، AUTH/DB path، no production memory fallback | managed Redis، distributed locks/rate limits، latency/reconnect evidence | integration tests + managed URL contract + `scripts/queue-worker.mjs` |
 | Object Storage | 70 | 70 | REQUIRES_SETUP | tenant-scoped keys, validation, signed URLs | managed bucket, deletion/retention, malware scanner | integration tests |
-| Notifications | 55 | 55 | REQUIRES_SETUP | in-app schema/preferences/provider boundary | real email/SMS/push, queue/retry/DLQ | platform tests |
+| Notifications | 55 | 68 | IMPLEMENTED / REQUIRES_SETUP | in-app schema/preferences، FCM Push adapter، SendGrid Email adapter، queue/retry/worker contract، truthful provider failures | FCM/SendGrid credentials، recipient device-token registration، SMS remains deferred | notification provider tests + platform tests |
 | AI Gateway | 65 | 65 | REQUIRES_SETUP | provider boundary, usage/audit, output/policy boundary | real provider routing/cost/telemetry | AI contracts |
 | AI Search | 55 | 55 | PARTIALLY_IMPLEMENTED | database-truth lexical search, geo, tenant scope | intent/entity/semantic/vector/ranking | cross-tenant smoke |
 | RAG | 35 | 50 | IMPLEMENTED / REQUIRES_SETUP | deterministic chunking، tenant/permission filter، truthful embedding boundary، multi-chunk ingestion | embedding/vector/retrieve/context/evidence provider runtime | `server/rag.test.ts` |
@@ -76,6 +76,16 @@ Mobile                   20% ×  2% = 0.40
 | Payment Status → Order → Invoice → Ledger | PRESERVED | Existing webhook settlement branch remains unchanged; Kashier references are accepted through the same provider reference lookup | Confirm with sandbox event tied to a real intent |
 | Web POS | COMPLETE | Checkout creates order, then POS invokes `/payment-requests` and displays the customer link | Add a dedicated QR renderer only if product requires visual QR rather than QR payload/link |
 | Android/iOS POS | NOT IN CURRENT SCOPE | Current native apps expose consumer Marketplace/cart flows, not cashier screens; server contract is platform-neutral | Add native cashier screens only when a cashier role is introduced on mobile |
+
+## Notification and managed-infrastructure status — 2026-09-03
+
+| Area | Status | Evidence | Remaining blocker |
+|---|---|---|---|
+| FCM Push | IMPLEMENTED / REQUIRES_SETUP | `FCM_PROJECT_ID` + `FCM_SERVICE_ACCOUNT_JSON` adapter، OAuth JWT، FCM HTTP v1، queue worker، no success fabrication | real service account/device token and sandbox delivery evidence |
+| SendGrid Email | IMPLEMENTED / REQUIRES_SETUP | `SENDGRID_API_KEY` + `SENDGRID_FROM_EMAIL`، SendGrid v3 mail contract، queue/retry worker، HTTP status handling | verified sender/domain and sandbox delivery evidence |
+| PostgreSQL | IMPLEMENTED / EXTERNAL SETUP | `DATABASE_URL` accepts standard `postgres://`/`postgresql://`; migrations/pool use managed-compatible protocol | managed instance migration, tenant-isolation staging run، backup/restore drill |
+| Redis | IMPLEMENTED / EXTERNAL SETUP | `REDIS_URL` accepts `redis://`/`rediss://`; RESP AUTH/DB selection and no memory fallback when configured | managed TLS/ACL, reconnect/latency/queue durability evidence |
+| Deferred scope | UNCHANGED | SMS، LLM/Vector DB، WAF/CDN، Kashier live untouched | future separate change |
 
 ## Exact remaining gaps
 

@@ -58,6 +58,9 @@ jobs:
       - name: Kashier payment contract and mock webhook tests
         run: pnpm exec vitest run server/payment.test.ts server/paymentProviders.test.ts server/paymentEndpoint.test.ts
 
+      - name: Notification provider and managed infrastructure contracts
+        run: pnpm exec vitest run server/notificationProviders.test.ts server/integrations.test.ts
+
       - name: Production build
         run: pnpm build
 
