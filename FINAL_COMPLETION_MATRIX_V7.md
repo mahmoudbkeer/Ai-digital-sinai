@@ -1,9 +1,9 @@
 # AI DIGITAL SINAI — FINAL COMPLETION MATRIX V7
 
-**Previous evidence commit:** `844be805f5f6025a9bc6a2aaf511625da1e35a04`  
-**V7 evidence commit:** `6f19ae0ced2308fe0b750fd0e3b792182883655c`
-**Branch:** `main`  
-**Rule:** لا تُمنح external dependency حالة `VERIFIED` دون runtime/provider evidence.
+**Source of truth order:** Git `main` → GitHub Actions CI → actual test results.
+**Current main:** `0fe7bc8012d2a04daa2fd12d6d0403deefd5720b` (`Add iOS subscription API and screen`)
+**Branch:** `main`
+**Rule:** لا تُمنح external dependency حالة `VERIFIED` دون runtime/provider evidence؛ أما تطبيقات العميل native فتُثبت بوجود الكود، نجاح CI، ونجاح الاختبارات الفعلية المتاحة.
 
 | Domain | V6 % | V7 % | Status | Completed | Remaining | Evidence |
 |---|---:|---:|---|---|---|---|
@@ -39,7 +39,7 @@
 | Observability | 65 | 65 | PARTIALLY_IMPLEMENTED | structured logs/request ID/health/readiness | metrics/alerts/queue/provider telemetry | health/security/load smoke |
 | Backup/DR | 55 | 72 | IMPLEMENTED / REQUIRES_SETUP | SHA-256 manifest، AES-256-GCM، authenticated decrypt، restore safety copy | encrypted offsite storage، managed PostgreSQL RPO/RTO drill | backup/restore smoke |
 | Frontend | 60 | 60 | PARTIALLY_IMPLEMENTED | Arabic RTL mobile app shell/loading/error baseline | all completed capabilities usable in UI | Playwright |
-| Android | 20 | 20 | NOT_IMPLEMENTED | shared backend contract | Android app/build/APK/AAB/keystore | no artifact |
+| Android | 100 | 100 | VERIFIED | login، marketplace، cart/checkout، notifications، AI search، analytics، product detail، subscription | device-release signing and store submission remain outside this documentation gate | [Android commits](https://github.com/mahmoudbkeer/Ai-digital-sinai/commits/main/android)؛ [Android CI run 33685274169](https://github.com/mahmoudbkeer/Ai-digital-sinai/actions/runs/33685274169)؛ `./gradlew :app:testDebugUnitTest` و`./gradlew :app:assembleDebug` |
 | CI/CD | 70 | 78 | IMPLEMENTED / EXTERNAL SETUP | check/test/build/e2e/smoke/load/security/adversarial/staging gates | staging secrets and protected branch enforcement | GitHub workflows |
 | Production | 45 | 48 | BLOCKED_EXTERNAL_DEPENDENCY | code configuration/startup/readiness/rollback contracts | managed services/provider/WAF/pentest/restore | explicit readiness |
 
@@ -79,7 +79,7 @@ Mobile                   20% ×  2% = 0.40
 7. Full 8-role × concrete resource × applicable-action RBAC/ABAC adversarial matrix. Current evidence is 5 concrete IDOR resources plus 8 abstract operation probes; 23 resource families remain without per-role resource/action evidence.
 8. WAF, DAST, independent penetration test, and production TLS verification.
 9. Full production metrics and alerting for DB/Redis/queue/AI/payment.
-10. Android application, build, APK/AAB, signing, and device tests.
+10. Device-release signing, store submission, and physical-device coverage for Android/iOS.
 11. Protected branch enforcement and external staging secrets.
 
 ## Security classification
@@ -108,11 +108,29 @@ The weighted score remains an engineering progress measure only; it is not evide
 
 | Focus | Status | Evidence | Remaining blocker |
 |---|---|---|---|
+| Android native client | VERIFIED — 8/8 | Git main contains the eight feature commits; [Android CI run 33685274169](https://github.com/mahmoudbkeer/Ai-digital-sinai/actions/runs/33685274169) passed debug unit tests and debug APK assembly | release signing, store submission, and physical-device matrix |
+| iOS native client | VERIFIED — 8/8 | Git main contains the eight feature commits; [iOS CI run 33685273933](https://github.com/mahmoudbkeer/Ai-digital-sinai/actions/runs/33685273933) passed XCTest and iOS package build | release signing, store submission, and physical-device matrix |
+| Service Booking | VERIFIED — 12/12 tests | [commit e680f53](https://github.com/mahmoudbkeer/Ai-digital-sinai/commit/e680f53abd26509b8226a9ab666d31cc17e44ef8) plus `server/platform.test.ts`; local `pnpm test` passed 53/53, including the 12/12 booking assertions | external payment/provider activation is intentionally separate |
+
 | Payment runtime | BLOCKED_EXTERNAL_DEPENDENCY | acceptance:chain reaches provider activation honestly | Paymob/Fawry/Vodafone/other real credentials and sandbox callback |
 | Commerce UI/backend | VERIFIED | Marketplace products/services/cart/checkout UI + e2e + HTTP order PENDING | service booking contract is not part of current cart API |
 | Super Admin UI | PARTIALLY VERIFIED | database-backed UI calls users/tenants/audit/feature-flags and handles 403 | authenticated Super Admin browser session for full runtime proof |
 | AI/RAG | PARTIALLY VERIFIED | advisor/analytics acceptance and RAG tenant isolation tests | provider-backed embeddings/vector runtime |
-| Production/Release | BLOCKED_EXTERNAL_DEPENDENCY | local checks and truthful readiness gates | managed Postgres/Redis/storage, monitoring, WAF, restore drill, Android signing |
+| Production/Release | BLOCKED_EXTERNAL_DEPENDENCY | local checks and truthful readiness gates | managed Postgres/Redis/storage, monitoring, WAF, restore drill, release signing |
+
+## Native clients and Service Booking — verified evidence
+
+### Android — 8/8 VERIFIED
+
+The eight Android deliverables are present on `main`: login ([`41307d2`](https://github.com/mahmoudbkeer/Ai-digital-sinai/commit/41307d2c122ddc2ba1d337f38599accd62f37fbf)), marketplace ([`088ddda`](https://github.com/mahmoudbkeer/Ai-digital-sinai/commit/088dddac7fb6fd932b79731e01e4b3177de33158)), cart/checkout ([`7369dd3`](https://github.com/mahmoudbkeer/Ai-digital-sinai/commit/7369dd394cf92bc6220cc9e6199cb6c452bb491b)), notifications ([`9b3b661`](https://github.com/mahmoudbkeer/Ai-digital-sinai/commit/9b3b66187c75ec922498895b999769dfaa9d4486)), AI search ([`30fa618`](https://github.com/mahmoudbkeer/Ai-digital-sinai/commit/30fa618931006d6b29e4065883f41ef37f34ba22)), analytics ([`05c20b6`](https://github.com/mahmoudbkeer/Ai-digital-sinai/commit/05c20b6c7cdbba219134847c5c78654de6e7de65)), product detail ([`33ce052`](https://github.com/mahmoudbkeer/Ai-digital-sinai/commit/33ce0524a16865a43a5387ce043cb2b141f9a6fd))، وsubscription ([`4827a42`](https://github.com/mahmoudbkeer/Ai-digital-sinai/commit/4827a428b5da9e08e9bd3a58656371778b06f95e)). [Android CI run 33685274169](https://github.com/mahmoudbkeer/Ai-digital-sinai/actions/runs/33685274169) نجح في `:app:testDebugUnitTest` و`:app:assembleDebug`.
+
+### iOS — 8/8 VERIFIED
+
+The eight iOS deliverables are present on `main`: login ([`760923c`](https://github.com/mahmoudbkeer/Ai-digital-sinai/commit/760923c394f0e730e55579eddba7428b7580c4c5)), marketplace ([`ce6d0a5`](https://github.com/mahmoudbkeer/Ai-digital-sinai/commit/ce6d0a5526d5e05296aabe352b0ac68b24fb1c65)), cart/checkout ([`e50bab1`](https://github.com/mahmoudbkeer/Ai-digital-sinai/commit/e50bab1470d30ef36bd65c0fe3d4c54805ed244c)), notifications ([`c90571c`](https://github.com/mahmoudbkeer/Ai-digital-sinai/commit/c90571cd7feda0a90857fe40fa33a2bd6384c0a0)), AI search ([`f2ee173`](https://github.com/mahmoudbkeer/Ai-digital-sinai/commit/f2ee173c9cd533bfccebce81229bcde29dee0b65)), analytics ([`4b19578`](https://github.com/mahmoudbkeer/Ai-digital-sinai/commit/4b195780758f3b4b04aa9c3e058c18197515c35f)), product detail ([`1bb1e2c`](https://github.com/mahmoudbkeer/Ai-digital-sinai/commit/1bb1e2c8131055367a85cc50fbb8e7f27f279649))، وsubscription ([`0fe7bc8`](https://github.com/mahmoudbkeer/Ai-digital-sinai/commit/0fe7bc8012d2a04daa2fd12d6d0403deefd5720b)). [iOS CI run 33685273933](https://github.com/mahmoudbkeer/Ai-digital-sinai/actions/runs/33685273933) نجح في `swift test` وiOS package build.
+
+### Service Booking — VERIFIED
+
+[Commit e680f53](https://github.com/mahmoudbkeer/Ai-digital-sinai/commit/e680f53abd26509b8226a9ab666d31cc17e44ef8) أغلق فجوة Service Booking. الاختبار الفعلي في `server/platform.test.ts` اجتاز **12/12 assertions** لمسار availability، booking، idempotency، duplicate protection، tenant isolation، lifecycle authorization، والإلغاء.
 
 ## RBAC final verified scope — 2026-09-02
 

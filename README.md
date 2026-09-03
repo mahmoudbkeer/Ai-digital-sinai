@@ -41,7 +41,7 @@
 
 ## حدود الجاهزية
 
-هذا الإصدار يضم نواة تشغيل حقيقية محلية وقابلة للاختبار، لكنه لا يزعم الجاهزية الإنتاجية الكاملة. يلزم في الإنتاج تشغيل قاعدة مُدارة بآلية backup/restore وتهيئة أسرار مزود الدفع وAI وSMS/Push/Email والتخزين، ومراجعة نشر مستقلة. ما زالت RAG/vector، التنفيذ الكامل للـAgents، التحليلات المتقدمة، مركز Super Admin الكامل، device verification/recovery، بعض كيانات Commerce/Inventory/Logistics الموسعة وAndroid/APK خارج نطاق التنفيذ الحالي، بينما أصبحت tax configuration وAI advisor/recommendations/forecast وmarketing lifecycle وprovider contracts منفذة جزئياً ومصنفة صراحة في التدقيق النهائي.
+هذا الإصدار يضم نواة تشغيل حقيقية محلية وقابلة للاختبار، لكنه لا يزعم الجاهزية الإنتاجية الكاملة. يلزم في الإنتاج تشغيل قاعدة مُدارة بآلية backup/restore وتهيئة أسرار مزود الدفع وAI وSMS/Push/Email والتخزين، ومراجعة نشر مستقلة. ما زالت RAG/vector، التنفيذ الكامل للـAgents، التحليلات المتقدمة، مركز Super Admin الكامل، device verification/recovery، وبعض كيانات Commerce/Inventory/Logistics الموسعة خارج نطاق الجاهزية الإنتاجية. Android وiOS native clients مثبتان 8/8 عبر Git main وCI، بينما Service Booking مثبتة 12/12 assertions؛ وتبقى release signing/store submission متطلبات منفصلة.
 
 ## عقود الاعتمادية التشغيلية
 

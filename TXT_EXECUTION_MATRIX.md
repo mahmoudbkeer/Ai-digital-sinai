@@ -50,7 +50,7 @@
 | 40 | Load testing | PARTIALLY_IMPLEMENTED | dependency-free concurrent load smoke with p50/p95/error rate | staging-scale run and threshold calibration |
 | 41 | Test expansion | PARTIALLY_IMPLEMENTED | unit/integration/browser/smoke | PostgreSQL/security/load suites |
 | 42 | CI/CD final | PARTIALLY_IMPLEMENTED | check/test/build/E2E/smoke/audit/secret scan | Postgres service and critical dependency gates |
-| 43 | Mobile/Android | NOT_IMPLEMENTED | PWA/App Mode only | native Android/Expo build and signing |
+| 43 | Mobile/Android | VERIFIED — Android 8/8؛ iOS 8/8 | native client code، CI build/test evidence، وactual tests | release signing/store submission/physical-device coverage |
 | 44 | Environment separation | IMPLEMENTED | runtime production PostgreSQL/secret gate، explicit SQLite test bypass، readiness statuses | validate with real staging and production deployment |
 | 45 | Staging gate | BLOCKED_EXTERNAL_DEPENDENCY | no staging credentials/services | provide PostgreSQL/Redis/storage/providers |
 | 46 | Production readiness gate | PARTIALLY_IMPLEMENTED | runtime gate، readiness integration matrix، truthful degraded status | close external provider, security, DR, and staging gates |
@@ -63,4 +63,4 @@
 
 ## Verification boundary
 
-The local repository has no accessible PostgreSQL server, Redis, object-storage credentials, payment sandbox, notification provider, AI provider, Android signing credentials, or WAF deployment. Those requirements are therefore not silently marked as implemented. When credentials and staging endpoints are supplied, the matrix must be rerun against those services and the status changed only with test evidence.
+The local repository has no accessible PostgreSQL server, Redis, object-storage credentials, payment sandbox, notification provider, AI provider, release-signing credentials, or WAF deployment. Native Android and iOS implementation and CI verification are complete (8/8 each); release signing and physical-device coverage remain external release gates. When credentials and staging endpoints are supplied, the matrix must be rerun against those services and the status changed only with test evidence.

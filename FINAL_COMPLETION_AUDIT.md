@@ -8,7 +8,7 @@
 
 ## الحكم التنفيذي
 
-الحالة المهنية الحالية هي **Business Core Implemented / Production Verification Pending**. تم التحقق محليًا من البناء والاختبارات وE2E وsmoke وload وsecurity smoke. لا يوجد دليل تشغيل فعلي داخل هذه البيئة على PostgreSQL staging أو Redis أو مزودي الدفع/الإشعارات/AI أو Android signing؛ لذلك لا يتم إعلان `PRODUCTION READY`.
+الحالة المهنية الحالية هي **Business Core Implemented / Production Verification Pending**. تم التحقق محليًا من البناء والاختبارات وE2E وsmoke وload وsecurity smoke، كما أن Android وiOS مثبتان 8/8 عبر Git main وCI. لا يتم إعلان `PRODUCTION READY` لأن PostgreSQL production وRedis ومزودي الدفع/الإشعارات/AI وrelease signing ما زالت متطلبات تشغيل خارجية.
 
 ## ما تم تغييره فوق baseline
 
@@ -36,7 +36,7 @@
 | PostgreSQL migration/restore drill | REQUIRES_SETUP — يتطلب PostgreSQL فعليًا وأدوات dump/restore |
 | External payment/notification/AI sandboxes | REQUIRES_SETUP — لا credentials أو sandbox contracts |
 | Independent pentest/WAF/CDN | BLOCKED_EXTERNAL_DEPENDENCY |
-| Android APK/AAB/signing | REQUIRES_SETUP — لا مشروع Android/keystore في المستودع |
+| Native release signing/store submission | REQUIRES_SETUP — Android/iOS client code and CI verification are complete; release credentials remain external |
 
 ## Completion Matrix
 
@@ -60,11 +60,11 @@
 | Redis/Object Storage | REQUIRES_SETUP | config/abstraction boundary | security/readiness | managed services, worker, signed URLs/ACL/scanning |
 | Security/Observability | PARTIALLY_IMPLEMENTED | headers/CORS/CSP/request ID/readiness | security smoke | WAF/TLS edge, distributed limiter, external review |
 | Backup/DR | PARTIALLY_IMPLEMENTED | SQLite backup and PostgreSQL tooling | local backup | encrypted offsite PostgreSQL restore drill |
-| Android/APK | REQUIRES_SETUP | no native build artifact | browser E2E only | native client, build and signing |
+| Android | VERIFIED — 8/8 | Git main feature commits؛ [Android CI 33685274169](https://github.com/mahmoudbkeer/Ai-digital-sinai/actions/runs/33685274169) | Gradle unit tests + debug APK assembly passed | release signing/store submission/device matrix |
 
 ## Remaining Gaps فقط
 
-المتبقي الذي يمنع اعتماد الإنتاج هو: PostgreSQL staging وrestore drill حقيقيان، Redis/worker، Object Storage موقّع، مزودات الدفع وقنوات الإشعار وAI، MFA/OTP الكامل، اختبارات أمنية مستقلة وWAF/TLS/CDN، القياس على staging، وتطبيق Android مع signing. هذه البنود مصنفة صراحة `REQUIRES_SETUP` أو `BLOCKED_EXTERNAL_DEPENDENCY` ولا توجد نجاحات وهمية.
+المتبقي الذي يمنع اعتماد الإنتاج هو: PostgreSQL staging وrestore drill حقيقيان، Redis/worker، Object Storage موقّع، مزودات الدفع وقنوات الإشعار وAI، MFA/OTP الكامل، اختبارات أمنية مستقلة وWAF/TLS/CDN، القياس على staging، وrelease signing/store submission/device coverage. تطبيقات Android وiOS نفسها مثبتة 8/8، وService Booking مثبتة 12/12 assertions. هذه البنود مصنفة صراحة `REQUIRES_SETUP` أو `BLOCKED_EXTERNAL_DEPENDENCY` ولا توجد نجاحات وهمية.
 
 ## References
 
@@ -123,6 +123,10 @@
 المصفوفة الشاملة للحالات والنسب والأدلة والفجوات موجودة في [`V6_FINAL_COMPLETION_MATRIX.md`](./V6_FINAL_COMPLETION_MATRIX.md). التقدير weighted التقريبي الحالي 67%، والتصنيف الصحيح `RELEASE CANDIDATE` مع بقاء dependency audit في حالة `FAILED`.
 
 **Current verified commit:** `0e41219faad07ec7518d3102176422857ce1f335`
+
+## Current source-of-truth correction — 2026-09-03
+
+اعتمدت هذه الجولة الترتيب: Git `main`، ثم GitHub Actions CI، ثم الاختبارات الفعلية. Android وiOS كلاهما **8/8 VERIFIED**؛ تفاصيل commits وروابط CI موجودة في `FINAL_COMPLETION_MATRIX_V7.md`. Service Booking **VERIFIED** عبر [commit e680f53](https://github.com/mahmoudbkeer/Ai-digital-sinai/commit/e680f53abd26509b8226a9ab666d31cc17e44ef8) و12/12 assertions في `server/platform.test.ts`. أحدث Quality Gate موثق في [run 33685273989](https://github.com/mahmoudbkeer/Ai-digital-sinai/actions/runs/33685273989).
 
 ## V7 gap-closure evidence
 
@@ -278,7 +282,7 @@
 
 Super Admin UI بقي مرتبطًا فعليًا بالـadmin APIs ويعرض users/tenants/audit/feature-flags، لكن إثبات authenticated Super Admin runtime الكامل غير معلن VERIFIED لأن البيئة لا توفر جلسة Super Admin حقيقية قابلة للاستخدام دون bypass. Owner/Manager/Employee boundaries تبقى `403` server-side.
 
-External provider runtime remains `BLOCKED_EXTERNAL_DEPENDENCY`: payment credentials/callback/settlement، notification provider credentials، AI/embedding/vector services، وproduction infrastructure provisioning. Android لم يبدأ حسب التعليمات.
+External provider runtime remains `BLOCKED_EXTERNAL_DEPENDENCY`: payment credentials/callback/settlement، notification provider credentials، AI/embedding/vector services، وproduction infrastructure provisioning. Android وiOS native clients مثبتان 8/8 عبر Git main وCI؛ Service Booking مثبتة 12/12 assertions.
 
 ## RBAC reconciliation — exact scope
 

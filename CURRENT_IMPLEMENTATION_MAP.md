@@ -1,7 +1,8 @@
 # خريطة التنفيذ الحالية — AI DIGITAL SINAI V5.1
 
-**الـbaseline:** `c24e43d28cdc154546c6c48c94ed05bea8f46c76` على `main`
-**آخر تحديث:** 31 أغسطس 2026
+**مصدر الحقيقة:** Git `main` → GitHub Actions CI → الاختبارات الفعلية
+**Current main:** `0fe7bc8012d2a04daa2fd12d6d0403deefd5720b`
+**آخر تحديث:** 03 سبتمبر 2026
 
 | المجال | الحالة الموثقة | الدليل |
 |---|---|---|
@@ -21,7 +22,7 @@
 | Object Storage | REQUIRES_SETUP | storage reference boundary فقط |
 | Security/Observability | PARTIALLY_IMPLEMENTED | headers، CORS/CSP، request ID، readiness، security smoke |
 | Backup/DR | PARTIALLY_IMPLEMENTED | `scripts/backup.mjs` و`restore.mjs`؛ staging drill مطلوب |
-| Android | REQUIRES_SETUP | لا native project/keystore |
+| Android | VERIFIED — 8/8 | native project and feature commits on `main`; [Android CI 33685274169](https://github.com/mahmoudbkeer/Ai-digital-sinai/actions/runs/33685274169) passed unit tests and debug APK build; release signing remains external |
 
 ## Verification commands
 
@@ -36,7 +37,7 @@ LOAD_CONCURRENCY=10 LOAD_REQUESTS=10 pnpm test:load
 pnpm test:security
 ```
 
-كل الأوامر أعلاه نجحت محليًا بعد الإصلاح. هذا لا يساوي PostgreSQL staging أو production readiness؛ تلك تتطلب موارد خارجية حقيقية.
+كل الأوامر أعلاه نجحت محليًا بعد الإصلاح. إضافة إلى ذلك، Android وiOS مثبتان 8/8 عبر CI، وService Booking مثبتة 12/12 assertions عبر commit `e680f53`. هذا لا يساوي PostgreSQL staging أو production readiness؛ تلك تتطلب موارد خارجية حقيقية.
 
 ## Rules
 

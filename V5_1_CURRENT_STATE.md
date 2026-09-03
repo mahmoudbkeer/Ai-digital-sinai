@@ -12,16 +12,16 @@
 | FOUNDATION | Architecture/policy exists; implementation depth or provider is missing. |
 | REQUIRES_SETUP | Repository code is ready for credentials/service provisioning, which is absent here. |
 | BLOCKED_EXTERNAL_DEPENDENCY | Evidence requires an external staging service, provider, pentest, or coordination. |
-| NOT_IMPLEMENTED | No implementation or release artifact exists in this repository. |
+| NOT_IMPLEMENTED | No implementation exists in this repository; this status does not apply to the verified native clients. |
 
 ## Current state
 
 - **Implemented:** local build, typed code, 37 Vitest tests, E2E, app smoke, self-contained load smoke, security smoke, request IDs, security headers, health/readiness, SQLite test path, PostgreSQL data-plane wiring, migrations, core business workflows, server-side entitlement and provider honesty boundaries.
 - **Partially implemented:** PostgreSQL verification, tenant/RBAC final matrix, Business OS advanced modules, POS/inventory/finance reconciliation, subscription automation, marketplace/logistics, notifications, admin UI, backup/restore, observability edge integration.
 - **Foundation:** semantic RAG/vector provider, advanced agent execution/rollback, full analytics/evaluation, provider-backed AI routing.
-- **Requires setup:** PostgreSQL staging credentials, managed Redis, object storage, payment/notification/AI provider credentials, Android signing.
+- **Requires setup:** PostgreSQL staging credentials, managed Redis, object storage, payment/notification/AI provider credentials, and release signing/store submission.
 - **Blocked external dependency:** independent pentest/WAF verification, production load test, real provider sandbox validation, encrypted offsite restore drill.
-- **Not implemented:** native Android release artifact and signing configuration.
+- **Verified native clients:** Android 8/8 and iOS 8/8 on `main`; commit and CI evidence is maintained in `FINAL_COMPLETION_MATRIX_V7.md`.
 
 ## Guardrail
 
@@ -31,4 +31,5 @@ The audit must not use `COMPLETE`, `100%`, or `PRODUCTION READY` until external 
 
 [1]: https://github.com/mahmoudbkeer/Ai-digital-sinai "AI DIGITAL SINAI GitHub repository"
 
-**Current verified commit:** `0e41219faad07ec7518d3102176422857ce1f335`
+**Current verified commit:** `0fe7bc8012d2a04daa2fd12d6d0403deefd5720b`
+**Current native-client CI:** [Android 33685274169](https://github.com/mahmoudbkeer/Ai-digital-sinai/actions/runs/33685274169)؛ [iOS 33685273933](https://github.com/mahmoudbkeer/Ai-digital-sinai/actions/runs/33685273933)

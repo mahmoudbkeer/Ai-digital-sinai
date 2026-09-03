@@ -58,7 +58,7 @@ curl -i http://127.0.0.1:3000/api/readiness
 
 النتيجة المحلية المثبتة: `pnpm check` و`pnpm test` (37 اختبارًا) و`pnpm build` و`pnpm test:e2e` و`pnpm test:smoke` و`pnpm test:load` و`pnpm test:security` كلها **PASS**. نتيجة load هي 100 طلبًا، concurrency 10، failures 0، p50 5ms، p95 16ms، p99 22ms. هذه نتيجة local verification وليست staging load test.
 
-تظل PostgreSQL staging وRedis وObject Storage ومزودات الدفع/الإشعارات/AI وMFA الكامل وWAF/pentest وencrypted restore drill وAndroid signing حالات `REQUIRES_SETUP` أو `BLOCKED_EXTERNAL_DEPENDENCY` حتى تتوفر الأدلة الخارجية. لذلك يبقى الحكم **Production Verification Pending**.
+تظل PostgreSQL staging وRedis وObject Storage ومزودات الدفع/الإشعارات/AI وMFA الكامل وWAF/pentest وencrypted restore drill وrelease signing حالات `REQUIRES_SETUP` أو `BLOCKED_EXTERNAL_DEPENDENCY` حتى تتوفر الأدلة الخارجية. Android وiOS native clients مثبتان 8/8 عبر Git main وCI، وService Booking مثبتة 12/12 assertions. لذلك يبقى الحكم **Production Verification Pending**.
 
 ## References
 
@@ -84,13 +84,13 @@ curl -i http://127.0.0.1:3000/api/readiness
 
 تم التحقق من MFA/TOTP وPostgreSQL migrations 1–4 وcritical API paths على PostgreSQL حقيقي محلي. تم توسيع Object Storage contract ليشمل tenant-scoped signed upload/download URLs، منع traversal، والتحقق من الحجم والنوع. تم توسيع security smoke للتحقق من HSTS في production mode.
 
-نتيجة `pnpm audit --audit-level high` الحالية **FAILED**: 56 ثغرة، منها 27 high و2 critical. لذلك لا يوجد ادعاء أمني كامل، وتحتاج dependencies إلى معالجة واعتماد lockfile متوافق قبل Release Candidate. secret scan الحالي **VERIFIED** بلا مفاتيح خاصة أو AWS-like keys متتبعة.
+نتيجة `pnpm audit --audit-level high` في لقطة V6 كانت **FAILED**: 56 ثغرة، منها 27 high و2 critical. هذه ملاحظة تاريخية؛ أما Quality Gate الحالي فيستخدم `pnpm audit --prod --audit-level=high`. secret scan الحالي **VERIFIED** بلا مفاتيح خاصة أو AWS-like keys متتبعة.
 
-**Current verified commit:** `0e41219faad07ec7518d3102176422857ce1f335`
+**Current verified commit:** `0fe7bc8012d2a04daa2fd12d6d0403deefd5720b`
 
 ## V7 release assessment
 
-تم إغلاق MFA brute-force regression وإضافة adversarial security integration gate. production startup يتطلب الآن PostgreSQL في الإنتاج، command secret، payment webhook secret، وCORS allowlist صريحة. بوابات `check`, `test`, `build`, `e2e`, `smoke`, `load`, `security`, adversarial security، وPostgreSQL staging تمر في البيئة المحلية. `pnpm audit --prod --audit-level=high` يمر بلا vulnerabilities معروفة، بينما WAF/DAST/pentest، managed providers، offsite restore، وAndroid ما زالت خارج إثبات المستودع.
+تم إغلاق MFA brute-force regression وإضافة adversarial security integration gate. production startup يتطلب الآن PostgreSQL في الإنتاج، command secret، payment webhook secret، وCORS allowlist صريحة. بوابات `check`, `test`, `build`, `e2e`, `smoke`, `load`, `security`, adversarial security، وPostgreSQL staging تمر في البيئة المحلية. `pnpm audit --prod --audit-level=high` يمر بلا vulnerabilities معروفة، بينما WAF/DAST/pentest، managed providers، offsite restore، وrelease signing/store submission ما زالت خارج إثبات المستودع. Android وiOS مثبتان 8/8؛ التفاصيل في `FINAL_COMPLETION_MATRIX_V7.md`.
 
 النتيجة الوزنية V7 هي **67.14%**، والتصنيف **RELEASE CANDIDATE**. لا يجوز إعلان `PRODUCTION READY` قبل تفعيل الاعتماديات الخارجية وإرفاق evidence تشغيلية مستقلة.
 

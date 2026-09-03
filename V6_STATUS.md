@@ -12,3 +12,7 @@
 | External providers | REQUIRES_SETUP | No | Not falsely activated |
 
 Verified domains were not rebuilt; only the proven MFA regression was modified.
+
+## Current source-of-truth correction — 2026-09-03
+
+هذا الملف لقطة افتتاح V7 وليس مرجع الحالة النهائي. وفق الترتيب Git `main` → GitHub Actions CI → الاختبارات الفعلية: Android **8/8 VERIFIED** عبر [Android CI run 33685274169](https://github.com/mahmoudbkeer/Ai-digital-sinai/actions/runs/33685274169)، وiOS **8/8 VERIFIED** عبر [iOS CI run 33685273933](https://github.com/mahmoudbkeer/Ai-digital-sinai/actions/runs/33685273933)، وService Booking **VERIFIED — 12/12 assertions** عبر [commit e680f53](https://github.com/mahmoudbkeer/Ai-digital-sinai/commit/e680f53abd26509b8226a9ab666d31cc17e44ef8). المرجع التشغيلي الكامل هو `FINAL_COMPLETION_MATRIX_V7.md`.

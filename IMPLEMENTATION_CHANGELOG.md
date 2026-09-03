@@ -99,7 +99,7 @@
 
 Super Admin UI بقي مرتبطًا فعليًا بالـadmin APIs ويعرض users/tenants/audit/feature-flags، لكن إثبات authenticated Super Admin runtime الكامل غير معلن VERIFIED لأن البيئة لا توفر جلسة Super Admin حقيقية قابلة للاستخدام دون bypass. Owner/Manager/Employee boundaries تبقى `403` server-side.
 
-External provider runtime remains `BLOCKED_EXTERNAL_DEPENDENCY`: payment credentials/callback/settlement، notification provider credentials، AI/embedding/vector services، وproduction infrastructure provisioning. Android لم يبدأ حسب التعليمات.
+External provider runtime remains `BLOCKED_EXTERNAL_DEPENDENCY`: payment credentials/callback/settlement، notification provider credentials، AI/embedding/vector services، وproduction infrastructure provisioning. Android وiOS native clients مثبتان 8/8 عبر Git main وCI؛ Service Booking مثبتة 12/12 assertions.
 
 ## RBAC reconciliation — exact scope
 

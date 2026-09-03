@@ -1,8 +1,9 @@
 # AI DIGITAL SINAI — V6 Final Completion Matrix
 
-**Baseline verified:** `c24e43d28cdc154546c6c48c94ed05bea8f46c76`  
-**Evidence commit:** `f13369de73816e2d51708dcf96404dc841f94f71`  
-**Rule:** لا تمنح الاعتمادية الخارجية `VERIFIED` دون runtime/provider evidence.
+**Historical baseline:** `c24e43d28cdc154546c6c48c94ed05bea8f46c76`
+**Current source of truth:** Git `main` → GitHub Actions CI → actual test results.
+**Current matrix:** `FINAL_COMPLETION_MATRIX_V7.md`
+**Rule:** لا تمنح الاعتمادية الخارجية `VERIFIED` دون runtime/provider evidence؛ native clients تتبع دليل الكود وCI والاختبار الفعلي.
 
 | Domain | Current % | Status | Completed | Remaining | Evidence |
 |---|---:|---|---|---|---|
@@ -39,9 +40,13 @@
 | Backup/DR | 55% | PARTIALLY_IMPLEMENTED | manifest/checksum/restore scripts | encrypted offsite PostgreSQL drill/RPO/RTO evidence | backup scripts |
 | Observability | 65% | PARTIALLY_IMPLEMENTED | structured request logs، request ID، health/readiness | metrics/alerts/provider/queue telemetry | `server/index.ts` |
 | Frontend | 60% | PARTIALLY_IMPLEMENTED | Arabic RTL app mode/mobile navigation | complete feature UX/error/permission states | Playwright |
-| Android | 20% | NOT_IMPLEMENTED | shared backend contract only | Android build/signing/APK/AAB | no artifact |
+| Android | 100% | VERIFIED | login، marketplace، cart/checkout، notifications، AI search، analytics، product detail، subscription | release signing/store submission/device coverage | Git main commits + [Android CI 33685274169](https://github.com/mahmoudbkeer/Ai-digital-sinai/actions/runs/33685274169) |
 | CI/CD | 70% | PARTIALLY_IMPLEMENTED | check/test/build/e2e/smoke/load/security/staging workflow | dependency audit must pass | GitHub workflows |
 | Production | 45% | BLOCKED_EXTERNAL_DEPENDENCY | local PostgreSQL staging evidence | managed services, credentials, WAF, restore, pentest | external setup required |
+
+## Native clients and Service Booking correction
+
+The current verified state supersedes the historical V6 snapshot: Android is **8/8 VERIFIED** with [Android CI run 33685274169](https://github.com/mahmoudbkeer/Ai-digital-sinai/actions/runs/33685274169), iOS is **8/8 VERIFIED** with [iOS CI run 33685273933](https://github.com/mahmoudbkeer/Ai-digital-sinai/actions/runs/33685273933), and Service Booking is **VERIFIED, 12/12 assertions** via [commit e680f53](https://github.com/mahmoudbkeer/Ai-digital-sinai/commit/e680f53abd26509b8226a9ab666d31cc17e44ef8). Refer to `FINAL_COMPLETION_MATRIX_V7.md` for the complete commit list.
 
 ## Weighted completion
 
@@ -56,4 +61,4 @@ The weighted engineering completion is **approximately 67%**. This is an auditab
 5. Email, SMS, push, GPS/tracking, AI/vector provider accounts.
 6. Dependency vulnerability remediation and lockfile verification.
 7. WAF, TLS certificate deployment, independent penetration test, DAST.
-8. Android toolchain, keystore, signed APK/AAB, and device test evidence.
+8. Release signing, store submission, and physical-device coverage for Android/iOS.
