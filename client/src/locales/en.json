@@ -1,0 +1,13 @@
+{
+  "home": "Home",
+  "market": "Market",
+  "work": "Operations",
+  "account": "Account",
+  "loginTitle": "Start your workspace",
+  "loginDescription": "Choose a sector to manage its operations, then sign in to enable isolated data.",
+  "login": "Sign in →",
+  "exploreSector": "Explore sector →",
+  "language": "العربية",
+  "authenticatedContext": "Authenticated context",
+  "guestContext": "Not signed in yet"
+}

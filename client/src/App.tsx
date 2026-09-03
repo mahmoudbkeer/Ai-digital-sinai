@@ -4,6 +4,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { Route, Switch } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
+import { LocaleProvider } from "./i18n";
 import Home from "./pages/Home";
 import MobileApp from "./pages/MobileApp";
 import NotFound from "./pages/NotFound";
@@ -13,5 +14,5 @@ function Router() {
 }
 
 export default function App() {
-  return <ErrorBoundary><ThemeProvider defaultTheme="light"><TooltipProvider><Toaster position="bottom-left" /><Router /></TooltipProvider></ThemeProvider></ErrorBoundary>;
+  return <ErrorBoundary><LocaleProvider><ThemeProvider defaultTheme="light"><TooltipProvider><Toaster position="bottom-left" /><Router /></TooltipProvider></ThemeProvider></LocaleProvider></ErrorBoundary>;
 }

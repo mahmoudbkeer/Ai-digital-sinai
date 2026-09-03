@@ -1,0 +1,13 @@
+{
+  "home": "الرئيسية",
+  "market": "السوق",
+  "work": "التشغيل",
+  "account": "حسابي",
+  "loginTitle": "ابدأ مساحة عملك",
+  "loginDescription": "اختر القطاع لإدارة عملياته، ثم سجّل الدخول لتفعيل البيانات المعزولة.",
+  "login": "تسجيل الدخول ←",
+  "exploreSector": "استكشف القطاع ←",
+  "language": "English",
+  "authenticatedContext": "سياق مصادق عليه",
+  "guestContext": "لم تسجل الدخول بعد"
+}
