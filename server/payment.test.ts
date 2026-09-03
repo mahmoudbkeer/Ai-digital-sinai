@@ -1,6 +1,6 @@
 import { createHmac } from "node:crypto";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { verifyWebhookSignature } from "./payment";
+import { verifyKashierWebhookSignature, verifyWebhookSignature } from "./payment";
 import { resolvePaymentProvider } from "./paymentProviders";
 
 afterEach(() => vi.unstubAllEnvs());
@@ -12,7 +12,6 @@ describe("payment webhook signature", () => {
     const signature = createHmac("sha256", secret).update(payload).digest("hex");
     expect(verifyWebhookSignature(payload, signature, secret)).toBe(true);
   });
-
   it("rejects tampered payloads and malformed signatures", () => {
     const payload = "{\"event\":\"payment.succeeded\"}";
     const secret = "test-secret";
@@ -20,7 +19,6 @@ describe("payment webhook signature", () => {
     expect(verifyWebhookSignature(`${payload}x`, signature, secret)).toBe(false);
     expect(verifyWebhookSignature(payload, "bad", secret)).toBe(false);
   });
-
   it("accepts the provider-style sha256 prefix and rejects empty inputs", () => {
     const payload = "{\"event\":\"payment.updated\"}";
     const secret = "test-secret";
@@ -40,11 +38,20 @@ describe("payment provider HTTP contract", () => {
     await expect(provider.createPaymentIntent({ amountCents: 100, currency: "EGP", reference: "order-1" })).resolves.toMatchObject({ status: "REQUIRES_ACTION", providerReference: "pi_123" });
     expect(fetch).toHaveBeenCalledWith("https://sandbox.paymob.invalid/payments/intents", expect.objectContaining({ method: "POST", headers: expect.objectContaining({ authorization: "Bearer sandbox-key" }) }));
   });
-
   it("does not claim payment success when the provider is unavailable or malformed", async () => {
     vi.stubEnv("PAYMOB_API_URL", "https://sandbox.paymob.invalid");
     vi.stubEnv("PAYMOB_API_KEY", "sandbox-key");
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({ ok: true }), { status: 200 })));
     await expect(resolvePaymentProvider("paymob").createPaymentIntent({ amountCents: 100, currency: "EGP", reference: "order-2" })).resolves.toMatchObject({ status: "FAILED" });
+  });
+});
+
+describe("Kashier webhook signature", () => {
+  it("verifies the ordered callback fields and rejects tampering", () => {
+    const payload = JSON.stringify({ paymentStatus: "SUCCESS", cardDataToken: "token", maskedCard: "****1118", merchantOrderId: "intent-1", orderId: "ks-order-1", cardBrand: "Mastercard", orderReference: "ref-1", transactionId: "txn-1", amount: "12.50", currency: "EGP", mode: "test" });
+    const canonical = "paymentStatus=SUCCESS&cardDataToken=token&maskedCard=****1118&merchantOrderId=intent-1&orderId=ks-order-1&cardBrand=Mastercard&orderReference=ref-1&transactionId=txn-1&amount=12.50&currency=EGP";
+    const signature = createHmac("sha256", "kashier-test-key").update(canonical).digest("hex");
+    expect(verifyKashierWebhookSignature(payload, signature, "kashier-test-key")).toBe(true);
+    expect(verifyKashierWebhookSignature(payload.replace("SUCCESS", "FAILED"), signature, "kashier-test-key")).toBe(false);
   });
 });

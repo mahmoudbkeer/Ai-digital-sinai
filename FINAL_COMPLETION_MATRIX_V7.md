@@ -17,10 +17,10 @@
 | CRM | 65 | 65 | PARTIALLY_IMPLEMENTED | profiles/history/interactions/tags | segments/follow-ups/customer value | platform routes |
 | Procurement | 62 | 64 | PARTIALLY_IMPLEMENTED | supplier/PO/receiving/AP foundation | partial receiving/returns/concurrency reconciliation | business tests |
 | Inventory | 78 | 78 | VERIFIED | atomic movement/idempotency/no negative stock | variants/warehouse/reorder/transfer depth | staging API |
-| POS | 65 | 65 | PARTIALLY_IMPLEMENTED | shift/sale/order/payment/invoice/ledger foundation | return/receipt/close reconciliation | platform routes |
+| POS  | 65 | 68 | IMPLEMENTED / REQUIRES_SETUP | shift/sale/order/payment/invoice/ledger foundation، POS Payment Request/Link UI عبر Kashier | return/receipt/close reconciliation، تفعيل اعتماد Kashier الحقيقي | platform routes + Kashier contract tests |
 | Commerce | 70 | 70 | PARTIALLY_IMPLEMENTED | cart/checkout/order/invoice/cancellation | coupon/discount/reservation/refund depth | platform tests |
 | Marketplace | 58 | 58 | PARTIALLY_IMPLEMENTED | catalog/offers/reviews/favorites/geo | onboarding/availability/bookings/ranking | platform routes |
-| Finance/Payments | 65 | 70 | IMPLEMENTED / REQUIRES_SETUP | balanced journals، payment intent، real HTTP provider adapter، HMAC/replay/idempotency، truthful failure handling | provider credentials/sandbox runtime، refunds، settlement/reconciliation | acceptance chain + payment contract tests |
+| Finance/Payments | 65 | 74 | IMPLEMENTED / REQUIRES_SETUP | balanced journals، payment intent، Kashier session adapter، Kashier HMAC callback، webhook replay/idempotency، Payment Status → Order → Invoice → Ledger، truthful failure handling | KASHIER_MID/KASHIER_API_KEY الحقيقية، sandbox/runtime evidence، refunds، settlement/reconciliation | `server/payment*.test.ts` + mock webhook + CI |
 | Subscriptions | 65 | 65 | PARTIALLY_IMPLEMENTED | trial/plans/cancel/renew/entitlements | provider webhook/grace automation | platform tests |
 | Logistics | 65 | 65 | PARTIALLY_IMPLEMENTED | state machine/driver/vehicle/proof | GPS/tracking provider/zones/pricing | delivery tests |
 | Redis | 60 | 72 | IMPLEMENTED / REQUIRES_SETUP | RESP get/set/del/TTL، LPUSH/RPOP queue، worker، retry/DLQ، no production memory fallback | managed Redis، distributed locks/rate limits | integration tests + `scripts/queue-worker.mjs` |
@@ -38,9 +38,9 @@
 | Super Admin | 55 | 55 | PARTIALLY_IMPLEMENTED | admin API/audit/flags foundation | full mutation matrix and UI | admin routes |
 | Observability | 65 | 65 | PARTIALLY_IMPLEMENTED | structured logs/request ID/health/readiness | metrics/alerts/queue/provider telemetry | health/security/load smoke |
 | Backup/DR | 55 | 72 | IMPLEMENTED / REQUIRES_SETUP | SHA-256 manifest، AES-256-GCM، authenticated decrypt، restore safety copy | encrypted offsite storage، managed PostgreSQL RPO/RTO drill | backup/restore smoke |
-| Frontend | 60 | 60 | PARTIALLY_IMPLEMENTED | Arabic RTL mobile app shell/loading/error baseline | all completed capabilities usable in UI | Playwright |
+| Frontend | 60 | 63 | PARTIALLY_IMPLEMENTED | Arabic RTL mobile app shell/loading/error baseline، POS إنشاء رابط Kashier من الطلب | all completed capabilities usable in UI، QR visual component مستقل | Playwright + payment request UI contract |
 | Android | 100 | 100 | VERIFIED | login، marketplace، cart/checkout، notifications، AI search، analytics، product detail، subscription | device-release signing and store submission remain outside this documentation gate | [Android commits](https://github.com/mahmoudbkeer/Ai-digital-sinai/commits/main/android)؛ [Android CI run 33685274169](https://github.com/mahmoudbkeer/Ai-digital-sinai/actions/runs/33685274169)؛ `./gradlew :app:testDebugUnitTest` و`./gradlew :app:assembleDebug` |
-| CI/CD | 70 | 78 | IMPLEMENTED / EXTERNAL SETUP | check/test/build/e2e/smoke/load/security/adversarial/staging gates | staging secrets and protected branch enforcement | GitHub workflows |
+| CI/CD | 70 | 80 | IMPLEMENTED / EXTERNAL SETUP | check/test/build/e2e/smoke/load/security/adversarial/staging gates، Kashier unit/mock webhook tests دون أسرار | staging secrets، Kashier credentials، protected branch enforcement | GitHub workflows + 57 local tests |
 | Production | 45 | 48 | BLOCKED_EXTERNAL_DEPENDENCY | code configuration/startup/readiness/rollback contracts | managed services/provider/WAF/pentest/restore | explicit readiness |
 
 ## True weighted completion
@@ -65,6 +65,17 @@ Mobile                   20% ×  2% = 0.40
 ```
 
 **V7 TRUE COMPLETION: 68.48%**. This is a weighted engineering score, not a production-readiness declaration.
+
+## Kashier implementation status — 2026-09-03
+
+| Capability | Status | Evidence | Remaining action |
+|---|---|---|---|
+| Kashier provider boundary | COMPLETE / REQUIRES_SETUP | `server/paymentProviders.ts` reads `KASHIER_MID`, `KASHIER_API_KEY`, `KASHIER_MODE`; no credentials committed | Supply real Merchant ID/API Key and confirm endpoint settings |
+| Payment Session / payment link | COMPLETE / MOCKED | `POST /api/platform/payment-requests` and POS UI return `paymentUrl`/`qrPayload` from a mocked provider response | Run sandbox verification after credentials are supplied |
+| Kashier callback hash | COMPLETE / MOCKED | `verifyKashierWebhookSignature` and integration mock callback cover ordered HMAC fields | Register callback URL in Kashier and capture signed sandbox callback |
+| Payment Status → Order → Invoice → Ledger | PRESERVED | Existing webhook settlement branch remains unchanged; Kashier references are accepted through the same provider reference lookup | Confirm with sandbox event tied to a real intent |
+| Web POS | COMPLETE | Checkout creates order, then POS invokes `/payment-requests` and displays the customer link | Add a dedicated QR renderer only if product requires visual QR rather than QR payload/link |
+| Android/iOS POS | NOT IN CURRENT SCOPE | Current native apps expose consumer Marketplace/cart flows, not cashier screens; server contract is platform-neutral | Add native cashier screens only when a cashier role is introduced on mobile |
 
 ## Exact remaining gaps
 
@@ -112,7 +123,7 @@ The weighted score remains an engineering progress measure only; it is not evide
 | iOS native client | VERIFIED — 8/8 | Git main contains the eight feature commits; [iOS CI run 33685273933](https://github.com/mahmoudbkeer/Ai-digital-sinai/actions/runs/33685273933) passed XCTest and iOS package build | release signing, store submission, and physical-device matrix |
 | Service Booking | VERIFIED — 12/12 tests | [commit e680f53](https://github.com/mahmoudbkeer/Ai-digital-sinai/commit/e680f53abd26509b8226a9ab666d31cc17e44ef8) plus `server/platform.test.ts`; local `pnpm test` passed 53/53, including the 12/12 booking assertions | external payment/provider activation is intentionally separate |
 
-| Payment runtime | BLOCKED_EXTERNAL_DEPENDENCY | acceptance:chain reaches provider activation honestly | Paymob/Fawry/Vodafone/other real credentials and sandbox callback |
+| Payment runtime | IMPLEMENTED / REQUIRES_SETUP | Kashier adapter، Payment Session contract، ordered HMAC callback، mock webhook وREQUIRES_SETUP guard | Merchant ID/API Key الحقيقية وsandbox callback؛ لا توجد معاملة حقيقية مدّعاة |
 | Commerce UI/backend | VERIFIED | Marketplace products/services/cart/checkout UI + e2e + HTTP order PENDING | service booking contract is not part of current cart API |
 | Super Admin UI | PARTIALLY VERIFIED | database-backed UI calls users/tenants/audit/feature-flags and handles 403 | authenticated Super Admin browser session for full runtime proof |
 | AI/RAG | PARTIALLY VERIFIED | advisor/analytics acceptance and RAG tenant isolation tests | provider-backed embeddings/vector runtime |

@@ -3,7 +3,8 @@ import { createServer } from "http";
 import { createHash, randomUUID } from "node:crypto";
 import path from "path";
 import { fileURLToPath } from "url";
-import { verifyWebhookSignature } from "./payment";
+import { verifyKashierWebhookSignature, verifyWebhookSignature } from "./payment";
+import { paymentProviderWebhookSecret } from "./paymentProviders";
 import { isValidCommand } from "./commandPolicy";
 import { verifyCommandContext } from "./commandAuth";
 import { createSafeErrorLog } from "./observability";
@@ -130,7 +131,10 @@ async function startServer() {
         return res
           .status(429)
           .json({ accepted: false, status: "rate-limited" });
-      const secret = process.env.PAYMENT_WEBHOOK_SECRET;
+      const provider = (req.header("x-payment-provider") ?? "unknown")
+        .trim()
+        .toLowerCase();
+      const secret = paymentProviderWebhookSecret(provider);
       if (!secret)
         return res.status(503).json({
           accepted: false,
@@ -139,13 +143,13 @@ async function startServer() {
             "Payment provider webhook is not configured; no transaction was settled.",
         });
       const signature = req.header("x-payment-signature") ?? "";
-      const provider = (req.header("x-payment-provider") ?? "unknown")
-        .trim()
-        .toLowerCase();
       const payload = Buffer.isBuffer(req.body)
         ? req.body.toString("utf8")
         : "";
-      if (!verifyWebhookSignature(payload, signature, secret))
+      const signatureValid = provider === "kashier"
+        ? verifyKashierWebhookSignature(payload, signature, secret)
+        : verifyWebhookSignature(payload, signature, secret);
+      if (!signatureValid)
         return res.status(403).json({
           accepted: false,
           status: "invalid-signature",
@@ -202,9 +206,9 @@ async function startServer() {
           message: "تمت معالجة هذا الحدث سابقاً؛ لم تتم إعادة التسوية.",
         });
       }
-      const providerReference = ["providerReference", "provider_reference", "paymentIntentId", "payment_intent_id"]
+      const providerReference = ["providerReference", "provider_reference", "paymentIntentId", "payment_intent_id", "transactionId", "transaction_id", "orderReference", "order_reference"]
         .map(key => parsed[key]).find(value => typeof value === "string") as string | undefined;
-      const rawEvent = [parsed.event, parsed.type, parsed.status].find(value => typeof value === "string");
+      const rawEvent = [parsed.event, parsed.type, parsed.status, parsed.paymentStatus].find(value => typeof value === "string");
       const event = typeof rawEvent === "string" ? rawEvent.toLowerCase() : "";
       const nextPaymentStatus = /refund/.test(event) ? "REFUNDED" : /fail|declin|cancel/.test(event) ? "FAILED" : /captur|success|paid|authoriz/.test(event) ? "CAPTURED" : null;
       const settled = await withDataPlaneTransaction(db, async () => {
@@ -356,7 +360,7 @@ async function startServer() {
       commandContext: Boolean(
         process.env.COMMAND_CONTEXT_SECRET ?? process.env.JWT_SECRET
       ),
-      paymentWebhook: Boolean(process.env.PAYMENT_WEBHOOK_SECRET),
+      paymentWebhook: Boolean(process.env.PAYMENT_WEBHOOK_SECRET || process.env.KASHIER_API_KEY),
       database,
       redis: !redisConfigured || redis === "PONG",
       businessDataPlane: database,

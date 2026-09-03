@@ -4675,7 +4675,7 @@ export function createPlatformRouter(): Router {
   );
 
   router.post(
-    "/payment-intents",
+    ["/payment-intents", "/payment-requests"],
     authenticate,
     async (req: AuthenticatedRequest, res, next) => {
       try {
@@ -4686,6 +4686,7 @@ export function createPlatformRouter(): Router {
           amountCents,
           provider = "paymob",
           idempotencyKey,
+          paymentRequest = req.path.endsWith("/payment-requests"),
         } = req.body ?? {};
         const amount = validateMoney(amountCents, "amountCents");
         if (
@@ -4717,28 +4718,31 @@ export function createPlatformRouter(): Router {
           );
         const existing = (await db
           .prepare(
-            "SELECT id, status FROM payment_intents WHERE tenant_id = ? AND idempotency_key = ?"
+            "SELECT id, status, payment_url FROM payment_intents WHERE tenant_id = ? AND idempotency_key = ?"
           )
           .get(context.tenantId, idempotencyKey)) as
-          | { id: string; status: string }
+          | { id: string; status: string; payment_url?: string | null }
           | undefined;
         if (existing)
           return res.json({
             ok: true,
             paymentIntentId: existing.id,
             status: existing.status,
+            paymentUrl: existing.payment_url ?? undefined,
             replay: true,
           });
         const configured = paymentProvider.status === "configured";
         const paymentIntentId = randomUUID();
         const timestamp = now();
         const providerResult = configured
-          ? await paymentProvider.createPaymentIntent({ amountCents: amount, currency: "EGP", reference: paymentIntentId })
-          : { status: "REQUIRES_SETUP" as const, providerReference: undefined, error: undefined };
+          ? paymentRequest
+            ? await paymentProvider.createPaymentRequest({ amountCents: amount, currency: "EGP", reference: paymentIntentId })
+            : await paymentProvider.createPaymentIntent({ amountCents: amount, currency: "EGP", reference: paymentIntentId })
+          : { status: "REQUIRES_SETUP" as const, providerReference: undefined, paymentUrl: undefined, error: undefined };
         const intentStatus = providerResult.status === "FAILED" ? "FAILED" : providerResult.status;
         await db
           .prepare(
-            "INSERT INTO payment_intents (id, tenant_id, order_id, provider, amount_cents, status, provider_reference, idempotency_key, created_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+            "INSERT INTO payment_intents (id, tenant_id, order_id, provider, amount_cents, status, provider_reference, payment_url, idempotency_key, created_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
           )
           .run(
             paymentIntentId,
@@ -4748,6 +4752,7 @@ export function createPlatformRouter(): Router {
             amount,
             intentStatus,
             providerResult.providerReference ?? null,
+            providerResult.paymentUrl ?? null,
             idempotencyKey,
             context.userId,
             timestamp,
@@ -4767,6 +4772,8 @@ export function createPlatformRouter(): Router {
           paymentIntentId,
           status: intentStatus,
           providerReference: providerResult.providerReference,
+          paymentUrl: providerResult.paymentUrl,
+          qrPayload: providerResult.qrPayload,
           message: intentStatus === "FAILED"
             ? providerResult.error ?? "فشل مزود الدفع؛ لم تتم التسوية."
             : intentStatus === "REQUIRES_SETUP"

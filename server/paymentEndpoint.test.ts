@@ -23,6 +23,9 @@ async function waitForServer() {
 function signed(payload: string) {
   return createHmac("sha256", secret).update(payload).digest("hex");
 }
+function kashierSigned() {
+  return createHmac("sha256", secret).update("paymentStatus=SUCCESS&merchantOrderId=intent-mock&orderId=ks-order-1&transactionId=txn-1&amount=12.50&currency=EGP").digest("hex");
+}
 async function post(payload: string) {
   return fetch(`${baseUrl}/api/payments/webhook`, {
     method: "POST",
@@ -49,6 +52,7 @@ describe("payment webhook persistence", () => {
           ALLOW_SQLITE_PRODUCTION_TEST: "1",
           PORT: String(port),
           PAYMENT_WEBHOOK_SECRET: secret,
+          KASHIER_API_KEY: secret,
           COMMAND_CONTEXT_SECRET: "command-secret",
           CORS_ORIGINS: "http://localhost:3000",
           SQLITE_PATH: dbPath,
@@ -73,6 +77,13 @@ describe("payment webhook persistence", () => {
       status: "verified-pending",
       eventId: "evt-001",
     });
+  });
+
+  it("verifies a Kashier callback with its ordered hash and persists it as pending when no intent exists", async () => {
+    const payload = JSON.stringify({ paymentStatus: "SUCCESS", merchantOrderId: "intent-mock", orderId: "ks-order-1", transactionId: "txn-1", amount: "12.50", currency: "EGP", eventId: "ks-event-001" });
+    const response = await fetch(`${baseUrl}/api/payments/webhook`, { method: "POST", headers: { "content-type": "application/json", "x-payment-provider": "kashier", "x-payment-signature": kashierSigned() }, body: payload });
+    expect(response.status).toBe(202);
+    await expect(response.json()).resolves.toMatchObject({ accepted: true, status: "verified-pending", eventId: "ks-event-001" });
   });
 
   it("returns an idempotent replay and rejects a changed payload", async () => {

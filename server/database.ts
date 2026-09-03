@@ -796,6 +796,13 @@ export function getDatabase(): AppDatabase {
     database.exec(readFileSync(path.resolve(process.cwd(), "migrations/0007_ads.sql"), "utf8"));
     database.prepare("INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)").run(7, Date.now());
   }
+  const appliedPaymentLinks = database
+    .prepare("SELECT version FROM schema_migrations WHERE version = 8")
+    .get() as { version?: number } | undefined;
+  if (!appliedPaymentLinks) {
+    database.exec(readFileSync(path.resolve(process.cwd(), "migrations/0008_payment_links.sql"), "utf8"));
+    database.prepare("INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)").run(8, Date.now());
+  }
   const planInsert = database.prepare(
     "INSERT OR IGNORE INTO plans (code, name, price_cents, trial_days, active, created_at) VALUES (?, ?, ?, ?, 1, ?)"
   );

@@ -55,6 +55,9 @@ jobs:
       - name: Unit tests
         run: pnpm test
 
+      - name: Kashier payment contract and mock webhook tests
+        run: pnpm exec vitest run server/payment.test.ts server/paymentProviders.test.ts server/paymentEndpoint.test.ts
+
       - name: Production build
         run: pnpm build
 
