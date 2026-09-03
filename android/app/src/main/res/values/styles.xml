@@ -2,9 +2,9 @@
 <resources>
     <style name="Theme.AiDigitalSinai" parent="android:style/Theme.Material.Light.NoActionBar">
         <item name="android:fontFamily">sans</item>
-        <item name="android:colorAccent">#0F766E</item>
-        <item name="android:statusBarColor">#F8FAFC</item>
-        <item name="android:navigationBarColor">#F8FAFC</item>
+        <item name="android:colorAccent">#0E7C7B</item>
+        <item name="android:statusBarColor">#FCFAF6</item>
+        <item name="android:navigationBarColor">#FCFAF6</item>
         <item name="android:windowLightStatusBar">true</item>
     </style>
 </resources>
