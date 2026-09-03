@@ -2094,12 +2094,13 @@ export function createPlatformRouter(): Router {
       try {
         const context = currentContext(req);
         assertScope(context, context.tenantId, "notification.manage");
-        const { userId, channel = "IN_APP", title, body } = req.body ?? {};
+        const { userId, channel = "IN_APP", title, body, deviceToken } = req.body ?? {};
         if (
           !isNonEmptyString(userId, 100) ||
           !["IN_APP", "PUSH", "SMS", "EMAIL"].includes(channel) ||
           !isNonEmptyString(title, 160) ||
-          !isNonEmptyString(body, 2000)
+          !isNonEmptyString(body, 2000) ||
+          (deviceToken !== undefined && !isNonEmptyString(deviceToken, 4096))
         )
           throw httpError(
             400,
@@ -2121,6 +2122,7 @@ export function createPlatformRouter(): Router {
           );
         const notificationId = randomUUID();
         const notificationChannel = channel as NotificationChannel;
+        const recipient = (await db.prepare("SELECT email FROM users WHERE id = ?").get(userId)) as { email?: string } | undefined;
         await db
           .prepare(
             "INSERT INTO notifications (id, tenant_id, user_id, channel, title, body, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)"
@@ -2159,6 +2161,8 @@ export function createPlatformRouter(): Router {
           channel: notificationChannel,
           title: title.trim(),
           body: body.trim(),
+          recipientEmail: recipient?.email,
+          deviceToken: typeof deviceToken === "string" ? deviceToken.trim() : undefined,
         }), 86_400);
         if (queued !== "QUEUED") {
           await db.prepare("UPDATE notification_deliveries SET status = 'REQUIRES_SETUP', last_error = ?, next_attempt_at = NULL, updated_at = ? WHERE id = ? AND tenant_id = ?").run("Redis queue unavailable.", now(), deliveryId, context.tenantId);

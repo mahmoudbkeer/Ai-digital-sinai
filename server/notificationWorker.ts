@@ -11,6 +11,8 @@ export type NotificationJob = {
   channel: NotificationChannel;
   title: string;
   body: string;
+  recipientEmail?: string;
+  deviceToken?: string;
   attempts?: number;
 };
 
@@ -24,6 +26,8 @@ export async function processNotificationJob(job: NotificationJob) {
     recipientUserId: job.userId,
     title: job.title,
     body: job.body,
+    recipientEmail: job.recipientEmail,
+    deviceToken: job.deviceToken,
   });
   if (result.status !== "QUEUED") {
     await db.prepare("UPDATE notification_deliveries SET status = 'FAILED', attempts = attempts + 1, last_error = ?, updated_at = ? WHERE id = ? AND tenant_id = ?").run(result.error ?? "Notification provider unavailable.", Date.now(), job.deliveryId, job.tenantId);
