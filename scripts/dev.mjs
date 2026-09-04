@@ -1,7 +1,13 @@
 import { spawn } from "node:child_process";
+import path from "node:path";
 
 const apiPort = process.env.API_PORT || "4318";
-const commonEnv = { ...process.env };
+const commonEnv = {
+  ...process.env,
+  // WebDev injects a production DATABASE_URL; development must opt into the
+  // explicit local SQLite adapter and never reuse production data.
+  SQLITE_PATH: process.env.SQLITE_PATH || path.resolve(process.cwd(), ".data", "dev.sqlite"),
+};
 const api = spawn("pnpm", ["exec", "tsx", "server/index.ts"], {
   cwd: process.cwd(),
   env: { ...commonEnv, PORT: apiPort },

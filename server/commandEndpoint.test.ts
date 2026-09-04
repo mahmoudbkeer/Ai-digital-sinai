@@ -42,6 +42,8 @@ describe("command prepare endpoint authorization", () => {
         cwd: process.cwd(),
         env: {
           ...process.env,
+          DATABASE_URL: "sqlite://:memory:",
+          SQLITE_PATH: ":memory:",
           NODE_ENV: "production",
           ALLOW_SQLITE_PRODUCTION_TEST: "1",
           PORT: String(port),

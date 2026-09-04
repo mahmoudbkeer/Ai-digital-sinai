@@ -70,3 +70,16 @@
 - [x] تحديث توقع E2E لرسالة مركز الأمر الجديدة بعد إضافة Idempotency والحماية متعددة الحالات.
 - [x] توثيق الفحص اليدوي للوحة الجاهزية ومركز الأوامر داخل `/app` وربطه بعقود API الفعلية.
 - [x] توثيق مسار المعاينة وحالات 401 و403 و428 و409 و503 داخل APP_MODE أو README.
+
+## المرحلة Native المبنية على آخر نسخة GitHub
+
+- [x] مزامنة وفحص آخر commit في GitHub قبل الدمج؛ تم التحقق من commit `c7b6618`.
+- [x] دمج مشروع Native فعلي داخل المستودع من آخر نسخة GitHub، يتضمن Android وiOS؛ مسار Expo الكامل يبقى مرحلة لاحقة منفصلة.
+- [x] تحديد قيم Android SDK الفعلية: `compileSdk=35` و`targetSdk=35` و`minSdk=26`، مع CI يستخدم `android-actions/setup-android@v3`.
+- [x] بناء APK debug جديد والتحقق من وجوده وحساب SHA-256؛ الهاش موثق في `ANDROID_BUILD_STATUS.md`.
+- [ ] التحقق من نجاح Android CI وتوثيق رابط التشغيل وartifact.
+- [ ] مزامنة نتيجة البناء والوثائق مع GitHub وحفظ checkpoint.
+- [x] إصلاح اعتماد PostgreSQL/TypeScript الذي ظهر بعد دمج آخر نسخة GitHub قبل بناء Native، دون تعطيل مسار SQLite أو الويب.
+- [x] إصلاح مشغل التطوير بعد دمج آخر نسخة GitHub بحيث يختار قاعدة محلية صريحة ولا يتوقف بسبب DATABASE_URL الإنتاجي، مع إبقاء الإنتاج على PostgreSQL.
+- [x] عزل اختبار command endpoint عن DATABASE_URL الإنتاجي باستخدام SQLite اختبارية صريحة حتى لا يتعطل قبل Gradle.
+- [x] توثيق قيم Android ونتيجة بناء APK وSHA-256 وحالة CI في `ANDROID_BUILD_STATUS.md` دون رفع APK أو `local.properties` إلى المستودع.
