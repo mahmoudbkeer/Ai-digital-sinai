@@ -1,38 +1,49 @@
 {
   "$schema": "https://design-tokens.github.io/community-group/format/",
-  "name": "AI Digital Sinai — Future Coast",
-  "source": "ideas.md",
+  "name": "AI Digital Sinai — Nocturne Signal",
+  "source": "brand-system",
   "color": {
     "brand": {
-      "primary": { "value": "#0E7C7B", "description": "Sinai Tide; primary actions and active data markers" },
-      "secondary": { "value": "#102A43", "description": "Sea navy; trust, headings and dark surfaces" },
-      "accent": { "value": "#E8D3B4", "description": "Warm sand accent" },
-      "highlight": { "value": "#D97559", "description": "Coral highlight" }
+      "primary": { "value": "#7C3AED", "description": "Royal violet for primary actions and the start of the signature gradient" },
+      "secondary": { "value": "#14B8A6", "description": "Technical turquoise for active states and the end of the signature gradient" },
+      "accent": { "value": "#D4AF37", "description": "Muted gold for premium details, key metrics and luminous borders" },
+      "highlight": { "value": "#A78BFA", "description": "Soft violet highlight for glow and supporting emphasis" },
+      "gradient": { "value": "linear-gradient(115deg, #7C3AED 0%, #14B8A6 100%)", "description": "Core violet-to-turquoise brand gradient" }
     },
     "status": {
-      "success": { "value": "#15704F" },
-      "warning": { "value": "#956318" },
-      "error": { "value": "#9D4C3A" },
-      "info": { "value": "#176A67" }
-    },
-    "light": {
-      "background": { "value": "#FCFAF6" },
-      "surface": { "value": "#FFFFFF" },
-      "surfaceMuted": { "value": "#F3F0EA" },
-      "text": { "value": "#15202B" },
-      "textMuted": { "value": "#657481" },
-      "border": { "value": "#D9E3E3" },
-      "borderStrong": { "value": "#B8DED8" }
+      "success": { "value": "#34D399" },
+      "warning": { "value": "#FBBF24" },
+      "error": { "value": "#FB7185" },
+      "info": { "value": "#38BDF8" }
     },
     "dark": {
-      "background": { "value": "#102A43" },
-      "surface": { "value": "#173B59" },
-      "surfaceMuted": { "value": "#214866" },
-      "text": { "value": "#FCFAF6" },
-      "textMuted": { "value": "#C1D0D3" },
-      "border": { "value": "#496B7D" },
-      "borderStrong": { "value": "#74CBC2" }
+      "background": { "value": "#0A0E17" },
+      "surface": { "value": "#111827" },
+      "surfaceMuted": { "value": "#172033" },
+      "surfaceElevated": { "value": "#1B263B" },
+      "text": { "value": "#F8FAFC" },
+      "textMuted": { "value": "#A8B3C7" },
+      "border": { "value": "#26344D" },
+      "borderStrong": { "value": "#7C3AED" }
+    },
+    "light": {
+      "background": { "value": "#0A0E17" },
+      "surface": { "value": "#111827" },
+      "surfaceMuted": { "value": "#172033" },
+      "text": { "value": "#F8FAFC" },
+      "textMuted": { "value": "#A8B3C7" },
+      "border": { "value": "#26344D" },
+      "borderStrong": { "value": "#14B8A6" }
     }
   },
-  "radius": { "md": { "value": "1rem" }, "pill": { "value": "999px" } }
+  "radius": {
+    "sm": { "value": "0.75rem" },
+    "md": { "value": "1.25rem" },
+    "lg": { "value": "1.75rem" },
+    "pill": { "value": "999px" }
+  },
+  "shadow": {
+    "glow": { "value": "0 0 40px rgba(124, 58, 237, 0.24)" },
+    "gold": { "value": "0 0 24px rgba(212, 175, 55, 0.18)" }
+  }
 }

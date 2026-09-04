@@ -58,7 +58,7 @@ export default function Home() {
             <button className="nav-mobile-cta" onClick={() => notifyComingSoon("الانضمام للمنصة")}>ابدأ مع نظامك <ArrowLeft size={15} /></button>
           </nav>
           <div className="header-actions">
-            <button className="text-link" onClick={() => notifyComingSoon("تسجيل الدخول")}>تسجيل الدخول</button>
+            <a className="text-link" href="/login">تسجيل الدخول</a>
             <button className="button button-dark button-sm" onClick={() => notifyComingSoon("إنشاء مساحة عمل")}>ابدأ الآن <ArrowLeft size={16} /></button>
             <button className="menu-toggle" aria-label={menuOpen ? "إغلاق القائمة" : "فتح القائمة"} onClick={() => setMenuOpen((open) => !open)}>{menuOpen ? <X /> : <Menu />}</button>
           </div>

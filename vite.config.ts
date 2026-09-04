@@ -215,6 +215,9 @@ export default defineConfig({
     },
   },
   envDir: path.resolve(import.meta.dirname),
+  define: {
+    "import.meta.env.VITE_GOOGLE_OAUTH_CLIENT_ID": JSON.stringify(process.env.GOOGLE_OAUTH_CLIENT_ID ?? process.env.VITE_GOOGLE_OAUTH_CLIENT_ID ?? ""),
+  },
   root: path.resolve(import.meta.dirname, "client"),
   build: {
     outDir: path.resolve(import.meta.dirname, "dist/public"),

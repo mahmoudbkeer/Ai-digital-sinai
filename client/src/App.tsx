@@ -7,10 +7,11 @@ import { ThemeProvider } from "./contexts/ThemeContext";
 import { LocaleProvider } from "./i18n";
 import Home from "./pages/Home";
 import MobileApp from "./pages/MobileApp";
+import Login from "./pages/Login";
 import NotFound from "./pages/NotFound";
 
 function Router() {
-  return <Switch><Route path="/" component={MobileApp} /><Route path="/app" component={MobileApp} /><Route path="/landing" component={Home} /><Route path="/404" component={NotFound} /><Route component={NotFound} /></Switch>;
+  return <Switch><Route path="/" component={MobileApp} /><Route path="/app" component={MobileApp} /><Route path="/landing" component={Home} /><Route path="/login" component={Login} /><Route path="/404" component={NotFound} /><Route component={NotFound} /></Switch>;
 }
 
 export default function App() {
