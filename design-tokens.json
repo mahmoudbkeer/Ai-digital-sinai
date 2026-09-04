@@ -4,11 +4,11 @@
   "source": "brand-system",
   "color": {
     "brand": {
-      "primary": { "value": "#7C3AED", "description": "Royal violet for primary actions and the start of the signature gradient" },
-      "secondary": { "value": "#14B8A6", "description": "Technical turquoise for active states and the end of the signature gradient" },
+      "primary": { "value": "#0D9488", "description": "Deep turquoise for primary actions and the start of the signature gradient" },
+      "secondary": { "value": "#22D3EE", "description": "Sky cyan for active states and the end of the signature gradient" },
       "accent": { "value": "#D4AF37", "description": "Muted gold for premium details, key metrics and luminous borders" },
-      "highlight": { "value": "#A78BFA", "description": "Soft violet highlight for glow and supporting emphasis" },
-      "gradient": { "value": "linear-gradient(115deg, #7C3AED 0%, #14B8A6 100%)", "description": "Core violet-to-turquoise brand gradient" }
+      "highlight": { "value": "#67E8F9", "description": "Soft cyan highlight for glow and supporting emphasis" },
+      "gradient": { "value": "linear-gradient(115deg, #0D9488 0%, #22D3EE 100%)", "description": "Core turquoise-to-sky-cyan brand gradient" }
     },
     "status": {
       "success": { "value": "#34D399" },
@@ -24,7 +24,7 @@
       "text": { "value": "#F8FAFC" },
       "textMuted": { "value": "#A8B3C7" },
       "border": { "value": "#26344D" },
-      "borderStrong": { "value": "#7C3AED" }
+      "borderStrong": { "value": "#0D9488" }
     },
     "light": {
       "background": { "value": "#0A0E17" },
@@ -43,7 +43,7 @@
     "pill": { "value": "999px" }
   },
   "shadow": {
-    "glow": { "value": "0 0 40px rgba(124, 58, 237, 0.24)" },
+    "glow": { "value": "0 0 40px rgba(13, 148, 136, 0.24)" },
     "gold": { "value": "0 0 24px rgba(212, 175, 55, 0.18)" }
   }
 }

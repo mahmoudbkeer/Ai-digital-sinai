@@ -4,7 +4,7 @@ import androidx.compose.ui.graphics.Color
 
 /** Generated from /design-tokens.json — Future Coast identity. */
 object DesignTokens {
-    val SinaiTide = Color(0xFF0E7C7B)
+    val SinaiTide = Color(0xFF0D9488)
     val SeaNavy = Color(0xFF102A43)
     val WarmSand = Color(0xFFE8D3B4)
     val Coral = Color(0xFFD97559)
