@@ -83,3 +83,4 @@
 - [x] إصلاح مشغل التطوير بعد دمج آخر نسخة GitHub بحيث يختار قاعدة محلية صريحة ولا يتوقف بسبب DATABASE_URL الإنتاجي، مع إبقاء الإنتاج على PostgreSQL.
 - [x] عزل اختبار command endpoint عن DATABASE_URL الإنتاجي باستخدام SQLite اختبارية صريحة حتى لا يتعطل قبل Gradle.
 - [x] توثيق قيم Android ونتيجة بناء APK وSHA-256 وحالة CI في `ANDROID_BUILD_STATUS.md` دون رفع APK أو `local.properties` إلى المستودع.
+- [ ] تشخيص فشل Android CI على commit `ad2066c` وإصلاحه ثم إعادة تشغيله حتى نجاح فعلي قبل تسليم APK.
