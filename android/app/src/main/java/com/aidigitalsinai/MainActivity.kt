@@ -23,6 +23,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -89,6 +90,57 @@ private fun LoginScreen(api: PlatformApi, store: SessionStore) {
     var subscriptionLoading by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
+    suspend fun loadOptional(block: suspend () -> Unit) {
+        try {
+            block()
+        } catch (_: Exception) {
+            // Optional workspace panels must not prevent the project screen from opening.
+        }
+    }
+
+    fun loadWorkspace() {
+        scope.launch {
+            try {
+                marketplaceLoading = true
+                val (productsResult, loadedProducts) = withContext(Dispatchers.IO) { api.products() }
+                products = loadedProducts
+                marketplaceLoading = false
+                if (productsResult.status !in 200..299) message = "تم فتح المشروع، وتعذر تحميل المتجر (HTTP ${productsResult.status})."
+            } catch (_: Exception) {
+                marketplaceLoading = false
+                message = "تم فتح المشروع، لكن تعذر تحميل بيانات المتجر حالياً."
+            }
+
+            loadOptional {
+                val (_, loadedCart) = withContext(Dispatchers.IO) { api.cart() }
+                cart = loadedCart
+            }
+            loadOptional {
+                val (_, loadedNotifications) = withContext(Dispatchers.IO) { api.notifications() }
+                notifications = loadedNotifications
+            }
+            loadOptional {
+                val (_, loadedAnalytics) = withContext(Dispatchers.IO) { api.analyticsOverview() }
+                analytics = loadedAnalytics
+            }
+            loadOptional {
+                val (_, loadedSubscription) = withContext(Dispatchers.IO) { api.subscription() }
+                subscription = loadedSubscription
+            }
+            loadOptional {
+                val (_, loadedEntitlements) = withContext(Dispatchers.IO) { api.subscriptionEntitlements() }
+                entitlements = loadedEntitlements
+            }
+            notificationLoading = false
+            analyticsLoading = false
+            subscriptionLoading = false
+        }
+    }
+
+    LaunchedEffect(authenticated) {
+        if (authenticated) loadWorkspace()
+    }
+
     Column(
         modifier = Modifier.fillMaxSize().padding(PaddingValues(24.dp)),
         verticalArrangement = Arrangement.spacedBy(14.dp)
@@ -113,27 +165,10 @@ private fun LoginScreen(api: PlatformApi, store: SessionStore) {
                     loading = false
                     message = if (result.status in 200..299) {
                         authenticated = true
-                        marketplaceLoading = true
-                        val (productsResult, loadedProducts) = withContext(Dispatchers.IO) { api.products() }
-                        products = loadedProducts
-                        marketplaceLoading = false
-                        val (cartResult, loadedCart) = withContext(Dispatchers.IO) { api.cart() }
-                        cart = loadedCart
                         notificationLoading = true
-                        val (notificationsResult, loadedNotifications) = withContext(Dispatchers.IO) { api.notifications() }
-                        notifications = loadedNotifications
-                        notificationLoading = false
                         analyticsLoading = true
-                        val (analyticsResult, loadedAnalytics) = withContext(Dispatchers.IO) { api.analyticsOverview() }
-                        analytics = loadedAnalytics
-                        analyticsLoading = false
                         subscriptionLoading = true
-                        val (_, loadedSubscription) = withContext(Dispatchers.IO) { api.subscription() }
-                        val (_, loadedEntitlements) = withContext(Dispatchers.IO) { api.subscriptionEntitlements() }
-                        subscription = loadedSubscription
-                        entitlements = loadedEntitlements
-                        subscriptionLoading = false
-                        "نجح الاتصال: HTTP ${result.status}. Marketplace HTTP ${productsResult.status}. Cart HTTP ${cartResult.status}. Notifications HTTP ${notificationsResult.status}. Analytics HTTP ${analyticsResult.status}. Subscription loaded. tenant=${store.tenantId}"
+                        "تم فتح المشروع بنجاح (HTTP ${result.status}). tenant=${store.tenantId}"
                     } else {
                         "فشل الطلب: HTTP ${result.status} — ${result.body.optString("message", "تعذر الاتصال")}" 
                     }
