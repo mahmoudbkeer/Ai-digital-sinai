@@ -251,6 +251,26 @@ describe("platform core", () => {
     await expect(validAfterAbuse.json()).resolves.toMatchObject({ error: "invalid-login" });
   });
 
+  it("exposes scoped reads for the previously unverified resource families", async () => {
+    const a = await register("resource-read-a@example.com", "Resource Read A");
+    const b = await register("resource-read-b@example.com", "Resource Read B");
+    const own = auth(a);
+    const other = auth(b);
+    for (const path of ["/api/platform/businesses", "/api/platform/branches", "/api/platform/ledger/journals", "/api/platform/ads", "/api/platform/ads/active"]) {
+      expect((await request(path, { headers: own })).status).toBe(200);
+    }
+    expect((await request(`/api/platform/businesses/${a.businessId}`, { headers: other })).status).toBe(404);
+    expect((await request(`/api/platform/branches/${a.branchId}`, { headers: other })).status).toBe(404);
+    for (const path of [
+      "/api/platform/ledger/journals/not-a-journal",
+      "/api/platform/ads/not-an-ad",
+      "/api/platform/service-availability/not-an-availability",
+      "/api/platform/service-bookings/not-a-booking",
+    ]) {
+      expect((await request(path, { headers: own })).status).toBe(404);
+    }
+  });
+
   it("rate-limits registration bursts by client IP", async () => {
     const statuses: number[] = [];
     for (let attempt = 0; attempt < 31; attempt += 1) {

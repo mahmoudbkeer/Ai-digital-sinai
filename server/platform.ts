@@ -1237,6 +1237,65 @@ export function createPlatformRouter(): Router {
     }
   );
 
+  router.get(
+    "/businesses",
+    authenticate,
+    async (req: AuthenticatedRequest, res, next) => {
+      try {
+        const context = currentContext(req);
+        assertScope(context, context.tenantId, "business.read");
+        const businesses = await getDataPlane()
+          .prepare("SELECT id, name, category, status, created_at, updated_at FROM businesses WHERE tenant_id = ? ORDER BY created_at")
+          .all(context.tenantId);
+        return res.json({ ok: true, businesses });
+      } catch (error) { next(error); }
+    }
+  );
+  router.get(
+    "/businesses/:businessId",
+    authenticate,
+    async (req: AuthenticatedRequest, res, next) => {
+      try {
+        const context = currentContext(req);
+        assertScope(context, context.tenantId, "business.read");
+        const business = await getDataPlane()
+          .prepare("SELECT id, name, category, status, created_at, updated_at FROM businesses WHERE id = ? AND tenant_id = ?")
+          .get(req.params.businessId, context.tenantId);
+        if (!business) throw httpError(404, "business-not-found", "النشاط غير موجود داخل المستأجر الحالي.");
+        return res.json({ ok: true, business });
+      } catch (error) { next(error); }
+    }
+  );
+  router.get(
+    "/branches",
+    authenticate,
+    async (req: AuthenticatedRequest, res, next) => {
+      try {
+        const context = currentContext(req);
+        assertScope(context, context.tenantId, "branch.read");
+        const branches = await getDataPlane()
+          .prepare("SELECT id, business_id, name, city, district, latitude, longitude, status, created_at FROM branches WHERE tenant_id = ? ORDER BY created_at")
+          .all(context.tenantId);
+        return res.json({ ok: true, branches });
+      } catch (error) { next(error); }
+    }
+  );
+  router.get(
+    "/branches/:branchId",
+    authenticate,
+    async (req: AuthenticatedRequest, res, next) => {
+      try {
+        const context = currentContext(req);
+        assertScope(context, context.tenantId, "branch.read");
+        const branch = await getDataPlane()
+          .prepare("SELECT id, business_id, name, city, district, latitude, longitude, status, created_at FROM branches WHERE id = ? AND tenant_id = ?")
+          .get(req.params.branchId, context.tenantId);
+        if (!branch) throw httpError(404, "branch-not-found", "الفرع غير موجود داخل المستأجر الحالي.");
+        return res.json({ ok: true, branch });
+      } catch (error) { next(error); }
+    }
+  );
+
   router.get("/plans", async (_req, res, next) => {
     try {
       return res.json({
@@ -3359,6 +3418,36 @@ export function createPlatformRouter(): Router {
   );
 
   router.get(
+    "/ads",
+    authenticate,
+    async (req: AuthenticatedRequest, res, next) => {
+      try {
+        const context = currentContext(req);
+        assertScope(context, context.tenantId, "advertising.read");
+        const ads = await getDataPlane()
+          .prepare("SELECT id, resource_type, resource_id, placement, status, budget_cents, duration_days, created_by, reviewed_by, created_at, reviewed_at, expires_at FROM ads WHERE tenant_id = ? ORDER BY created_at DESC LIMIT 200")
+          .all(context.tenantId);
+        return res.json({ ok: true, ads });
+      } catch (error) { next(error); }
+    }
+  );
+  router.get(
+    "/ads/:adId",
+    authenticate,
+    async (req: AuthenticatedRequest, res, next) => {
+      try {
+        if (req.params.adId === "active") return next();
+        const context = currentContext(req);
+        assertScope(context, context.tenantId, "advertising.read");
+        const ad = await getDataPlane()
+          .prepare("SELECT id, resource_type, resource_id, placement, status, budget_cents, duration_days, created_by, reviewed_by, created_at, reviewed_at, expires_at FROM ads WHERE id = ? AND tenant_id = ?")
+          .get(req.params.adId, context.tenantId);
+        if (!ad) throw httpError(404, "ad-not-found", "الإعلان غير موجود داخل المستأجر الحالي.");
+        return res.json({ ok: true, ad });
+      } catch (error) { next(error); }
+    }
+  );
+  router.get(
     "/ads/active",
     authenticate,
     async (req: AuthenticatedRequest, res, next) => {
@@ -3594,6 +3683,37 @@ export function createPlatformRouter(): Router {
     }
   );
 
+  router.get(
+    "/service-availability/:availabilityId",
+    authenticate,
+    async (req: AuthenticatedRequest, res, next) => {
+      try {
+        const context = currentContext(req);
+        assertScope(context, context.tenantId, "order.read");
+        const availability = await getDataPlane()
+          .prepare("SELECT id, service_id, provider_user_id, branch_id, starts_at, ends_at, status, created_at FROM service_availability WHERE id = ? AND tenant_id = ?")
+          .get(req.params.availabilityId, context.tenantId);
+        if (!availability) throw httpError(404, "availability-not-found", "موعد الخدمة غير موجود داخل المستأجر الحالي.");
+        return res.json({ ok: true, availability });
+      } catch (error) { next(error); }
+    }
+  );
+  router.get(
+    "/service-bookings/:bookingId",
+    authenticate,
+    async (req: AuthenticatedRequest, res, next) => {
+      try {
+        const context = currentContext(req);
+        const booking = await getDataPlane()
+          .prepare("SELECT id, customer_user_id, provider_user_id, service_id, availability_id, order_id, starts_at, ends_at, status, created_at, updated_at FROM service_bookings WHERE id = ? AND tenant_id = ?")
+          .get(req.params.bookingId, context.tenantId) as { customer_user_id: string; provider_user_id: string } | undefined;
+        if (!booking) throw httpError(404, "booking-not-found", "الحجز غير موجود داخل المستأجر الحالي.");
+        if (booking.customer_user_id !== context.userId && booking.provider_user_id !== context.userId && !hasPermission(context, "order.read"))
+          throw httpError(403, "booking-forbidden", "لا يمكنك قراءة هذا الحجز.");
+        return res.json({ ok: true, booking });
+      } catch (error) { next(error); }
+    }
+  );
   router.patch(
     "/service-bookings/:bookingId/status",
     authenticate,
@@ -4206,6 +4326,40 @@ export function createPlatformRouter(): Router {
     }
   );
 
+  router.get(
+    "/ledger/journals",
+    authenticate,
+    async (req: AuthenticatedRequest, res, next) => {
+      try {
+        const context = currentContext(req);
+        assertScope(context, context.tenantId, "ledger.read");
+        const limit = Math.min(Math.max(Number(req.query.limit ?? 100) || 100, 1), 200);
+        const journals = await getDataPlane()
+          .prepare("SELECT id, reference_type, reference_id, memo, created_by, created_at FROM ledger_journals WHERE tenant_id = ? ORDER BY created_at DESC LIMIT ?")
+          .all(context.tenantId, limit);
+        return res.json({ ok: true, journals });
+      } catch (error) { next(error); }
+    }
+  );
+  router.get(
+    "/ledger/journals/:journalId",
+    authenticate,
+    async (req: AuthenticatedRequest, res, next) => {
+      try {
+        const context = currentContext(req);
+        assertScope(context, context.tenantId, "ledger.read");
+        const db = getDataPlane();
+        const journal = await db
+          .prepare("SELECT id, reference_type, reference_id, memo, created_by, created_at FROM ledger_journals WHERE id = ? AND tenant_id = ?")
+          .get(req.params.journalId, context.tenantId) as { id: string } | undefined;
+        if (!journal) throw httpError(404, "journal-not-found", "قيد دفتر الأستاذ غير موجود داخل المستأجر الحالي.");
+        const entries = await db
+          .prepare("SELECT id, account_id, line_no, debit_cents, credit_cents, created_at FROM ledger_entries WHERE journal_id = ? AND tenant_id = ? ORDER BY line_no")
+          .all(req.params.journalId, context.tenantId);
+        return res.json({ ok: true, journal, entries });
+      } catch (error) { next(error); }
+    }
+  );
   router.post(
     "/ledger/journals",
     authenticate,
