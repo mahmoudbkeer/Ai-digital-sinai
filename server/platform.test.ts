@@ -250,4 +250,21 @@ describe("platform core", () => {
     expect(validAfterAbuse.status).toBe(401);
     await expect(validAfterAbuse.json()).resolves.toMatchObject({ error: "invalid-login" });
   });
+
+  it("rate-limits registration bursts by client IP", async () => {
+    const statuses: number[] = [];
+    for (let attempt = 0; attempt < 31; attempt += 1) {
+      const response = await request("/api/platform/auth/register", {
+        method: "POST",
+        body: JSON.stringify({
+          email: `registration-burst-${attempt}@example.com`,
+          password: "secure-password-123",
+          displayName: "Burst User",
+          tenantName: `Burst Tenant ${attempt}`,
+        }),
+      });
+      statuses.push(response.status);
+    }
+    expect(statuses).toContain(429);
+  });
 });

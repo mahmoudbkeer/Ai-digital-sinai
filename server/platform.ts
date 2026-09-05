@@ -884,6 +884,12 @@ export function createPlatformRouter(): Router {
 
   router.post("/auth/register", async (req, res, next) => {
     try {
+      if (!allowAuthBurst(`register:${req.ip}`, 30))
+        throw httpError(
+          429,
+          "rate-limited",
+          "تم تجاوز محاولات التسجيل، أعد المحاولة لاحقاً."
+        );
       const email = normalizeEmail(req.body?.email ?? "");
       const password = req.body?.password;
       const displayName = req.body?.displayName;
