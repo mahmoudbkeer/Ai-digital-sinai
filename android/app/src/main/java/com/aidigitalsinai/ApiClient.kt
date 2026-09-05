@@ -119,6 +119,16 @@ class PlatformApi(private val baseUrl: String, private val session: SessionStore
         }
     }
 
+    fun googleLogin(idToken: String): ApiResult = request("POST", "/api/platform/auth/google", JSONObject().apply {
+        put("idToken", idToken)
+    }, authenticated = false).also { result ->
+        if (result.status in 200..299 && result.body.optString("token").isNotBlank()) {
+            session.token = result.body.getString("token")
+            val tenants = result.body.optJSONArray("tenants")
+            session.tenantId = tenants?.optJSONObject(0)?.optString("tenant_id")
+        }
+    }
+
     fun subscription(): Pair<ApiResult, SubscriptionSnapshot?> {
         val result = request("GET", "/api/platform/subscription", null, authenticated = true)
         val item = result.body.optJSONObject("subscription")

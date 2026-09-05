@@ -22,6 +22,7 @@ import { resolveAIProvider } from "./aiProviders";
 import { createTotpSecret, createTotpUri, verifyTotp } from "./mfa";
 import { chunkDocument, resolveEmbeddingProvider } from "./rag";
 import { resolveRedisProvider } from "./integrations";
+import { findUserByEmail, verifyGoogleIdToken } from "./googleAuth";
 import { emitStructuredEvent } from "./observability";
 
 export const ROLES = [
@@ -983,6 +984,24 @@ export function createPlatformRouter(): Router {
         return { userId, tenantId, businessId, branchId, token };
       });
       return res.status(201).json({ ok: true, ...result });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post("/auth/google", async (req, res, next) => {
+    try {
+      const verified = await verifyGoogleIdToken(req.body?.idToken);
+      if (verified.status === "REQUIRES_SETUP") return res.status(503).json({ ok: false, status: verified.status, message: verified.message });
+      if (verified.status === "INVALID") throw httpError(401, "invalid-google-token", verified.message);
+      const db = getDataPlane();
+      const user = await findUserByEmail(db, verified.identity.email);
+      if (!user) {
+        return res.status(409).json({ ok: false, status: "REQUIRES_SETUP", code: "google-account-not-linked", message: "حساب Google موثق، لكنه غير مرتبط بحساب AI Digital Sinai." });
+      }
+      const token = await createSession(db, user.id);
+      const memberships = (await db.prepare("SELECT tenant_id, role FROM tenant_members WHERE user_id = ? ORDER BY created_at").all(user.id)) as Array<{ tenant_id: string; role: Role }>;
+      return res.json({ ok: true, token, userId: user.id, tenants: memberships });
     } catch (error) {
       next(error);
     }

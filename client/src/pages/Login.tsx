@@ -1,4 +1,4 @@
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { ArrowLeft, Check, Eye, EyeOff, Globe2, LockKeyhole, Sparkles } from "lucide-react";
 
 const googleClientId = import.meta.env.VITE_GOOGLE_OAUTH_CLIENT_ID || "";
@@ -10,6 +10,50 @@ export default function Login() {
   const [language, setLanguage] = useState<"ar" | "en">("ar");
   const [status, setStatus] = useState<{ tone: "error" | "success" | "setup"; message: string } | null>(null);
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!googleClientId) return;
+    const script = document.createElement("script");
+    script.src = "https://accounts.google.com/gsi/client";
+    script.async = true;
+    script.defer = true;
+    script.onload = () => {
+      window.google?.accounts?.id?.initialize({
+        client_id: googleClientId,
+        auto_select: false,
+        callback: async ({ credential }) => {
+          if (!credential) {
+            setStatus({ tone: "error", message: "لم يعُد Google اعتمادًا صالحًا." });
+            return;
+          }
+          setLoading(true);
+          setStatus(null);
+          try {
+            const response = await fetch("/api/platform/auth/google", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ idToken: credential }) });
+            const result = await response.json() as { token?: string; tenants?: Array<{ tenant_id: string }>; status?: string; message?: string };
+            if (!response.ok || !result.token) {
+              setStatus({ tone: result.status === "REQUIRES_SETUP" ? "setup" : "error", message: result.message ?? "تعذر إكمال Google Sign-In." });
+              return;
+            }
+            const tenantId = result.tenants?.[0]?.tenant_id;
+            if (!tenantId) {
+              setStatus({ tone: "error", message: "الحساب لا يملك مساحة عمل صالحة." });
+              return;
+            }
+            localStorage.setItem("platform_token", result.token);
+            localStorage.setItem("platform_tenant_id", tenantId);
+            window.location.href = "/";
+          } catch {
+            setStatus({ tone: "error", message: "تعذر الوصول إلى خادم المصادقة." });
+          } finally {
+            setLoading(false);
+          }
+        },
+      });
+    };
+    document.head.appendChild(script);
+    return () => script.remove();
+  }, []);
 
   const submitLogin = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -43,10 +87,14 @@ export default function Login() {
 
   const continueWithGoogle = () => {
     if (!googleClientId) {
-      setStatus({ tone: "setup", message: "REQUIRES_SETUP · أضف GOOGLE_OAUTH_CLIENT_ID قبل تفعيل Google Sign-In. Add the client ID to enable Google Sign-In." });
+      setStatus({ tone: "setup", message: "REQUIRES_SETUP · أضف VITE_GOOGLE_OAUTH_CLIENT_ID وGOOGLE_OAUTH_CLIENT_ID قبل تفعيل Google Sign-In." });
       return;
     }
-    setStatus({ tone: "setup", message: "REQUIRES_SETUP · تم إعداد Client ID، لكن تدفق الخادم والتحقق من JWT يحتاجان إلى ربط OAuth قبل الاستخدام الحقيقي." });
+    if (!window.google?.accounts?.id) {
+      setStatus({ tone: "error", message: "تعذر تحميل Google Identity Services." });
+      return;
+    }
+    window.google?.accounts?.id?.prompt();
   };
 
   return (

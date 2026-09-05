@@ -31,6 +31,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -89,6 +90,7 @@ private fun LoginScreen(api: PlatformApi, store: SessionStore) {
     var entitlements by remember { mutableStateOf<SubscriptionEntitlements?>(null) }
     var subscriptionLoading by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
 
     suspend fun loadOptional(block: suspend () -> Unit) {
         try {
@@ -147,6 +149,31 @@ private fun LoginScreen(api: PlatformApi, store: SessionStore) {
     ) {
         Text(stringResource(R.string.brand_name), style = MaterialTheme.typography.headlineMedium)
         Text(stringResource(if (registerMode) R.string.create_account else R.string.login_title), style = MaterialTheme.typography.titleLarge)
+        Button(
+            onClick = {
+                loading = true
+                message = ""
+                scope.launch {
+                    when (val google = signInWithGoogle(context)) {
+                        GoogleSignInResult.RequiresSetup -> message = "REQUIRES_SETUP: أضف GOOGLE_SERVER_CLIENT_ID لإتاحة Google Sign-In."
+                        GoogleSignInResult.Cancelled -> message = "تم إلغاء اختيار حساب Google."
+                        is GoogleSignInResult.Failed -> message = google.message
+                        is GoogleSignInResult.Success -> {
+                            val result = withContext(Dispatchers.IO) { api.googleLogin(google.idToken) }
+                            if (result.status in 200..299) {
+                                authenticated = true
+                                message = "تم تسجيل الدخول بحساب Google."
+                            } else {
+                                message = "Google Sign-In: HTTP ${result.status} — ${result.body.optString("message", "يتطلب إعداد Google.")}"
+                            }
+                        }
+                    }
+                    loading = false
+                }
+            },
+            enabled = !loading && !registerMode,
+            modifier = Modifier.fillMaxWidth()
+        ) { Text("المتابعة بحساب Google") }
         OutlinedTextField(email, { email = it }, label = { Text(stringResource(R.string.email)) }, modifier = Modifier.fillMaxWidth())
         OutlinedTextField(password, { password = it }, label = { Text(stringResource(R.string.password)) }, visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth())
         if (registerMode) {

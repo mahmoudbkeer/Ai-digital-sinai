@@ -82,7 +82,7 @@ import { cn } from "@/lib/utils";
 
 declare global {
   interface Window {
-    google?: typeof google;
+    google?: typeof google & { accounts?: { id?: { initialize: (config: { client_id: string; callback: (response: { credential?: string }) => void; auto_select?: boolean }) => void; prompt: () => void } } };
   }
 }
 
