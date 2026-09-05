@@ -1,7 +1,7 @@
 # AI DIGITAL SINAI — FINAL COMPLETION MATRIX V7
 
 **Source of truth order:** Git `main` → GitHub Actions CI → actual test results.
-**Current main:** `0fe7bc8012d2a04daa2fd12d6d0403deefd5720b` (`Add iOS subscription API and screen`)
+**Current main:** `904aa325d861de6c74753e0f0f5163ba08bbc5f0` (`fix(android): restore official app after diagnostic build`)
 **Branch:** `main`
 **Rule:** لا تُمنح external dependency حالة `VERIFIED` دون runtime/provider evidence؛ أما تطبيقات العميل native فتُثبت بوجود الكود، نجاح CI، ونجاح الاختبارات الفعلية المتاحة.
 
@@ -39,7 +39,7 @@
 | Observability | 65 | 65 | PARTIALLY_IMPLEMENTED | structured logs/request ID/health/readiness | metrics/alerts/queue/provider telemetry | health/security/load smoke |
 | Backup/DR | 55 | 72 | IMPLEMENTED / REQUIRES_SETUP | SHA-256 manifest، AES-256-GCM، authenticated decrypt، restore safety copy | encrypted offsite storage، managed PostgreSQL RPO/RTO drill | backup/restore smoke |
 | Frontend | 60 | 63 | PARTIALLY_IMPLEMENTED | Arabic RTL mobile app shell/loading/error baseline، POS إنشاء رابط Kashier من الطلب | all completed capabilities usable in UI، QR visual component مستقل | Playwright + payment request UI contract |
-| Android | 100 | 100 | VERIFIED | login، marketplace، cart/checkout، notifications، AI search، analytics، product detail، subscription | device-release signing and store submission remain outside this documentation gate | [Android commits](https://github.com/mahmoudbkeer/Ai-digital-sinai/commits/main/android)؛ [Android CI run 33685274169](https://github.com/mahmoudbkeer/Ai-digital-sinai/actions/runs/33685274169)؛ `./gradlew :app:testDebugUnitTest` و`./gradlew :app:assembleDebug` |
+| Android | 100 | 100 | FULL APK BUILT / USER INSTALL PENDING | login، marketplace، cart/checkout، notifications، AI search، analytics، product detail، subscription؛ `applicationId=com.aidigitalsinai` restored | user installation and Register → workspace smoke with Play Protect Enhanced Detection disabled | [commit 904aa32](https://github.com/mahmoudbkeer/Ai-digital-sinai/commit/904aa325d861de6c74753e0f0f5163ba08bbc5f0)؛ [Quality Gate run 118](https://github.com/mahmoudbkeer/Ai-digital-sinai/actions/runs/33964687567)؛ [Android CI run 55](https://github.com/mahmoudbkeer/Ai-digital-sinai/actions/runs/33964687623)؛ APK SHA-256 `6a35c24b8411369379a97cb50a8aaeb0a8c8da3c8b5bff5d6e9baf487df278d0` |
 | CI/CD | 70 | 80 | IMPLEMENTED / EXTERNAL SETUP | check/test/build/e2e/smoke/load/security/adversarial/staging gates، Kashier unit/mock webhook tests دون أسرار | staging secrets، Kashier credentials، protected branch enforcement | GitHub workflows + 57 local tests |
 | Production | 45 | 48 | BLOCKED_EXTERNAL_DEPENDENCY | code configuration/startup/readiness/rollback contracts | managed services/provider/WAF/pentest/restore | explicit readiness |
 
@@ -159,3 +159,28 @@ The adversarial fixture now seeds an active `trial` subscription for Tenant A. T
 
 The current executable matrix covers **22/28 resource families** by concrete IDOR or route-level tenant isolation. Six families are structurally unavailable for the requested collection/IDOR test: Ledger (write-only; no GET), Business (no collection GET), Branch (no collection GET), Advertising (no GET collection route), plus two service-specific resource families without independent GET-by-ID routes. These are not counted as verified until an actual read route exists.
 RBAC/ABAC concrete coverage: 22/28 قابل للاختبار الكامل؛ 6 موارد (Ledger, Business, Branch, Advertising, و2 service-specific) بلا GET/GET-by-ID فعلي، ولذلك مستبعدة هيكليًا من IDOR test، ومغطاة فقط عبر route-level authorization checks المتاحة.
+
+
+## Current P0 closure record — 2026-09-05
+
+| Item | Status | Evidence |
+|---|---|---|
+| Play Protect Root Cause | **CONFIRMED BY USER DEVICE TEST** | The user reported that disabling Google Play Protect Enhanced Detection allowed the diagnostic APK `com.aidigitalsinai.test` to install immediately. This explains the previous generic “application not installed” result for debug-signed APKs. |
+| Diagnostic package collision | **REJECTED** | A distinct `applicationId` failed under Enhanced Detection and installed after that device setting was disabled. |
+| Official full application restored | **BUILT** | [Commit 904aa32](https://github.com/mahmoudbkeer/Ai-digital-sinai/commit/904aa325d861de6c74753e0f0f5163ba08bbc5f0) restores the full Compose `MainActivity` and `applicationId=com.aidigitalsinai`. |
+| Official full APK CI | **PASS** | [Quality Gate run 118](https://github.com/mahmoudbkeer/Ai-digital-sinai/actions/runs/33964687567) — `success`; [Android CI run 55](https://github.com/mahmoudbkeer/Ai-digital-sinai/actions/runs/33964687623) — `success`. |
+| Official full APK artifact | **ATTACHED TO THE USER REPORT** | SHA-256 `6a35c24b8411369379a97cb50a8aaeb0a8c8da3c8b5bff5d6e9baf487df278d0`; `applicationId=com.aidigitalsinai`; `versionCode=1`; `versionName=0.1.0`; `minSdk=26`; `targetSdk=35`; four ABIs; one standalone APK. |
+| P0 final status | **USER INSTALLATION PENDING** | The user must install the official full APK with Enhanced Detection disabled and complete Register → workspace opening. P0 is not labeled VERIFIED until that confirmation arrives. |
+| Future distribution requirement | **EXTERNAL_SETUP_REQUIRED** | Android Developer Verification and Google registration may be required for broad distribution under the September 2026 rollout; this is separate from the confirmed local installation block. |
+
+## Current parallel-code evidence
+
+| Workstream | Status | Evidence |
+|---|---|---|
+| Business OS | **CODE COMPLETE / TESTED** | Existing `server/businessOs.test.ts` covers procurement, suppliers, inventory, finance, CRM, POS, marketplace, reports, ledger, advertising, subscriptions, advisor, recommendations, forecasting, and entitlements; Quality Gate run 118 is `success`. |
+| Security/RBAC | **REVALIDATED** | [Commit 156f70a](https://github.com/mahmoudbkeer/Ai-digital-sinai/commit/156f70a1b9cd31ceda99e0ae371f95e2e65ac2ff), [commit 47774c4](https://github.com/mahmoudbkeer/Ai-digital-sinai/commit/47774c47c940abbb56a5888e1785ada22c1958ba), and [Quality Gate run 115](https://github.com/mahmoudbkeer/Ai-digital-sinai/actions/runs/33936238568) are available; the latest local run passed 12 test files / 64 tests, adversarial security, and production dependency audit. |
+| Kashier | **CODE COMPLETE / EXTERNAL_SETUP_REQUIRED** | Provider boundary, payment request, HMAC callback, replay/idempotency, truthful setup failure, and mock contract tests are present; real Merchant ID/API key and sandbox callback remain required. |
+| FCM/SendGrid | **CODE COMPLETE / EXTERNAL_SETUP_REQUIRED** | Provider adapters, queue/retry handling, and contract tests are present; real service credentials, recipient/device setup, and delivery evidence remain required. |
+| AI runtime | **CODE COMPLETE / EXTERNAL_SETUP_REQUIRED** | Provider abstraction, authorization/tenant boundaries, usage tracking, fallback, advisor, recommendations, forecasting, and RAG boundaries are present; real provider credentials remain required for runtime verification. |
+
+**Policy:** No external provider is marked `RUNTIME VERIFIED` from code or CI alone. No APK installation is marked `VERIFIED` until the user confirms the official full APK installation and Register → workspace flow.
