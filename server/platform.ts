@@ -23,6 +23,7 @@ import { createTotpSecret, createTotpUri, verifyTotp } from "./mfa";
 import { chunkDocument, resolveEmbeddingProvider } from "./rag";
 import { resolveRedisProvider } from "./integrations";
 import { findUserByEmail, verifyGoogleIdToken } from "./googleAuth";
+import { issueEmailVerification, verifyEmailCode } from "./emailVerification";
 import { emitStructuredEvent } from "./observability";
 
 export const ROLES = [
@@ -983,7 +984,26 @@ export function createPlatformRouter(): Router {
         );
         return { userId, tenantId, businessId, branchId, token };
       });
-      return res.status(201).json({ ok: true, ...result });
+      const activation = await issueEmailVerification(getDataPlane(), result.userId, email, displayName.trim());
+      return res.status(201).json({ ok: true, ...result, activation: { status: activation.status, expiresAt: activation.expiresAt } });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post("/auth/verify-email", async (req, res, next) => {
+    try {
+      const email = normalizeEmail(req.body?.email ?? "");
+      const code = typeof req.body?.code === "string" ? req.body.code.trim() : "";
+      if (!email || !/^[0-9]{6}$/.test(code)) throw httpError(400, "invalid-verification-code", "البريد ورمز التفعيل المكوّن من 6 أرقام مطلوبان.");
+      const result = await verifyEmailCode(getDataPlane(), email, code);
+      if ("error" in result) {
+        const status = result.error === "locked" ? 429 : 400;
+        throw httpError(status, `email-verification-${result.error}`, "رمز التفعيل غير صالح أو منتهي.");
+      }
+      const token = await createSession(getDataPlane(), result.userId);
+      const memberships = (await getDataPlane().prepare("SELECT tenant_id, role FROM tenant_members WHERE user_id = ? ORDER BY created_at").all(result.userId)) as Array<{ tenant_id: string; role: Role }>;
+      return res.json({ ok: true, token, userId: result.userId, tenants: memberships });
     } catch (error) {
       next(error);
     }

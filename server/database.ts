@@ -803,6 +803,13 @@ export function getDatabase(): AppDatabase {
     database.exec(readFileSync(path.resolve(process.cwd(), "migrations/0008_payment_links.sql"), "utf8"));
     database.prepare("INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)").run(8, Date.now());
   }
+  const appliedEmailVerification = database
+    .prepare("SELECT version FROM schema_migrations WHERE version = 9")
+    .get() as { version?: number } | undefined;
+  if (!appliedEmailVerification) {
+    database.exec(readFileSync(path.resolve(process.cwd(), "migrations/0009_email_verification.sql"), "utf8"));
+    database.prepare("INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)").run(9, Date.now());
+  }
   const planInsert = database.prepare(
     "INSERT OR IGNORE INTO plans (code, name, price_cents, trial_days, active, created_at) VALUES (?, ?, ?, ?, 1, ?)"
   );
