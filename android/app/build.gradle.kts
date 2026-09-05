@@ -9,7 +9,7 @@ android {
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "com.aidigitalsinai"
+        applicationId = "com.aidigitalsinai.test"
         minSdk = 26
         targetSdk = 35
         versionCode = 1
