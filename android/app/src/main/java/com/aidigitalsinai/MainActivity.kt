@@ -17,6 +17,7 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
@@ -29,6 +30,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.LocalContext
@@ -39,6 +41,18 @@ import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+
+private val NocturneColorScheme = darkColorScheme(
+    primary = Color(0xFF8B5CF6),
+    onPrimary = Color(0xFFFFFFFF),
+    secondary = Color(0xFF22D3EE),
+    onSecondary = Color(0xFF08101C),
+    background = Color(0xFF070A12),
+    onBackground = Color(0xFFF4F7FB),
+    surface = Color(0xFF101622),
+    onSurface = Color(0xFFF4F7FB),
+    error = Color(0xFFFF7A90)
+)
 
 private val AppLightColorScheme = lightColorScheme(
     primary = DesignTokens.SinaiTide,
@@ -147,8 +161,20 @@ private fun LoginScreen(api: PlatformApi, store: SessionStore) {
         modifier = Modifier.fillMaxSize().padding(PaddingValues(24.dp)),
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
-        Text(stringResource(R.string.brand_name), style = MaterialTheme.typography.headlineMedium)
-        Text(stringResource(if (registerMode) R.string.create_account else R.string.login_title), style = MaterialTheme.typography.titleLarge)
+        if (!authenticated) {
+            MaterialTheme(colorScheme = NocturneColorScheme) {
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFF101622)),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(
+                        modifier = Modifier.padding(24.dp),
+                        verticalArrangement = Arrangement.spacedBy(14.dp)
+                    ) {
+                        Text("AI DIGITAL SINAI", style = MaterialTheme.typography.labelLarge, color = Color(0xFF22D3EE), letterSpacing = 2.sp)
+                        Text("NOCTURNE SIGNAL", style = MaterialTheme.typography.headlineMedium, color = Color(0xFFF4F7FB))
+                        Text(stringResource(if (registerMode) R.string.create_account else R.string.login_title), style = MaterialTheme.typography.titleLarge)
+
         Button(
             onClick = {
                 loading = true
@@ -207,7 +233,11 @@ private fun LoginScreen(api: PlatformApi, store: SessionStore) {
         Button(onClick = { registerMode = !registerMode; message = "" }, modifier = Modifier.fillMaxWidth()) {
             Text(stringResource(if (registerMode) R.string.existing_account else R.string.create_account))
         }
-        if (message.isNotBlank()) Text(message, color = MaterialTheme.colorScheme.primary)
+                        if (message.isNotBlank()) Text(message, color = MaterialTheme.colorScheme.secondary)
+                    }
+                }
+            }
+        }
         if (authenticated) {
             Text("Marketplace", style = MaterialTheme.typography.headlineSmall)
             if (marketplaceLoading) CircularProgressIndicator()
