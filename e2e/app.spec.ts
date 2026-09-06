@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 test("App Mode opens and navigates across mobile tabs", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/app");
   await expect(page.getByText("AI DIGITAL", { exact: false })).toBeVisible();
   await expect(page.getByText("خارطة التنفيذ الاحترافية")).toBeVisible();
   await page.keyboard.press("Tab");

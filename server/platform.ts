@@ -884,6 +884,70 @@ export function createPlatformRouter(): Router {
     return true;
   };
 
+  router.get("/marketplace/directory", async (req, res, next) => {
+    try {
+      const query = typeof req.query.query === "string" ? req.query.query.trim() : "";
+      const category = typeof req.query.category === "string" ? req.query.category.trim() : "";
+      const db = getDataPlane();
+      const like = `%${query}%`;
+      const rows = await db.prepare(`
+        SELECT
+          b.id,
+          b.name,
+          b.category,
+          b.phone,
+          b.whatsapp,
+          b.image_url,
+          b.hours_json,
+          COALESCE(br.district, br.city, 'العريش') AS district,
+          COALESCE(
+            (SELECT s.name FROM services s WHERE s.business_id = b.id AND s.tenant_id = b.tenant_id AND s.status = 'active' ORDER BY s.created_at DESC LIMIT 1),
+            (SELECT p.name FROM products p WHERE p.business_id = b.id AND p.tenant_id = b.tenant_id AND p.status = 'active' ORDER BY p.created_at DESC LIMIT 1),
+            b.name
+          ) AS offering_name,
+          COALESCE(
+            (SELECT s.description FROM services s WHERE s.business_id = b.id AND s.tenant_id = b.tenant_id AND s.status = 'active' ORDER BY s.created_at DESC LIMIT 1),
+            (SELECT p.description FROM products p WHERE p.business_id = b.id AND p.tenant_id = b.tenant_id AND p.status = 'active' ORDER BY p.created_at DESC LIMIT 1),
+            ''
+          ) AS description,
+          COALESCE(
+            (SELECT s.category FROM services s WHERE s.business_id = b.id AND s.tenant_id = b.tenant_id AND s.status = 'active' ORDER BY s.created_at DESC LIMIT 1),
+            (SELECT p.category FROM products p WHERE p.business_id = b.id AND p.tenant_id = b.tenant_id AND p.status = 'active' ORDER BY p.created_at DESC LIMIT 1),
+            b.category,
+            'خدمات متنوعة'
+          ) AS subcategory,
+          COALESCE(
+            (SELECT s.category FROM services s WHERE s.business_id = b.id AND s.tenant_id = b.tenant_id AND s.status = 'active' ORDER BY s.created_at DESC LIMIT 1),
+            (SELECT p.category FROM products p WHERE p.business_id = b.id AND p.tenant_id = b.tenant_id AND p.status = 'active' ORDER BY p.created_at DESC LIMIT 1),
+            b.category,
+            'خدمات متنوعة'
+          ) AS tag,
+          (
+            (SELECT COUNT(*) FROM reviews r JOIN services s ON s.id = r.service_id WHERE s.business_id = b.id AND r.tenant_id = b.tenant_id) +
+            (SELECT COUNT(*) FROM reviews r JOIN products p ON p.id = r.product_id WHERE p.business_id = b.id AND r.tenant_id = b.tenant_id)
+          ) AS reviews,
+          (
+            SELECT ROUND(AVG(r.rating), 1) FROM reviews r
+            LEFT JOIN services s ON s.id = r.service_id
+            LEFT JOIN products p ON p.id = r.product_id
+            WHERE (s.business_id = b.id OR p.business_id = b.id) AND r.tenant_id = b.tenant_id
+          ) AS rating
+        FROM businesses b
+        LEFT JOIN branches br ON br.business_id = b.id AND br.tenant_id = b.tenant_id AND br.status = 'active'
+        WHERE b.status = 'active'
+          AND b.publication_status = 'APPROVED'
+          AND (? = '' OR b.category LIKE ? OR b.name LIKE ? OR br.district LIKE ? OR EXISTS (SELECT 1 FROM products p WHERE p.business_id = b.id AND p.tenant_id = b.tenant_id AND (p.name LIKE ? OR COALESCE(p.category, '') LIKE ?)) OR EXISTS (SELECT 1 FROM services s WHERE s.business_id = b.id AND s.tenant_id = b.tenant_id AND (s.name LIKE ? OR COALESCE(s.category, '') LIKE ?)))
+          AND (? = '' OR b.category = ?)
+        GROUP BY b.id
+        ORDER BY b.updated_at DESC
+        LIMIT 200
+      `).all(query, like, like, like, like, like, like, like, category, category);
+      return res.json({ ok: true, businesses: rows, count: rows.length });
+    } catch (error) {
+      next(error);
+    }
+  });
+
   router.post("/auth/register", async (req, res, next) => {
     try {
       if (!allowAuthBurst(`register:${req.ip}`, 30))
