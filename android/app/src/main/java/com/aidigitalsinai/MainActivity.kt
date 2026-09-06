@@ -38,6 +38,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -180,7 +181,8 @@ private fun LoginScreen(api: PlatformApi, store: SessionStore) {
                 loading = true
                 message = ""
                 scope.launch {
-                    when (val google = signInWithGoogle(context)) {
+                    try {
+                        when (val google = signInWithGoogle(context)) {
                         GoogleSignInResult.RequiresSetup -> message = "REQUIRES_SETUP: أضف GOOGLE_SERVER_CLIENT_ID لإتاحة Google Sign-In."
                         GoogleSignInResult.Cancelled -> message = "تم إلغاء اختيار حساب Google."
                         is GoogleSignInResult.Failed -> message = google.message
@@ -193,8 +195,13 @@ private fun LoginScreen(api: PlatformApi, store: SessionStore) {
                                 message = "Google Sign-In: HTTP ${result.status} — ${result.body.optString("message", "يتطلب إعداد Google.")}"
                             }
                         }
+                        }
+                    } catch (error: Throwable) {
+                        if (error is CancellationException) throw error
+                        message = ApiResult.NETWORK_ERROR_MESSAGE
+                    } finally {
+                        loading = false
                     }
-                    loading = false
                 }
             },
             enabled = !loading && !registerMode,
@@ -211,19 +218,25 @@ private fun LoginScreen(api: PlatformApi, store: SessionStore) {
                 loading = true
                 message = ""
                 scope.launch {
-                    val result = withContext(Dispatchers.IO) {
-                        if (registerMode) api.register(email, password, displayName, tenantName)
-                        else api.login(email, password)
-                    }
-                    loading = false
-                    message = if (result.status in 200..299) {
+                    try {
+                        val result = withContext(Dispatchers.IO) {
+                            if (registerMode) api.register(email, password, displayName, tenantName)
+                            else api.login(email, password)
+                        }
+                        message = if (result.status in 200..299) {
                         authenticated = true
                         notificationLoading = true
                         analyticsLoading = true
                         subscriptionLoading = true
                         "تم فتح المشروع بنجاح (HTTP ${result.status}). tenant=${store.tenantId}"
-                    } else {
-                        "فشل الطلب: HTTP ${result.status} — ${result.body.optString("message", "تعذر الاتصال")}"
+                        } else {
+                            "فشل الطلب: HTTP ${result.status} — ${result.body.optString("message", "تعذر الاتصال")}"
+                        }
+                    } catch (error: Throwable) {
+                        if (error is CancellationException) throw error
+                        message = ApiResult.NETWORK_ERROR_MESSAGE
+                    } finally {
+                        loading = false
                     }
                 }
             },
@@ -255,21 +268,33 @@ private fun LoginScreen(api: PlatformApi, store: SessionStore) {
                             Button(onClick = {
                                 detailLoading = true
                                 scope.launch {
-                                    val (_, detail) = withContext(Dispatchers.IO) { api.productDetail(product.id) }
-                                    selectedProduct = detail
-                                    detailLoading = false
+                                    try {
+                                        val (_, detail) = withContext(Dispatchers.IO) { api.productDetail(product.id) }
+                                        selectedProduct = detail
+                                    } catch (error: Throwable) {
+                                        if (error is CancellationException) throw error
+                                        message = ApiResult.NETWORK_ERROR_MESSAGE
+                                    } finally {
+                                        detailLoading = false
+                                    }
                                 }
                             }, enabled = !detailLoading) { Text("التفاصيل") }
                             Button(onClick = {
                                 cartLoading = true
                                 scope.launch {
-                                    val result = withContext(Dispatchers.IO) {
-                                        api.addCartItem(product.id, 1, store.branchId)
+                                    try {
+                                        val result = withContext(Dispatchers.IO) {
+                                            api.addCartItem(product.id, 1, store.branchId)
+                                        }
+                                        val (_, loadedCart) = withContext(Dispatchers.IO) { api.cart() }
+                                        cart = loadedCart
+                                        checkoutMessage = "تمت إضافة المنتج: HTTP ${result.status}"
+                                    } catch (error: Throwable) {
+                                        if (error is CancellationException) throw error
+                                        checkoutMessage = ApiResult.NETWORK_ERROR_MESSAGE
+                                    } finally {
+                                        cartLoading = false
                                     }
-                                    val (_, loadedCart) = withContext(Dispatchers.IO) { api.cart() }
-                                    cart = loadedCart
-                                    cartLoading = false
-                                    checkoutMessage = "تمت إضافة المنتج: HTTP ${result.status}"
                                 }
                             }, enabled = !cartLoading) { Text("أضف للسلة") }
                         }
@@ -302,14 +327,20 @@ private fun LoginScreen(api: PlatformApi, store: SessionStore) {
                 onClick = {
                     cartLoading = true
                     scope.launch {
-                        val (result, checkout) = withContext(Dispatchers.IO) {
-                            store.branchId?.let { api.checkout(it) } ?: (ApiResult(400, org.json.JSONObject().put("message", "branchId مطلوب")) to null)
-                        }
-                        cartLoading = false
-                        checkoutMessage = if (checkout != null) {
+                        try {
+                            val (result, checkout) = withContext(Dispatchers.IO) {
+                                store.branchId?.let { api.checkout(it) } ?: (ApiResult(400, org.json.JSONObject().put("message", "branchId مطلوب")) to null)
+                            }
+                            checkoutMessage = if (checkout != null) {
                             "تم إنشاء الطلب: ${checkout.orderId} — الحالة: ${checkout.state} — HTTP ${result.status}"
-                        } else {
-                            "تعذر إتمام الشراء: HTTP ${result.status} — ${result.body.optString("message", "branchId مطلوب")}"
+                            } else {
+                                "تعذر إتمام الشراء: HTTP ${result.status} — ${result.body.optString("message", "branchId مطلوب")}"
+                            }
+                        } catch (error: Throwable) {
+                            if (error is CancellationException) throw error
+                            checkoutMessage = ApiResult.NETWORK_ERROR_MESSAGE
+                        } finally {
+                            cartLoading = false
                         }
                     }
                 },
@@ -339,10 +370,16 @@ private fun LoginScreen(api: PlatformApi, store: SessionStore) {
                 onClick = {
                     searchLoading = true
                     scope.launch {
-                        val (result, loadedResults) = withContext(Dispatchers.IO) { api.aiSearch(searchQuery) }
-                        searchResults = loadedResults
-                        searchLoading = false
-                        searchMessage = "AI Search HTTP ${result.status} — ${loadedResults.size} نتيجة"
+                        try {
+                            val (result, loadedResults) = withContext(Dispatchers.IO) { api.aiSearch(searchQuery) }
+                            searchResults = loadedResults
+                            searchMessage = if (result.status in 200..299) "تم البحث." else result.body.optString("message", "تعذر تنفيذ البحث.")
+                        } catch (error: Throwable) {
+                            if (error is CancellationException) throw error
+                            searchMessage = ApiResult.NETWORK_ERROR_MESSAGE
+                        } finally {
+                            searchLoading = false
+                        }
                     }
                 },
                 enabled = !searchLoading && searchQuery.isNotBlank()

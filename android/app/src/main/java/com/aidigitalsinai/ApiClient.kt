@@ -2,6 +2,7 @@ package com.aidigitalsinai
 
 import android.content.Context
 import org.json.JSONObject
+import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URL
 
@@ -24,7 +25,14 @@ class SessionStore(context: Context) : SessionStoreContract {
         set(value) { prefs.edit().putString("platform_branch_id", value).apply() }
 }
 
-data class ApiResult(val status: Int, val body: JSONObject)
+data class ApiResult(val status: Int, val body: JSONObject) {
+    val isNetworkError: Boolean get() = status == NETWORK_ERROR_STATUS
+
+    companion object {
+        const val NETWORK_ERROR_STATUS = 599
+        const val NETWORK_ERROR_MESSAGE = "تعذّر الاتصال بالخادم، تحقق من اتصالك بالإنترنت أو حاول لاحقًا."
+    }
+}
 
 data class MarketplaceProduct(
     val id: String,
@@ -314,23 +322,38 @@ class PlatformApi(private val baseUrl: String, private val session: SessionStore
     }
 
     private fun request(method: String, path: String, payload: JSONObject?, authenticated: Boolean): ApiResult {
-        val connection = (URL(baseUrl.trimEnd('/') + path).openConnection() as HttpURLConnection).apply {
-            requestMethod = method
-            connectTimeout = 10_000
-            readTimeout = 10_000
-            setRequestProperty("Content-Type", "application/json")
-            if (authenticated) {
-                setRequestProperty("Authorization", "Bearer ${session.token}")
-                setRequestProperty("x-tenant-id", session.tenantId ?: "")
+        var connection: HttpURLConnection? = null
+        return try {
+            connection = (URL(baseUrl.trimEnd('/') + path).openConnection() as HttpURLConnection).apply {
+                requestMethod = method
+                connectTimeout = 10_000
+                readTimeout = 10_000
+                setRequestProperty("Content-Type", "application/json")
+                if (authenticated) {
+                    setRequestProperty("Authorization", "Bearer ${session.token}")
+                    setRequestProperty("x-tenant-id", session.tenantId ?: "")
+                }
+                doInput = true
+                if (payload != null) doOutput = true
             }
-            doInput = true
-            if (payload != null) doOutput = true
+            payload?.toString()?.toByteArray(Charsets.UTF_8)?.let { bytes ->
+                connection.outputStream.use { stream -> stream.write(bytes) }
+            }
+            val status = connection.responseCode
+            val stream = if (status >= 400) connection.errorStream else connection.inputStream
+            val body = stream?.bufferedReader()?.use { it.readText() }.orEmpty()
+            val json = try {
+                JSONObject(if (body.isBlank()) "{}" else body)
+            } catch (_: Exception) {
+                JSONObject().put("message", "استجابة غير صالحة من الخادم.")
+            }
+            ApiResult(status, json)
+        } catch (_: IOException) {
+            ApiResult(ApiResult.NETWORK_ERROR_STATUS, JSONObject().put("message", ApiResult.NETWORK_ERROR_MESSAGE))
+        } catch (_: Exception) {
+            ApiResult(ApiResult.NETWORK_ERROR_STATUS, JSONObject().put("message", ApiResult.NETWORK_ERROR_MESSAGE))
+        } finally {
+            connection?.disconnect()
         }
-        payload?.toString()?.toByteArray(Charsets.UTF_8)?.let { connection.outputStream.use { stream -> stream.write(it) } }
-        val status = connection.responseCode
-        val stream = if (status >= 400) connection.errorStream else connection.inputStream
-        val body = stream?.bufferedReader()?.use { it.readText() }.orEmpty()
-        connection.disconnect()
-        return ApiResult(status, JSONObject(if (body.isBlank()) "{}" else body))
     }
 }
