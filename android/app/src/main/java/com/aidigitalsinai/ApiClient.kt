@@ -43,6 +43,30 @@ data class MarketplaceProduct(
     val category: String?
 )
 
+data class MarketplaceBusiness(
+    val id: String,
+    val name: String,
+    val category: String?,
+    val subcategory: String,
+    val district: String,
+    val tag: String,
+    val description: String,
+    val phone: String?,
+    val whatsapp: String?,
+    val hoursJson: String?,
+    val reviews: Int,
+    val rating: Double?,
+    val imageUrl: String?,
+    val offeringName: String,
+    val createdAt: Long,
+    val sponsored: Boolean,
+    val featuredSource: String
+)
+
+private fun JSONObject.optionalString(name: String): String? = optString(name).ifBlank { null }
+
+private fun JSONObject.optionalDouble(name: String): Double? = if (isNull(name)) null else optDouble(name).takeUnless { it.isNaN() }
+
 data class ProductDetail(
     val id: String,
     val businessId: String,
@@ -287,6 +311,37 @@ class PlatformApi(private val baseUrl: String, private val session: SessionStore
             )
         }
         return result to product
+    }
+
+    fun marketplaceDirectory(query: String = "", category: String = ""): Pair<ApiResult, List<MarketplaceBusiness>> {
+        val path = "/api/platform/marketplace/directory?query=${java.net.URLEncoder.encode(query, "UTF-8")}&category=${java.net.URLEncoder.encode(category, "UTF-8")}"
+        val result = request("GET", path, null, authenticated = false)
+        val values = buildList {
+            val items = result.body.optJSONArray("businesses") ?: return@buildList
+            for (index in 0 until items.length()) {
+                val item = items.optJSONObject(index) ?: continue
+                add(MarketplaceBusiness(
+                    id = item.optString("id"),
+                    name = item.optString("name"),
+                    category = item.optionalString("category"),
+                    subcategory = item.optString("subcategory", "خدمات متنوعة"),
+                    district = item.optString("district", "العريش"),
+                    tag = item.optString("tag", "خدمات متنوعة"),
+                    description = item.optString("description"),
+                    phone = item.optionalString("phone"),
+                    whatsapp = item.optionalString("whatsapp"),
+                    hoursJson = item.optionalString("hours_json"),
+                    reviews = item.optInt("reviews"),
+                    rating = item.optionalDouble("rating"),
+                    imageUrl = item.optionalString("image_url"),
+                    offeringName = item.optString("offering_name", item.optString("name")),
+                    createdAt = item.optLong("created_at"),
+                    sponsored = item.optInt("sponsored") == 1 || item.optBoolean("sponsored"),
+                    featuredSource = item.optString("featured_source", "created_at")
+                ))
+            }
+        }
+        return result to values
     }
 
     fun products(): Pair<ApiResult, List<MarketplaceProduct>> {

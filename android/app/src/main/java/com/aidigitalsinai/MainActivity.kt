@@ -252,7 +252,8 @@ private fun LoginScreen(api: PlatformApi, store: SessionStore) {
             }
         }
         if (authenticated) {
-            Text("Marketplace", style = MaterialTheme.typography.headlineSmall)
+            MarketplaceScreen(api)
+            Text("Marketplace legacy workspace", style = MaterialTheme.typography.headlineSmall)
             if (marketplaceLoading) CircularProgressIndicator()
             else if (products.isEmpty()) Text("لا توجد منتجات منشورة لهذا المستأجر.")
             else LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
