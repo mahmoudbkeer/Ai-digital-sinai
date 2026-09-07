@@ -69,7 +69,7 @@ private const val MarketplaceContact = "201014732300"
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MarketplaceScreen(api: PlatformApi) {
+fun MarketplaceScreen(api: PlatformApi, notice: String = "", onProtectedAction: (String) -> Unit = {}) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var query by remember { mutableStateOf("") }
@@ -122,6 +122,7 @@ fun MarketplaceScreen(api: PlatformApi) {
     }
 
     LazyColumn(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(14.dp), contentPadding = androidx.compose.foundation.layout.PaddingValues(top = 16.dp, bottom = 32.dp)) {
+        if (notice.isNotBlank()) item { Text(notice, color = Color(0xFF0D7C86), fontWeight = FontWeight.Bold, modifier = Modifier.fillMaxWidth().padding(top = 4.dp)) }
         item {
             Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
                 Column {
@@ -129,7 +130,13 @@ fun MarketplaceScreen(api: PlatformApi) {
                     Text("NOCTURNE SIGNAL", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                     Text("بوابتك الرقمية الذكية لخدماتك وإدارة نشاطك", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
-                Row(verticalAlignment = Alignment.CenterVertically) { Icon(Icons.Default.LocationOn, null, tint = Color(0xFF0D7C86), modifier = Modifier.size(18.dp)); Text("العريش", fontWeight = FontWeight.SemiBold) }
+                Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) { Icon(Icons.Default.LocationOn, null, tint = Color(0xFF0D7C86), modifier = Modifier.size(18.dp)); Text("العريش", fontWeight = FontWeight.SemiBold) }
+                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        TextButton(onClick = { onProtectedAction("profile") }) { Text("الملف الشخصي") }
+                        TextButton(onClick = { onProtectedAction("orders") }) { Text("طلباتي") }
+                    }
+                }
             }
         }
         item {
@@ -141,6 +148,7 @@ fun MarketplaceScreen(api: PlatformApi) {
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Button(onClick = { openExternal("tel:+$MarketplaceContact") }) { Icon(Icons.Default.Call, null); Spacer(Modifier.width(6.dp)); Text("اتصال") }
                         OutlinedButton(onClick = { openExternal("https://wa.me/$MarketplaceContact") }) { Text("واتساب") }
+                        OutlinedButton(onClick = { onProtectedAction("add_business") }) { Text("أضف نشاطك مجانًا") }
                         IconButton(onClick = { assistantOpen = true }) { Icon(Icons.Default.Search, "المساعد الذكي", tint = Color.White) }
                     }
                 }
@@ -191,7 +199,7 @@ fun MarketplaceScreen(api: PlatformApi) {
         }
         if (loading) item { Box(Modifier.fillMaxWidth().height(100.dp), contentAlignment = Alignment.Center) { Text("جارٍ تحميل الأنشطة المعتمدة…") } }
         if (error.isNotBlank()) item { Text(error, color = MaterialTheme.colorScheme.error) }
-        items(businesses, key = { it.id }) { business -> BusinessCard(business, ::openExternal, ::share) }
+        items(businesses, key = { it.id }) { business -> BusinessCard(business, ::openExternal, ::share, onProtectedAction) }
         if (!loading && businesses.isEmpty() && error.isBlank()) item { Text("لا توجد منشآت أو خدمات معتمدة لهذا البحث.", color = MaterialTheme.colorScheme.onSurfaceVariant) }
     }
 
@@ -211,7 +219,7 @@ fun MarketplaceScreen(api: PlatformApi) {
 }
 
 @Composable
-private fun BusinessCard(business: MarketplaceBusiness, openExternal: (String) -> Unit, share: (MarketplaceBusiness) -> Unit) {
+private fun BusinessCard(business: MarketplaceBusiness, openExternal: (String) -> Unit, share: (MarketplaceBusiness) -> Unit, onProtectedAction: (String) -> Unit) {
     val open = isBusinessOpenNative(business.hoursJson)
     Card(modifier = Modifier.fillMaxWidth(), elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)) {
         Column {
@@ -224,6 +232,7 @@ private fun BusinessCard(business: MarketplaceBusiness, openExternal: (String) -
                 Text(business.description.ifBlank { "نشاط معتمد داخل Marketplace." }, maxLines = 3, overflow = TextOverflow.Ellipsis)
                 Row(verticalAlignment = Alignment.CenterVertically) { Text("${business.reviews} تقييم", style = MaterialTheme.typography.labelSmall); Spacer(Modifier.width(10.dp)); business.rating?.let { Icon(Icons.Default.Star, null, tint = Color(0xFFE3A82B), modifier = Modifier.size(16.dp)); Text(" %.1f".format(it), style = MaterialTheme.typography.labelSmall) }; Spacer(Modifier.weight(1f)); IconButton(onClick = { share(business) }) { Icon(Icons.Default.Share, "مشاركة") } }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { business.whatsapp?.let { OutlinedButton(onClick = { openExternal("https://wa.me/$it") }, modifier = Modifier.weight(1f)) { Text("واتساب") } }; business.phone?.let { Button(onClick = { openExternal("tel:+$it") }, modifier = Modifier.weight(1f)) { Icon(Icons.Default.Call, null); Spacer(Modifier.width(4.dp)); Text("اتصال") } } }
+                OutlinedButton(onClick = { onProtectedAction("cart:${business.id}") }, modifier = Modifier.fillMaxWidth()) { Text("حجز أو إضافة للسلة") }
             }
         }
     }

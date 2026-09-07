@@ -72,12 +72,50 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         val store = SessionStore(this)
         val api = PlatformApi(BuildConfig.API_BASE_URL, store)
-        setContent { CompositionLocalProvider(LocalLayoutDirection provides if (java.util.Locale.getDefault().language == "ar") LayoutDirection.Rtl else LayoutDirection.Ltr) { MaterialTheme(colorScheme = AppLightColorScheme) { Surface { LoginScreen(api, store) } } } }
+        setContent { CompositionLocalProvider(LocalLayoutDirection provides if (java.util.Locale.getDefault().language == "ar") LayoutDirection.Rtl else LayoutDirection.Ltr) { MaterialTheme(colorScheme = AppLightColorScheme) { Surface { GuestFirstRoot(api, store) } } } }
     }
 }
 
 @androidx.compose.runtime.Composable
-private fun LoginScreen(api: PlatformApi, store: SessionStore) {
+private fun GuestFirstRoot(api: PlatformApi, store: SessionStore) {
+    var showLogin by remember { mutableStateOf(false) }
+    var pendingAction by remember { mutableStateOf<String?>(null) }
+    var actionNotice by remember { mutableStateOf("") }
+    val authenticated = store.token != null && store.tenantId != null
+
+    if (!showLogin) {
+        MarketplaceScreen(api, actionNotice) { action ->
+            if (authenticated) {
+                actionNotice = when {
+                    action == "add_business" -> "تم فتح مسار إضافة النشاط."
+                    action == "profile" -> "تم فتح الملف الشخصي."
+                    action == "orders" -> "تم فتح طلباتك."
+                    action.startsWith("cart:") -> "تم تجهيز الحجز/السلة لهذا النشاط."
+                    else -> "تم تنفيذ الإجراء."
+                }
+            } else {
+                pendingAction = action
+                showLogin = true
+            }
+        }
+    } else {
+        LoginScreen(api, store) {
+            val action = pendingAction
+            pendingAction = null
+            showLogin = false
+            actionNotice = when {
+                action == "add_business" -> "تم تسجيل الدخول. يمكنك الآن متابعة إضافة نشاطك مجانًا."
+                action == "profile" -> "تم تسجيل الدخول. يمكنك الآن متابعة الملف الشخصي."
+                action == "orders" -> "تم تسجيل الدخول. يمكنك الآن متابعة طلباتك."
+                action?.startsWith("cart:") == true -> "تم تسجيل الدخول. يمكنك الآن متابعة الحجز أو إضافة النشاط للسلة."
+                else -> "تم تسجيل الدخول بنجاح."
+            }
+        }
+    }
+}
+
+@androidx.compose.runtime.Composable
+private fun LoginScreen(api: PlatformApi, store: SessionStore, onAuthenticated: () -> Unit) {
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var displayName by remember { mutableStateOf("") }
@@ -190,6 +228,7 @@ private fun LoginScreen(api: PlatformApi, store: SessionStore) {
                             val result = withContext(Dispatchers.IO) { api.googleLogin(google.idToken) }
                             if (result.status in 200..299) {
                                 authenticated = true
+                                onAuthenticated()
                                 message = "تم تسجيل الدخول بحساب Google."
                             } else {
                                 message = "Google Sign-In: HTTP ${result.status} — ${result.body.optString("message", "يتطلب إعداد Google.")}"
@@ -225,6 +264,7 @@ private fun LoginScreen(api: PlatformApi, store: SessionStore) {
                         }
                         message = if (result.status in 200..299) {
                         authenticated = true
+                        onAuthenticated()
                         notificationLoading = true
                         analyticsLoading = true
                         subscriptionLoading = true
