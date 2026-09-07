@@ -895,6 +895,7 @@ export function createPlatformRouter(): Router {
           b.id,
           b.name,
           b.category,
+          b.created_at,
           b.phone,
           b.whatsapp,
           b.image_url,
@@ -931,7 +932,47 @@ export function createPlatformRouter(): Router {
             LEFT JOIN services s ON s.id = r.service_id
             LEFT JOIN products p ON p.id = r.product_id
             WHERE (s.business_id = b.id OR p.business_id = b.id) AND r.tenant_id = b.tenant_id
-          ) AS rating
+          ) AS rating,
+          CASE WHEN EXISTS (
+            SELECT 1 FROM ads a
+            WHERE a.tenant_id = b.tenant_id
+              AND a.status = 'ACTIVE'
+              AND (a.expires_at IS NULL OR a.expires_at > ?)
+              AND (
+                (a.resource_type = 'BUSINESS' AND a.resource_id = b.id)
+                OR (a.resource_type = 'PRODUCT' AND EXISTS (SELECT 1 FROM products p_ad WHERE p_ad.id = a.resource_id AND p_ad.business_id = b.id AND p_ad.tenant_id = b.tenant_id))
+                OR (a.resource_type = 'SERVICE' AND EXISTS (SELECT 1 FROM services s_ad WHERE s_ad.id = a.resource_id AND s_ad.business_id = b.id AND s_ad.tenant_id = b.tenant_id))
+              )
+          ) OR EXISTS (
+            SELECT 1 FROM advertisers adv
+            JOIN ad_campaigns campaign ON campaign.advertiser_id = adv.id AND campaign.tenant_id = adv.tenant_id
+            WHERE adv.tenant_id = b.tenant_id
+              AND adv.business_id = b.id
+              AND UPPER(adv.status) = 'ACTIVE'
+              AND UPPER(campaign.status) = 'ACTIVE'
+              AND (campaign.starts_at IS NULL OR campaign.starts_at <= ?)
+              AND (campaign.ends_at IS NULL OR campaign.ends_at > ?)
+          ) THEN 1 ELSE 0 END AS sponsored,
+          CASE WHEN EXISTS (
+            SELECT 1 FROM ads a_source
+            WHERE a_source.tenant_id = b.tenant_id
+              AND a_source.status = 'ACTIVE'
+              AND (a_source.expires_at IS NULL OR a_source.expires_at > ?)
+              AND (
+                (a_source.resource_type = 'BUSINESS' AND a_source.resource_id = b.id)
+                OR (a_source.resource_type = 'PRODUCT' AND EXISTS (SELECT 1 FROM products p_source WHERE p_source.id = a_source.resource_id AND p_source.business_id = b.id AND p_source.tenant_id = b.tenant_id))
+                OR (a_source.resource_type = 'SERVICE' AND EXISTS (SELECT 1 FROM services s_source WHERE s_source.id = a_source.resource_id AND s_source.business_id = b.id AND s_source.tenant_id = b.tenant_id))
+              )
+          ) OR EXISTS (
+            SELECT 1 FROM advertisers adv_source
+            JOIN ad_campaigns campaign_source ON campaign_source.advertiser_id = adv_source.id AND campaign_source.tenant_id = adv_source.tenant_id
+            WHERE adv_source.tenant_id = b.tenant_id
+              AND adv_source.business_id = b.id
+              AND UPPER(adv_source.status) = 'ACTIVE'
+              AND UPPER(campaign_source.status) = 'ACTIVE'
+              AND (campaign_source.starts_at IS NULL OR campaign_source.starts_at <= ?)
+              AND (campaign_source.ends_at IS NULL OR campaign_source.ends_at > ?)
+          ) THEN 'advertising' ELSE 'created_at' END AS featured_source
         FROM businesses b
         LEFT JOIN branches br ON br.business_id = b.id AND br.tenant_id = b.tenant_id AND br.status = 'active'
         WHERE b.status = 'active'
@@ -939,9 +980,10 @@ export function createPlatformRouter(): Router {
           AND (? = '' OR b.category LIKE ? OR b.name LIKE ? OR br.district LIKE ? OR EXISTS (SELECT 1 FROM products p WHERE p.business_id = b.id AND p.tenant_id = b.tenant_id AND (p.name LIKE ? OR COALESCE(p.category, '') LIKE ?)) OR EXISTS (SELECT 1 FROM services s WHERE s.business_id = b.id AND s.tenant_id = b.tenant_id AND (s.name LIKE ? OR COALESCE(s.category, '') LIKE ?)))
           AND (? = '' OR b.category = ?)
         GROUP BY b.id
-        ORDER BY b.updated_at DESC
+        -- Advertising is preferred; otherwise the fallback is newest first.
+        ORDER BY sponsored DESC, b.created_at DESC
         LIMIT 200
-      `).all(query, like, like, like, like, like, like, like, category, category);
+      `).all(now(), now(), now(), now(), now(), now(), query, like, like, like, like, like, like, like, category, category);
       return res.json({ ok: true, businesses: rows, count: rows.length });
     } catch (error) {
       next(error);

@@ -6,7 +6,7 @@ const CONTACT = "201014732300";
 const MARK_IMAGE = "/manus-storage/sinai-mark_87e71bcd.png";
 const DEFAULT_MARKET_IMAGE = "/manus-storage/sinai-market_86fb201f.jpg";
 const categories = ["الكل", "الصحة والطب", "المقاولات والحرف", "التعليم والتدريب", "المطاعم والأغذية", "السيارات", "الخدمات الرقمية", "الأزياء والجمال", "النقل والمواصلات", "خدمات أخرى"];
-type Business = { id: string; name: string; category: string | null; subcategory: string; district: string; tag: string; description: string; phone: string | null; whatsapp: string | null; hours_json: string | null; reviews: number; rating: number | null; image_url: string | null; offering_name: string };
+type Business = { id: string; name: string; category: string | null; subcategory: string; district: string; tag: string; description: string; phone: string | null; whatsapp: string | null; hours_json: string | null; reviews: number; rating: number | null; image_url: string | null; offering_name: string; created_at: number; sponsored?: number | boolean; featured_source?: "advertising" | "created_at" };
 type DirectoryResponse = { businesses?: Business[] };
 type Hours = Record<string, unknown>;
 type SpeechRecognitionLike = { lang: string; interimResults: boolean; continuous: boolean; start: () => void; stop: () => void; onresult: ((event: { results: ArrayLike<{ 0: { transcript: string } }> }) => void) | null; onend: (() => void) | null; onerror: (() => void) | null };
@@ -81,7 +81,11 @@ export default function Marketplace() {
   }, [category, query]);
 
   const filtered = useMemo(() => businesses, [businesses]);
-  const featuredOffers = useMemo(() => businesses.length ? businesses.slice(0, 6).map((business) => ({ id: business.id, title: business.name, subtitle: business.offering_name || business.subcategory, description: business.description || "نشاط معتمد داخل Marketplace.", meta: `${business.district} · ${business.tag}`, image: business.image_url || DEFAULT_MARKET_IMAGE })) : [{ id: "waiting", title: "مساحة العروض الحصرية", subtitle: "تظهر هنا الأنشطة والعروض الجديدة", description: "كلما تم اعتماد نشاط أو إضافة عرض، سيظهر تلقائيًا في هذه المساحة.", meta: "تحديث مستمر من Marketplace", image: DEFAULT_MARKET_IMAGE }], [businesses]);
+  const featuredOffers = useMemo(() => {
+    const sponsored = businesses.filter((business) => Boolean(business.sponsored));
+    const source = sponsored.length ? sponsored : [...businesses].sort((left, right) => right.created_at - left.created_at);
+    return source.length ? source.slice(0, 6).map((business) => ({ id: business.id, title: business.name, subtitle: business.offering_name || business.subcategory, description: business.description || "نشاط معتمد داخل Marketplace.", meta: `${business.featured_source === "advertising" ? "إعلان ممول من Advertising" : "الأحدث إضافة"} · ${business.district} · ${business.tag}`, image: business.image_url || DEFAULT_MARKET_IMAGE })) : [{ id: "waiting", title: "مساحة العروض الحصرية", subtitle: "تظهر هنا الأنشطة والعروض الجديدة", description: "كلما تم اعتماد نشاط أو إضافة عرض، سيظهر تلقائيًا في هذه المساحة.", meta: "تحديث مستمر من Marketplace", image: DEFAULT_MARKET_IMAGE }];
+  }, [businesses]);
 
   useEffect(() => {
     setActiveOffer((current) => current >= featuredOffers.length ? 0 : current);

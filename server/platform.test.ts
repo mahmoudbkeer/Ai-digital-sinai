@@ -182,6 +182,12 @@ describe("platform core", () => {
     const catalog = await request("/api/platform/marketplace/catalog", { headers });
     expect(catalog.status).toBe(200);
     await expect(catalog.json()).resolves.toMatchObject({ offerings: expect.arrayContaining([expect.objectContaining({ ad_id: adId, sponsored: true })]) });
+    const directory = await request("/api/platform/marketplace/directory");
+    expect(directory.status).toBe(200);
+    const directoryBody = await directory.json() as { businesses: Array<{ id: string; sponsored: number; featured_source: string }> };
+    const advertisedBusiness = directoryBody.businesses.find((business) => business.id === a.businessId);
+    expect(advertisedBusiness).toMatchObject({ id: a.businessId, sponsored: 1, featured_source: "advertising" });
+    expect(directoryBody.businesses.findIndex((business) => business.id === a.businessId)).toBeLessThan(directoryBody.businesses.findIndex((business) => business.sponsored === 0));
     const activeAds = await request("/api/platform/ads/active", { headers });
     await expect(activeAds.json()).resolves.toMatchObject({ ads: [expect.objectContaining({ id: adId, status: "ACTIVE" })] });
   });
