@@ -146,6 +146,11 @@ export default function MobileApp() {
   };
 
   useEffect(() => {
+    const requestedTab = new URLSearchParams(window.location.search).get("tab");
+    if (requestedTab === "market" || requestedTab === "work" || requestedTab === "account") setTab(requestedTab);
+  }, []);
+
+  useEffect(() => {
     const handleInstall = (event: Event) => { event.preventDefault(); setInstallPrompt(event as InstallPromptEvent); };
     window.addEventListener("beforeinstallprompt", handleInstall);
     const cleanup = loadApi();
@@ -198,7 +203,7 @@ export default function MobileApp() {
   };
 
   return <main className="mobile-app-shell" dir={locale === "ar" ? "rtl" : "ltr"}>
-    <header className="mobile-app-header"><div className="mobile-brand"><span className="brand-mark">◈</span><span>AI DIGITAL <b>SINAI</b></span></div><button className="mobile-icon-button" onClick={() => setLocale(locale === "ar" ? "en" : "ar")} aria-label={t("language")}>{t("language")}</button><button className="mobile-icon-button" onClick={() => go("account")} aria-label="فتح الحساب والإشعارات"><Bell size={18} /></button></header>
+    <header className="mobile-app-header"><div className="mobile-brand"><img className="brand-mark mobile-brand-mark" src="/manus-storage/sinai-mark_87e71bcd.png" alt="شعار AI Digital Sinai" /><span>AI DIGITAL <b>SINAI</b></span></div><button className="mobile-icon-button" onClick={() => setLocale(locale === "ar" ? "en" : "ar")} aria-label={t("language")}>{t("language")}</button><button className="mobile-icon-button" onClick={() => go("account")} aria-label="فتح الحساب والإشعارات"><Bell size={18} /></button></header>
     {loginOpen && <section className="mobile-command-note" aria-label="نموذج تسجيل الدخول"><button className="mobile-back-button" type="button" onClick={() => setLoginOpen(false)}>← العودة</button><h2>تسجيل الدخول</h2><p>أدخل بيانات الحساب ليتم التحقق منها عبر الخادم الحقيقي.</p><form onSubmit={submitLogin}><input aria-label="البريد الإلكتروني" type="email" required value={loginEmail} onChange={(event) => setLoginEmail(event.target.value)} placeholder="البريد الإلكتروني" /><input aria-label="كلمة المرور" type="password" required value={loginPassword} onChange={(event) => setLoginPassword(event.target.value)} placeholder="كلمة المرور" /><button className="mobile-command-button" type="submit">دخول</button></form>{loginError && <p role="alert">{loginError}</p>}</section>}
     <section className="mobile-app-content">
       {tab === "home" && <>
