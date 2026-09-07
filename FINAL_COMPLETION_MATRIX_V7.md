@@ -1,7 +1,7 @@
 # AI DIGITAL SINAI — FINAL COMPLETION MATRIX V7
 
 **Source of truth order:** Git `main` → GitHub Actions CI → actual test results.
-**Current main:** `904aa325d861de6c74753e0f0f5163ba08bbc5f0` (`fix(android): restore official app after diagnostic build`)
+**Current main:** `7807afe5f15b30b75a34874cae979ef1fcd1c9a6` (`feat: source featured marketplace offers from advertising`)
 **Branch:** `main`
 **Rule:** لا تُمنح external dependency حالة `VERIFIED` دون runtime/provider evidence؛ أما تطبيقات العميل native فتُثبت بوجود الكود، نجاح CI، ونجاح الاختبارات الفعلية المتاحة.
 

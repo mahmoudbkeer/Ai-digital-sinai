@@ -190,6 +190,12 @@ h1 em, h2 span { color:var(--primary); font-style:normal; }
 .marketplace-page .assistant-command button:hover { background: var(--signal); transform: translateY(-2px); }
 .marketplace-page .assistant-command button.listening { background: var(--coral); animation: assistant-pulse 1s ease-in-out infinite; }
 .marketplace-page .assistant-feedback { margin-top: 12px; padding: 10px 12px; border-right: 3px solid var(--signal); background: #edf8f5; color: #42665f; font-size: 11px; line-height: 1.7; }
+.marketplace-page .assistant-results { display: grid; gap: 8px; max-height: 285px; margin-top: 12px; overflow-y: auto; }
+.marketplace-page .assistant-result { display: grid; gap: 4px; padding: 12px; border: 1px solid #dce7e3; border-radius: 12px; background: #fbfdfc; color: var(--nocturne); text-align: right; transition: border-color .18s ease, background .18s ease, transform .18s ease; }
+.marketplace-page .assistant-result:hover { border-color: #a8d8d2; background: #f1faf8; transform: translateX(-2px); }
+.marketplace-page .assistant-result strong { font-size: 13px; }
+.marketplace-page .assistant-result small, .marketplace-page .assistant-result p { margin: 0; color: var(--muted); font-size: 10px; line-height: 1.7; }
+.marketplace-page .assistant-result .open-status { justify-self: start; padding: 3px 7px; font-size: 9px; }
 .marketplace-page .assistant-quick-actions { display: grid; gap: 7px; margin-top: 17px; }
 .marketplace-page .assistant-quick-actions button { display: flex; align-items: center; justify-content: space-between; padding: 12px 13px; border: 1px solid #e0e9e6; border-radius: 10px; background: #fff; color: var(--nocturne); text-align: right; transition: background .18s ease, border-color .18s ease, transform .18s ease; }
 .marketplace-page .assistant-quick-actions button:hover { border-color: #a8d8d2; background: #f1faf8; transform: translateX(-2px); }
