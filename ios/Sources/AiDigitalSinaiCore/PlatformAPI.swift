@@ -53,6 +53,18 @@ public struct MarketplaceBusiness: Decodable, Sendable, Identifiable {
         case hoursJSON = "hours_json", reviews, rating, imageURL = "image_url"
         case offeringName = "offering_name", createdAt = "created_at", sponsored, featuredSource = "featured_source"
     }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(String.self, forKey: .id); name = try c.decode(String.self, forKey: .name)
+        category = try c.decodeIfPresent(String.self, forKey: .category); subcategory = try c.decodeIfPresent(String.self, forKey: .subcategory) ?? "خدمات متنوعة"
+        district = try c.decodeIfPresent(String.self, forKey: .district) ?? "العريش"; tag = try c.decodeIfPresent(String.self, forKey: .tag) ?? "خدمات متنوعة"
+        description = try c.decodeIfPresent(String.self, forKey: .description) ?? ""; phone = try c.decodeIfPresent(String.self, forKey: .phone); whatsapp = try c.decodeIfPresent(String.self, forKey: .whatsapp)
+        hoursJSON = try c.decodeIfPresent(String.self, forKey: .hoursJSON); reviews = try c.decodeIfPresent(Int.self, forKey: .reviews) ?? 0; rating = try c.decodeIfPresent(Double.self, forKey: .rating)
+        imageURL = try c.decodeIfPresent(String.self, forKey: .imageURL); offeringName = try c.decodeIfPresent(String.self, forKey: .offeringName) ?? name; createdAt = try c.decodeIfPresent(Int64.self, forKey: .createdAt) ?? 0
+        sponsored = (try? c.decode(Bool.self, forKey: .sponsored)) ?? ((try? c.decode(Int.self, forKey: .sponsored)) == 1)
+        featuredSource = try c.decodeIfPresent(String.self, forKey: .featuredSource) ?? "created_at"
+    }
 }
 
 public typealias ProductDetail = MarketplaceProduct
