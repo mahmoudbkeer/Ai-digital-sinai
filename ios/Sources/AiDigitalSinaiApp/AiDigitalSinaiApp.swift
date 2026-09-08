@@ -105,7 +105,7 @@ struct MarketplaceView: View {
                     .textFieldStyle(.roundedBorder)
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack { ForEach(categories, id: \.self) { item in
-                        Button(item) { category = item; Task { await loadDirectory() } }
+                        Button(item) { selectCategory(item) }
                             .buttonStyle(.borderedProminent).tint(category == item ? DesignTokens.sinaiTide : .gray)
                     } }
                 }
@@ -139,6 +139,10 @@ struct MarketplaceView: View {
         do { let (result, loaded) = try await api.marketplaceDirectory(query: directoryQuery, category: category == "الكل" ? "" : category); businesses = loaded; if !(200..<300).contains(result.statusCode) { directoryError = "HTTP \(result.statusCode)" } }
         catch { directoryError = error.localizedDescription }
         directoryLoading = false
+    }
+    private func selectCategory(_ item: String) {
+        category = item
+        Task { await loadDirectory() }
     }
     private func runAssistant() async {
         searching = true; assistantMessage = "جارٍ البحث في الأنشطة والخدمات المنشورة فعليًا…"
