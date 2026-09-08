@@ -105,8 +105,7 @@ struct MarketplaceView: View {
                     .textFieldStyle(.roundedBorder)
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack { ForEach(categories, id: \.self) { item in
-                        Button(item) { selectCategory(item) }
-                            .buttonStyle(.borderedProminent).tint(category == item ? DesignTokens.sinaiTide : .gray)
+                        MarketplaceCategoryButton(title: item, selected: category == item) { selectCategory(item) }
                     } }
                 }
                 if directoryLoading { ProgressView("جارٍ تحميل الأنشطة المعتمدة…") }
@@ -152,7 +151,16 @@ struct MarketplaceView: View {
     }
     private func loadProducts() async { defer { productLoading = false }; if let (_, loaded) = try? await api.products() { products = loaded } }
 }
-
+private struct MarketplaceCategoryButton: View {
+    let title: String
+    let selected: Bool
+    let action: () -> Void
+    var body: some View {
+        Button(title, action: action)
+            .buttonStyle(.borderedProminent)
+            .tint(selected ? DesignTokens.sinaiTide : .gray)
+    }
+}
 private struct BusinessDirectoryRow: View {
     let business: MarketplaceBusiness
     var body: some View {
