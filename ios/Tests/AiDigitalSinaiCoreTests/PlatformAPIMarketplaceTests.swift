@@ -16,9 +16,10 @@ final class PlatformApiMarketplaceTests: XCTestCase {
         let api = PlatformAPI(baseURL: URL(string: "https://api.example.test")!, session: URLSession(configuration: configuration))
         let (result, businesses) = try await api.marketplaceDirectory(query: "صيدلية", category: "الصحة والطب")
         XCTAssertEqual(result.statusCode, 200)
-        XCTAssertEqual(businesses.single().name, "صيدلية النور")
-        XCTAssertTrue(businesses.single().sponsored)
-        XCTAssertEqual(businesses.single().hoursJSON, "{\"daily\":\"09:00-21:00\"}")
+        XCTAssertEqual(businesses.count, 1)
+        XCTAssertEqual(businesses.first?.name, "صيدلية النور")
+        XCTAssertTrue(businesses.first?.sponsored == true)
+        XCTAssertEqual(businesses.first?.hoursJSON, "{\"daily\":\"09:00-21:00\"}")
     }
 
     func testProductsBuildsAuthenticatedRequestAndParsesListing() async throws {
