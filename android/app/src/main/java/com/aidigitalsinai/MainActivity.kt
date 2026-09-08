@@ -80,19 +80,15 @@ class MainActivity : ComponentActivity() {
 private fun GuestFirstRoot(api: PlatformApi, store: SessionStore) {
     var showLogin by remember { mutableStateOf(false) }
     var pendingAction by remember { mutableStateOf<String?>(null) }
+    var resumedAction by remember { mutableStateOf<String?>(null) }
     var actionNotice by remember { mutableStateOf("") }
     val authenticated = store.token != null && store.tenantId != null
 
     if (!showLogin) {
-        MarketplaceScreen(api, actionNotice) { action ->
+        MarketplaceScreen(api, actionNotice, resumedAction) { action ->
             if (authenticated) {
-                actionNotice = when {
-                    action == "add_business" -> "تم فتح مسار إضافة النشاط."
-                    action == "profile" -> "تم فتح الملف الشخصي."
-                    action == "orders" -> "تم فتح طلباتك."
-                    action.startsWith("cart:") -> "تم تجهيز الحجز/السلة لهذا النشاط."
-                    else -> "تم تنفيذ الإجراء."
-                }
+                resumedAction = action
+                actionNotice = "تم فتح المسار المحمي المطلوب."
             } else {
                 pendingAction = action
                 showLogin = true
@@ -103,13 +99,8 @@ private fun GuestFirstRoot(api: PlatformApi, store: SessionStore) {
             val action = pendingAction
             pendingAction = null
             showLogin = false
-            actionNotice = when {
-                action == "add_business" -> "تم تسجيل الدخول. يمكنك الآن متابعة إضافة نشاطك مجانًا."
-                action == "profile" -> "تم تسجيل الدخول. يمكنك الآن متابعة الملف الشخصي."
-                action == "orders" -> "تم تسجيل الدخول. يمكنك الآن متابعة طلباتك."
-                action?.startsWith("cart:") == true -> "تم تسجيل الدخول. يمكنك الآن متابعة الحجز أو إضافة النشاط للسلة."
-                else -> "تم تسجيل الدخول بنجاح."
-            }
+            resumedAction = action
+            actionNotice = "تم تسجيل الدخول، واستؤنف الإجراء الذي طلبته."
         }
     }
 }

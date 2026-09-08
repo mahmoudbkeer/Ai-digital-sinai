@@ -69,7 +69,7 @@ private const val MarketplaceContact = "201014732300"
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MarketplaceScreen(api: PlatformApi, notice: String = "", onProtectedAction: (String) -> Unit = {}) {
+fun MarketplaceScreen(api: PlatformApi, notice: String = "", resumedAction: String? = null, onProtectedAction: (String) -> Unit = {}) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var query by remember { mutableStateOf("") }
@@ -123,6 +123,18 @@ fun MarketplaceScreen(api: PlatformApi, notice: String = "", onProtectedAction: 
 
     LazyColumn(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(14.dp), contentPadding = androidx.compose.foundation.layout.PaddingValues(top = 16.dp, bottom = 32.dp)) {
         if (notice.isNotBlank()) item { Text(notice, color = Color(0xFF0D7C86), fontWeight = FontWeight.Bold, modifier = Modifier.fillMaxWidth().padding(top = 4.dp)) }
+        resumedAction?.let { action ->
+            item {
+                Card(colors = CardDefaults.cardColors(containerColor = Color(0xFFE8F7F5)), modifier = Modifier.fillMaxWidth()) {
+                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("متابعة الإجراء", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = Color(0xFF0D7C86))
+                        Text(resumedActionLabel(action), style = MaterialTheme.typography.bodyMedium)
+                        Text("تم الاحتفاظ بسياق طلبك أثناء تسجيل الدخول.", style = MaterialTheme.typography.bodySmall)
+                        Button(onClick = { onProtectedAction(action) }, modifier = Modifier.fillMaxWidth()) { Text("متابعة الآن") }
+                    }
+                }
+            }
+        }
         item {
             Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
                 Column {
@@ -259,4 +271,12 @@ private fun isBusinessOpenNative(value: String?): Boolean {
     val open = minutes(parts[0]); val close = minutes(parts[1]); val now = Calendar.getInstance().get(Calendar.HOUR_OF_DAY) * 60 + Calendar.getInstance().get(Calendar.MINUTE)
     if (open < 0 || close < 0) return false
     return if (close < open) now >= open || now <= close else now in open..close
+}
+
+private fun resumedActionLabel(action: String): String = when {
+    action == "add_business" -> "إضافة نشاطك مجانًا"
+    action == "profile" -> "فتح الملف الشخصي"
+    action == "orders" -> "فتح طلباتك"
+    action.startsWith("cart:") -> "إكمال الحجز أو الإضافة للسلة"
+    else -> "إكمال الإجراء الذي طلبته"
 }
