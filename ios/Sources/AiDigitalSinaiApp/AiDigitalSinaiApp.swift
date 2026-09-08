@@ -130,7 +130,7 @@ struct MarketplaceView: View {
         .toolbar { ToolbarItemGroup(placement: .automatic) { NavigationLink("الإشعارات") { NotificationsView(api: api) }; NavigationLink("Analytics") { AnalyticsView(api: api) }; NavigationLink("Subscription") { SubscriptionView(api: api) } } }
         .searchable(text: $directoryQuery, prompt: "ابحث في دليل سيناء")
         .task { await loadDirectory(); await loadProducts() }
-        .onChange(of: directoryQuery) { _, _ in Task { await loadDirectory() } }
+        .onChange(of: directoryQuery) { _ in Task { await loadDirectory() } }
     }
 
     private func loadDirectory() async {
