@@ -77,110 +77,95 @@ struct LoginView: View {
 
 struct MarketplaceView: View {
     let api: PlatformAPI
+    @State private var businesses: [MarketplaceBusiness] = []
+    @State private var directoryQuery = ""
+    @State private var category = "الكل"
+    @State private var directoryLoading = true
+    @State private var directoryError = ""
     @State private var products: [MarketplaceProduct] = []
-    @State private var loading = true
-    @State private var errorMessage = ""
-    @State private var searchQuery = ""
-    @State private var searchResults: [AiSearchResult] = []
+    @State private var productLoading = true
+    @State private var searchResults: [MarketplaceBusiness] = []
+    @State private var assistantQuery = ""
+    @State private var assistantMessage = ""
     @State private var searching = false
-    @State private var searchError = ""
+    private let categories = ["الكل", "الصحة والطب", "المقاولات والحرف", "التعليم والتدريب", "المطاعم والأغذية", "السيارات", "الخدمات الرقمية", "الأزياء والجمال"]
 
     var body: some View {
-        Group {
-            if loading {
-                ProgressView("تحميل المنتجات…")
-            } else if !errorMessage.isEmpty {
-                VStack(spacing: 8) {
-                    Image(systemName: "exclamationmark.triangle")
-                    Text("تعذر تحميل Marketplace").font(.headline)
-                    Text(errorMessage)
+        List {
+            Section {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("AI DIGITAL SINAI").font(.caption).tracking(2).foregroundStyle(DesignTokens.sinaiTide)
+                    Text("NOCTURNE SIGNAL").font(.title2.bold())
+                    Text("بوابتك الرقمية الذكية لخدماتك وإدارة نشاطك").foregroundStyle(.secondary)
                 }
-            } else if products.isEmpty {
-                VStack(spacing: 8) {
-                    Image(systemName: "shippingbox")
-                    Text("لا توجد منتجات منشورة")
+                .padding(.vertical, 8)
+            }
+            Section("استكشف دليل سيناء") {
+                TextField("ابحث عن نشاط أو خدمة أو حي", text: $directoryQuery)
+                    .textFieldStyle(.roundedBorder)
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack { ForEach(categories, id: \.self) { item in
+                        Button(item) { category = item; Task { await loadDirectory() } }
+                            .buttonStyle(.borderedProminent).tint(category == item ? DesignTokens.sinaiTide : .gray)
+                    } }
                 }
-            } else {
-                List {
-                    Section("AI Search") {
-                        HStack {
-                            TextField("ابحث في المعرفة…", text: $searchQuery)
-                                .textFieldStyle(.roundedBorder)
-                            Button("بحث") { Task { await search() } }
-                                .disabled(searching || searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                        }
-                        if searching { ProgressView("جارٍ البحث…") }
-                        if !searchError.isEmpty { Text(searchError).foregroundStyle(DesignTokens.error) }
-                        ForEach(searchResults) { result in
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text(result.title).font(.headline)
-                                Text(result.snippet)
-                                Text(result.sourceType).font(.caption).foregroundStyle(.secondary)
-                            }
-                        }
-                    }
-                    Section("المنتجات") {
-                        ForEach(products) { product in
-                            NavigationLink {
-                                ProductDetailView(api: api, productId: product.id)
-                            } label: {
-                                VStack(alignment: .leading, spacing: 6) {
-                                    HStack {
-                                        Text(product.name).font(.headline)
-                                        Spacer()
-                                        Text(String(format: "%.2f %@", Double(product.priceCents) / 100.0, product.currency))
-                                    }
-                                    if let category = product.category { Text(category).font(.caption) }
-                                    if let description = product.description { Text(description) }
-                                }
-                                .padding(.vertical, 4)
-                            }
-                        }
-                    }
-                }
+                if directoryLoading { ProgressView("جارٍ تحميل الأنشطة المعتمدة…") }
+                if !directoryError.isEmpty { Text(directoryError).foregroundStyle(DesignTokens.error) }
+                ForEach(businesses) { business in BusinessDirectoryRow(business: business) }
+                if !directoryLoading && businesses.isEmpty && directoryError.isEmpty { Text("لا توجد منشآت أو خدمات معتمدة لهذا البحث.").foregroundStyle(.secondary) }
+            }
+            Section("المساعد الذكي المرتبط بالبحث") {
+                TextField("مثال: صيدلية أو مطعم", text: $assistantQuery).textFieldStyle(.roundedBorder)
+                Button("ابحث في Marketplace") { Task { await runAssistant() } }.disabled(searching || assistantQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                if searching { ProgressView("جارٍ البحث…") }
+                if !assistantMessage.isEmpty { Text(assistantMessage).foregroundStyle(DesignTokens.sinaiTide) }
+                ForEach(searchResults) { business in BusinessDirectoryRow(business: business) }
+            }
+            Section("المنتجات") {
+                if productLoading { ProgressView("تحميل المنتجات…") }
+                else if products.isEmpty { Text("لا توجد منتجات منشورة").foregroundStyle(.secondary) }
+                else { ForEach(products) { product in NavigationLink { ProductDetailView(api: api, productId: product.id) } label: { VStack(alignment: .leading) { Text(product.name).font(.headline); Text(product.category ?? "خدمات متنوعة").font(.caption); Text(String(format: "%.2f %@", Double(product.priceCents) / 100.0, product.currency)).foregroundStyle(DesignTokens.sinaiTide) } } } }
             }
         }
         .navigationTitle("Marketplace")
-        .toolbar {
-            ToolbarItemGroup(placement: .automatic) {
-                NavigationLink("الإشعارات") { NotificationsView(api: api) }
-                NavigationLink("Analytics") { AnalyticsView(api: api) }
-                NavigationLink("Subscription") { SubscriptionView(api: api) }
-            }
-        }
-        .task { await loadProducts() }
+        .toolbar { ToolbarItemGroup(placement: .automatic) { NavigationLink("الإشعارات") { NotificationsView(api: api) }; NavigationLink("Analytics") { AnalyticsView(api: api) }; NavigationLink("Subscription") { SubscriptionView(api: api) } } }
+        .searchable(text: $directoryQuery, prompt: "ابحث في دليل سيناء")
+        .task { await loadDirectory(); await loadProducts() }
+        .onChange(of: directoryQuery) { _, _ in Task { await loadDirectory() } }
     }
 
-    private func search() async {
-        searching = true
-        searchError = ""
-        defer { searching = false }
-        do {
-            let (result, loadedResults) = try await api.aiSearch(query: searchQuery)
-            if (200..<300).contains(result.statusCode) {
-                searchResults = loadedResults
-            } else {
-                searchError = "HTTP \(result.statusCode)"
-            }
-        } catch {
-            searchError = error.localizedDescription
-        }
+    private func loadDirectory() async {
+        directoryLoading = true; directoryError = ""
+        do { let (result, loaded) = try await api.marketplaceDirectory(query: directoryQuery, category: category == "الكل" ? "" : category); businesses = loaded; if !(200..<300).contains(result.statusCode) { directoryError = "HTTP \(result.statusCode)" } }
+        catch { directoryError = error.localizedDescription }
+        directoryLoading = false
     }
+    private func runAssistant() async {
+        searching = true; assistantMessage = "جارٍ البحث في الأنشطة والخدمات المنشورة فعليًا…"
+        do { let (_, loaded) = try await api.marketplaceDirectory(query: assistantQuery); searchResults = loaded; assistantMessage = loaded.isEmpty ? "لم أجد نشاطًا مطابقًا." : "وجدت \(loaded.count) نتيجة مطابقة." }
+        catch { assistantMessage = error.localizedDescription }
+        searching = false
+    }
+    private func loadProducts() async { defer { productLoading = false }; if let (_, loaded) = try? await api.products() { products = loaded } }
+}
 
-    private func loadProducts() async {
-        do {
-            let (result, loadedProducts) = try await api.products()
-            if (200..<300).contains(result.statusCode) {
-                products = loadedProducts
-            } else {
-                errorMessage = "HTTP \(result.statusCode)"
-            }
-        } catch {
-            errorMessage = error.localizedDescription
-        }
-        loading = false
+private struct BusinessDirectoryRow: View {
+    let business: MarketplaceBusiness
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack { Text(business.name).font(.headline); Spacer(); Text(isOpen(business.hoursJSON) ? "● مفتوح الآن" : "مغلق حاليًا").font(.caption).foregroundStyle(isOpen(business.hoursJSON) ? DesignTokens.success : DesignTokens.error) }
+            Text("\(business.offeringName) · \(business.district)").font(.subheadline).foregroundStyle(DesignTokens.sinaiTide)
+            Text(business.description.isEmpty ? "نشاط معتمد داخل Marketplace." : business.description).lineLimit(2)
+            Text("\(business.reviews) تقييم · \(business.rating.map { String(format: "%.1f", $0) } ?? "—") · \(formatHours(business.hoursJSON))").font(.caption).foregroundStyle(.secondary)
+        }.padding(.vertical, 5)
     }
 }
+
+private func parseHours(_ value: String?) -> [String: Any]? { guard let value, let data = value.data(using: .utf8) else { return nil }; return (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] }
+private func todayKey() -> String { ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"][Calendar.current.component(.weekday, from: Date()) - 1] }
+private func hoursEntry(_ value: String?) -> String? { guard let hours = parseHours(value) else { return nil }; let entry = hours[todayKey()] ?? hours["daily"]; if let text = entry as? String { return text }; if let object = entry as? [String: Any], let open = object["open"] as? String, let close = object["close"] as? String { return "\(open)-\(close)" }; return nil }
+private func formatHours(_ value: String?) -> String { hoursEntry(value) ?? "الساعات غير مسجلة" }
+private func isOpen(_ value: String?) -> Bool { guard let raw = hoursEntry(value), raw != "24h", raw != "24 ساعة" else { return hoursEntry(value) != nil }; let p = raw.replacingOccurrences(of: "–", with: "-").split(separator: "-").map(String.init); guard p.count == 2 else { return false }; func mins(_ s: String) -> Int? { let a = s.split(separator: ":").compactMap { Int($0) }; return a.count == 2 ? a[0] * 60 + a[1] : nil }; guard let open = mins(p[0]), let close = mins(p[1]) else { return false }; let now = Calendar.current.component(.hour, from: Date()) * 60 + Calendar.current.component(.minute, from: Date()); return close < open ? now >= open || now <= close : now >= open && now <= close }
 
 
 struct ProductDetailView: View {

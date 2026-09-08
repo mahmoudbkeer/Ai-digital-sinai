@@ -29,6 +29,32 @@ public struct MarketplaceProduct: Decodable, Sendable, Identifiable {
     }
 }
 
+public struct MarketplaceBusiness: Decodable, Sendable, Identifiable {
+    public let id: String
+    public let name: String
+    public let category: String?
+    public let subcategory: String
+    public let district: String
+    public let tag: String
+    public let description: String
+    public let phone: String?
+    public let whatsapp: String?
+    public let hoursJSON: String?
+    public let reviews: Int
+    public let rating: Double?
+    public let imageURL: String?
+    public let offeringName: String
+    public let createdAt: Int64
+    public let sponsored: Bool
+    public let featuredSource: String
+
+    enum CodingKeys: String, CodingKey {
+        case id, name, category, subcategory, district, tag, description, phone, whatsapp
+        case hoursJSON = "hours_json", reviews, rating, imageURL = "image_url"
+        case offeringName = "offering_name", createdAt = "created_at", sponsored, featuredSource = "featured_source"
+    }
+}
+
 public typealias ProductDetail = MarketplaceProduct
 
 public struct SubscriptionSnapshot: Decodable, Sendable {
@@ -159,6 +185,10 @@ public struct AuthSession: Codable, Sendable {
 
 private struct ProductEnvelope: Decodable {
     let products: [MarketplaceProduct]
+}
+
+private struct MarketplaceDirectoryEnvelope: Decodable {
+    let businesses: [MarketplaceBusiness]
 }
 
 private struct ProductDetailEnvelope: Decodable {
@@ -364,6 +394,17 @@ public final class PlatformAPI {
         let result = APIResult(statusCode: http.statusCode, data: data)
         let envelope = try JSONDecoder().decode(ProductEnvelope.self, from: data)
         return (result, envelope.products)
+    }
+
+    public func marketplaceDirectory(query: String = "", category: String = "") async throws -> (APIResult, [MarketplaceBusiness]) {
+        var components = URLComponents(url: baseURL.appendingPathComponent("api/platform/marketplace/directory"), resolvingAgainstBaseURL: false)!
+        components.queryItems = [URLQueryItem(name: "query", value: query), URLQueryItem(name: "category", value: category)]
+        var request = URLRequest(url: components.url!)
+        request.httpMethod = "GET"
+        let (data, response) = try await session.data(for: request)
+        let http = response as! HTTPURLResponse
+        let result = APIResult(statusCode: http.statusCode, data: data)
+        return (result, try JSONDecoder().decode(MarketplaceDirectoryEnvelope.self, from: data).businesses)
     }
 
     private func applyAuth(to request: inout URLRequest) {

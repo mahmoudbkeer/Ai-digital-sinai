@@ -1,7 +1,26 @@
 import XCTest
 @testable import AiDigitalSinaiCore
 
-final class PlatformAPIMarketplaceTests: XCTestCase {
+final class PlatformApiMarketplaceTests: XCTestCase {
+    func testMarketplaceDirectoryBuildsGuestRequestAndParsesBusinessHours() async throws {
+        MarketplaceURLProtocol.handler = { request in
+            XCTAssertEqual(request.httpMethod, "GET")
+            XCTAssertEqual(request.url?.path, "/api/platform/marketplace/directory")
+            XCTAssertEqual(URLComponents(url: try XCTUnwrap(request.url), resolvingAgainstBaseURL: false)?.queryItems?.first(where: { $0.name == "category" })?.value, "الصحة والطب")
+            let response = HTTPURLResponse(url: try XCTUnwrap(request.url), statusCode: 200, httpVersion: nil, headerFields: ["Content-Type": "application/json"])!
+            let data = Data(#"{"ok":true,"businesses":[{"id":"b-1","name":"صيدلية النور","category":"الصحة والطب","subcategory":"صيدلية","district":"المساعيد","tag":"صيدلية","description":"خدمة دوائية","phone":"201000000000","whatsapp":"201000000000","hours_json":"{\"daily\":\"09:00-21:00\"}","reviews":7,"rating":4.8,"image_url":null,"offering_name":"أدوية وعناية","created_at":1730000000000,"sponsored":1,"featured_source":"advertising"}]}"#.utf8)
+            return (response, data)
+        }
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [MarketplaceURLProtocol.self]
+        let api = PlatformAPI(baseURL: URL(string: "https://api.example.test")!, session: URLSession(configuration: configuration))
+        let (result, businesses) = try await api.marketplaceDirectory(query: "صيدلية", category: "الصحة والطب")
+        XCTAssertEqual(result.statusCode, 200)
+        XCTAssertEqual(businesses.single().name, "صيدلية النور")
+        XCTAssertTrue(businesses.single().sponsored)
+        XCTAssertEqual(businesses.single().hoursJSON, "{\"daily\":\"09:00-21:00\"}")
+    }
+
     func testProductsBuildsAuthenticatedRequestAndParsesListing() async throws {
         MarketplaceURLProtocol.handler = { request in
             XCTAssertEqual(request.httpMethod, "GET")
