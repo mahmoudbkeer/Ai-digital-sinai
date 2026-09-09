@@ -15,7 +15,7 @@ test("submits a business from Marketplace work area and keeps it pending review"
   await page.getByRole("button", { name: "إرسال للمراجعة" }).click();
   await expect(page.getByText("سجّل الدخول أولًا لإرسال نشاطك بأمان.")).toBeVisible();
 
-  await page.getByRole("button", { name: "دخول" }).click();
+  await page.getByRole("button", { name: "دخول", exact: true }).click();
   await page.getByLabel("البريد الإلكتروني").fill(email);
   await page.getByLabel("كلمة المرور").fill(password);
   await page.getByRole("button", { name: "دخول" }).last().click();
