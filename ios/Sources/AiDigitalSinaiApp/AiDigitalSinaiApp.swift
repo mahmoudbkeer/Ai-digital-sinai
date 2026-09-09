@@ -1,6 +1,5 @@
 import SwiftUI
 import AiDigitalSinaiCore
-import UIKit
 
 @main
 struct AiDigitalSinaiApp: App {
