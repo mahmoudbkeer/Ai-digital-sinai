@@ -3,11 +3,23 @@ import AiDigitalSinaiCore
 
 @main
 struct AiDigitalSinaiApp: App {
+    @State private var showSplash = true
+
     var body: some Scene {
         WindowGroup {
-            LoginView()
-                .tint(DesignTokens.sinaiTide)
-                .environment(\.layoutDirection, Locale.current.language.languageCode?.identifier == "ar" ? .rightToLeft : .leftToRight)
+            ZStack {
+                LoginView()
+                    .tint(DesignTokens.sinaiTide)
+                    .environment(\.layoutDirection, Locale.current.language.languageCode?.identifier == "ar" ? .rightToLeft : .leftToRight)
+                if showSplash {
+                    LaunchScreenView()
+                        .transition(.opacity)
+                        .task {
+                            try? await Task.sleep(for: .milliseconds(650))
+                            withAnimation(.easeOut(duration: 0.22)) { showSplash = false }
+                        }
+                }
+            }
         }
     }
 }

@@ -3,7 +3,9 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <application
         android:allowBackup="false"
-        android:label="AI Digital Sinai"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:label="AI DIGITAL SINAI"
         android:theme="@style/Theme.AiDigitalSinai">
         <activity
             android:name=".MainActivity"

@@ -6,6 +6,8 @@
         <item name="android:statusBarColor">#090F1C</item>
         <item name="android:navigationBarColor">#090F1C</item>
         <item name="android:windowLightStatusBar">false</item>
-        <item name="android:windowBackground">@drawable/sinai_splash_background</item>
+        <item name="android:windowSplashScreenBackground">@color/nocturne_navy</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@drawable/sinai_icon_foreground</item>
+        <item name="android:windowSplashScreenAnimationDuration">350</item>
     </style>
 </resources>

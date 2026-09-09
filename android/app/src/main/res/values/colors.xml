@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="nocturne_navy">#090F1C</color>
+    <color name="nocturne_surface">#101622</color>
+    <color name="signal_cyan">#22D3EE</color>
+    <color name="signal_gold">#E5BE37</color>
+</resources>
