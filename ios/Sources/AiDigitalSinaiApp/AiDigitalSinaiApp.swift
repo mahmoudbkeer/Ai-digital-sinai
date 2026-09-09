@@ -1,5 +1,6 @@
 import SwiftUI
 import AiDigitalSinaiCore
+import UIKit
 
 @main
 struct AiDigitalSinaiApp: App {
@@ -20,63 +21,64 @@ struct LoginView: View {
     @State private var registerMode = false
     @State private var loading = false
     @State private var message = ""
-    @State private var authenticated = false
-
+    @State private var showAuth = false
+    @State private var pendingAction: String?
     private let api = PlatformAPI(baseURL: URL(string: "http://127.0.0.1:4173")!)
 
     var body: some View {
+        MarketplaceView(api: api, onProtectedAction: { action in
+            pendingAction = action
+            showAuth = true
+        })
+        .sheet(isPresented: $showAuth) { authSheet }
+        .onAppear { restoreSession() }
+    }
+
+    private var authSheet: some View {
         NavigationStack {
-            if authenticated {
-                MarketplaceView(api: api)
-            } else {
             Form {
                 Section("AI DIGITAL SINAI") {
-                    TextField(LocalizedStringKey("email"), text: $email)
-                    SecureField(LocalizedStringKey("password"), text: $password)
-                    if registerMode {
-                        TextField(LocalizedStringKey("name"), text: $displayName)
-                        TextField(LocalizedStringKey("business_name"), text: $tenantName)
-                    }
+                    TextField("البريد الإلكتروني", text: $email).textInputAutocapitalization(.never).keyboardType(.emailAddress)
+                    SecureField("كلمة المرور", text: $password)
+                    if registerMode { TextField("الاسم", text: $displayName); TextField("اسم النشاط", text: $tenantName) }
                 }
                 Section {
-                    Button(LocalizedStringKey(registerMode ? "register" : "sign_in")) {
-                        Task { await submit() }
-                    }
-                    .disabled(loading || email.isEmpty || password.isEmpty)
-                    Button(LocalizedStringKey(registerMode ? "existing_account" : "create_account")) {
-                        registerMode.toggle()
-                        message = ""
-                    }
+                    Button(registerMode ? "إنشاء الحساب" : "دخول") { Task { await submit() } }.disabled(loading || email.isEmpty || password.isEmpty)
+                    Button(registerMode ? "لدي حساب بالفعل" : "إنشاء حساب جديد") { registerMode.toggle(); message = "" }
                 }
                 if loading { ProgressView() }
                 if !message.isEmpty { Text(message).foregroundStyle(DesignTokens.sinaiTide) }
             }
-            .navigationTitle(LocalizedStringKey(registerMode ? "create_account" : "login_title"))
-            }
+            .navigationTitle(registerMode ? "إنشاء حساب" : "تسجيل الدخول")
+        }
+    }
+
+    private func restoreSession() {
+        if let token = UserDefaults.standard.string(forKey: "platform_token") {
+            let tenant = UserDefaults.standard.string(forKey: "platform_tenant_id")
+            api.setAuthSession(AuthSession(token: token, tenantID: tenant, branchID: nil))
         }
     }
 
     private func submit() async {
-        loading = true
-        defer { loading = false }
+        loading = true; defer { loading = false }
         do {
-            let (result, session): (APIResult, AuthSession?)
-            if registerMode {
-                (result, session) = try await api.register(email: email, password: password, displayName: displayName, tenantName: tenantName)
-            } else {
-                (result, session) = try await api.login(email: email, password: password)
-            }
-            authenticated = session != nil
-            message = "HTTP \(result.statusCode) — token: \(session?.token.isEmpty == false ? "received" : "missing"), tenant: \(session?.tenantID ?? "missing")"
-        } catch {
-            message = "فشل الطلب: \(error.localizedDescription)"
-        }
+            let result: (APIResult, AuthSession?) = registerMode
+                ? try await api.register(email: email, password: password, displayName: displayName, tenantName: tenantName)
+                : try await api.login(email: email, password: password)
+            guard let session = result.1 else { message = "تعذر المصادقة (HTTP \(result.0.statusCode))."; return }
+            UserDefaults.standard.set(session.token, forKey: "platform_token")
+            if let tenant = session.tenantID { UserDefaults.standard.set(tenant, forKey: "platform_tenant_id") }
+            showAuth = false
+            if pendingAction != nil { pendingAction = nil }
+        } catch { message = "فشل الطلب: \(error.localizedDescription)" }
     }
 }
 
-
 struct MarketplaceView: View {
     let api: PlatformAPI
+    let onProtectedAction: (String) -> Void
+    @Environment(\.openURL) private var openURL
     @State private var businesses: [MarketplaceBusiness] = []
     @State private var directoryQuery = ""
     @State private var category = "الكل"
@@ -92,25 +94,13 @@ struct MarketplaceView: View {
 
     var body: some View {
         List {
-            Section {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("AI DIGITAL SINAI").font(.caption).tracking(2).foregroundStyle(DesignTokens.sinaiTide)
-                    Text("NOCTURNE SIGNAL").font(.title2.bold())
-                    Text("بوابتك الرقمية الذكية لخدماتك وإدارة نشاطك").foregroundStyle(.secondary)
-                }
-                .padding(.vertical, 8)
-            }
+            Section { VStack(alignment: .leading, spacing: 8) { Text("AI DIGITAL SINAI").font(.caption).tracking(2).foregroundStyle(DesignTokens.sinaiTide); Text("NOCTURNE SIGNAL").font(.title2.bold()); Text("تصفح دليل سيناء كضيف — سجّل الدخول فقط عند الإجراء المحمي.").foregroundStyle(.secondary) }.padding(.vertical, 8) }
             Section("استكشف دليل سيناء") {
-                TextField("ابحث عن نشاط أو خدمة أو حي", text: $directoryQuery)
-                    .textFieldStyle(.roundedBorder)
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack { ForEach(categories, id: \.self) { item in
-                        MarketplaceCategoryButton(title: item, selected: category == item) { selectCategory(item) }
-                    } }
-                }
+                TextField("ابحث عن نشاط أو خدمة أو حي", text: $directoryQuery).textFieldStyle(.roundedBorder)
+                ScrollView(.horizontal, showsIndicators: false) { HStack { ForEach(categories, id: \.self) { item in MarketplaceCategoryButton(title: item, selected: category == item) { selectCategory(item) } } } }
                 if directoryLoading { ProgressView("جارٍ تحميل الأنشطة المعتمدة…") }
                 if !directoryError.isEmpty { Text(directoryError).foregroundStyle(DesignTokens.error) }
-                ForEach(businesses) { business in BusinessDirectoryRow(business: business) }
+                ForEach(businesses) { business in BusinessDirectoryRow(business: business, openURL: openURL, onProtectedAction: onProtectedAction) }
                 if !directoryLoading && businesses.isEmpty && directoryError.isEmpty { Text("لا توجد منشآت أو خدمات معتمدة لهذا البحث.").foregroundStyle(.secondary) }
             }
             Section("المساعد الذكي المرتبط بالبحث") {
@@ -118,7 +108,7 @@ struct MarketplaceView: View {
                 Button("ابحث في Marketplace") { Task { await runAssistant() } }.disabled(searching || assistantQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 if searching { ProgressView("جارٍ البحث…") }
                 if !assistantMessage.isEmpty { Text(assistantMessage).foregroundStyle(DesignTokens.sinaiTide) }
-                ForEach(searchResults) { business in BusinessDirectoryRow(business: business) }
+                ForEach(searchResults) { business in BusinessDirectoryRow(business: business, openURL: openURL, onProtectedAction: onProtectedAction) }
             }
             Section("المنتجات") {
                 if productLoading { ProgressView("تحميل المنتجات…") }
@@ -132,44 +122,28 @@ struct MarketplaceView: View {
         .task { await loadDirectory(); await loadProducts() }
         .onChange(of: directoryQuery) { _ in Task { await loadDirectory() } }
     }
-
-    private func loadDirectory() async {
-        directoryLoading = true; directoryError = ""
-        do { let (result, loaded) = try await api.marketplaceDirectory(query: directoryQuery, category: category == "الكل" ? "" : category); businesses = loaded; if !(200..<300).contains(result.statusCode) { directoryError = "HTTP \(result.statusCode)" } }
-        catch { directoryError = error.localizedDescription }
-        directoryLoading = false
-    }
-    private func selectCategory(_ item: String) {
-        category = item
-        Task { await loadDirectory() }
-    }
-    private func runAssistant() async {
-        searching = true; assistantMessage = "جارٍ البحث في الأنشطة والخدمات المنشورة فعليًا…"
-        do { let (_, loaded) = try await api.marketplaceDirectory(query: assistantQuery); searchResults = loaded; assistantMessage = loaded.isEmpty ? "لم أجد نشاطًا مطابقًا." : "وجدت \(loaded.count) نتيجة مطابقة." }
-        catch { assistantMessage = error.localizedDescription }
-        searching = false
-    }
+    private func loadDirectory() async { directoryLoading = true; directoryError = ""; do { let (result, loaded) = try await api.marketplaceDirectory(query: directoryQuery, category: category == "الكل" ? "" : category); businesses = loaded; if !(200..<300).contains(result.statusCode) { directoryError = "HTTP \(result.statusCode)" } } catch { directoryError = error.localizedDescription }; directoryLoading = false }
+    private func selectCategory(_ item: String) { category = item; Task { await loadDirectory() } }
+    private func runAssistant() async { searching = true; assistantMessage = "جارٍ البحث في الأنشطة والخدمات المنشورة فعليًا…"; do { let (_, loaded) = try await api.marketplaceDirectory(query: assistantQuery); searchResults = loaded; assistantMessage = loaded.isEmpty ? "لم أجد نشاطًا مطابقًا." : "وجدت \(loaded.count) نتيجة مطابقة." } catch { assistantMessage = error.localizedDescription }; searching = false }
     private func loadProducts() async { defer { productLoading = false }; if let (_, loaded) = try? await api.products() { products = loaded } }
 }
-private struct MarketplaceCategoryButton: View {
-    let title: String
-    let selected: Bool
-    let action: () -> Void
-    var body: some View {
-        Button(title, action: action)
-            .buttonStyle(.borderedProminent)
-            .tint(selected ? DesignTokens.sinaiTide : .gray)
-    }
-}
+private struct MarketplaceCategoryButton: View { let title: String; let selected: Bool; let action: () -> Void; var body: some View { Button(title, action: action).buttonStyle(.borderedProminent).tint(selected ? DesignTokens.sinaiTide : .gray) } }
 private struct BusinessDirectoryRow: View {
     let business: MarketplaceBusiness
+    let openURL: OpenURLAction
+    let onProtectedAction: (String) -> Void
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 8) {
             HStack { Text(business.name).font(.headline); Spacer(); Text(isOpen(business.hoursJSON) ? "● مفتوح الآن" : "مغلق حاليًا").font(.caption).foregroundStyle(isOpen(business.hoursJSON) ? DesignTokens.success : DesignTokens.error) }
             Text("\(business.offeringName) · \(business.district)").font(.subheadline).foregroundStyle(DesignTokens.sinaiTide)
-            Text(business.description.isEmpty ? "نشاط معتمد داخل Marketplace." : business.description).lineLimit(2)
+            Text(business.description.isEmpty ? "نشاط معتمد داخل Marketplace." : business.description).lineLimit(3)
             Text("\(business.reviews) تقييم · \(business.rating.map { String(format: "%.1f", $0) } ?? "—") · \(formatHours(business.hoursJSON))").font(.caption).foregroundStyle(.secondary)
-        }.padding(.vertical, 5)
+            HStack {
+                if let phone = business.phone, let url = URL(string: "tel:+\(phone)") { Button("اتصال") { openURL(url) }.buttonStyle(.borderedProminent) }
+                if let whatsapp = business.whatsapp, let url = URL(string: "https://wa.me/\(whatsapp)") { Button("واتساب") { openURL(url) }.buttonStyle(.bordered) }
+            }
+            Button("حجز أو إضافة للسلة") { onProtectedAction("cart:\(business.id)") }.buttonStyle(.bordered)
+        }.padding(.vertical, 7)
     }
 }
 
