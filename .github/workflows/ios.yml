@@ -48,5 +48,6 @@ jobs:
         with:
           name: ios-marketplace-screenshot-attempt
           path: |
-            ios/artifacts/ios-marketplace-simulator.png
+            artifacts/ios-marketplace-simulator.png
+            artifacts/ios-marketplace-screenshot-limitation.txt
           if-no-files-found: warn
