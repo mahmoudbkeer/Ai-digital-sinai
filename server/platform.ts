@@ -884,6 +884,47 @@ export function createPlatformRouter(): Router {
     return true;
   };
 
+  router.post("/marketplace/onboarding", authenticate, async (req: AuthenticatedRequest, res, next) => {
+    try {
+      const context = currentContext(req);
+      assertScope(context, context.tenantId, "business.manage");
+      const name = typeof req.body?.name === "string" ? req.body.name.trim() : "";
+      const category = typeof req.body?.category === "string" ? req.body.category.trim() : "";
+      const district = typeof req.body?.district === "string" ? req.body.district.trim() : "العريش";
+      const phone = typeof req.body?.phone === "string" ? req.body.phone.trim() : "";
+      if (!isNonEmptyString(name, 160) || !isNonEmptyString(category, 120) || !isNonEmptyString(phone, 40)) throw httpError(400, "invalid-business-onboarding", "اسم النشاط والتصنيف ورقم التواصل مطلوبة.");
+      const db = getDataPlane(); const businessId = randomUUID(); const branchId = randomUUID(); const createdAt = now();
+      await withDataPlaneTransaction(db, async () => {
+        await db.prepare("INSERT INTO businesses (id, tenant_id, name, category, status, phone, publication_status, created_at, updated_at) VALUES (?, ?, ?, ?, 'active', ?, 'PENDING', ?, ?)").run(businessId, context.tenantId, name, category, phone, createdAt, createdAt);
+        await db.prepare("INSERT INTO branches (id, tenant_id, business_id, name, city, district, created_at) VALUES (?, ?, ?, ?, 'العريش', ?, ?)").run(branchId, context.tenantId, businessId, "المقر الرئيسي", district, createdAt);
+        await recordAudit(db, context, "marketplace.business.submit", "business", businessId, req.requestId, { publicationStatus: "PENDING" });
+      });
+      return res.status(201).json({ ok: true, businessId, branchId, publicationStatus: "PENDING", message: "تم استلام نشاطك وسيبقى بانتظار المراجعة قبل الظهور." });
+    } catch (error) { next(error); }
+  });
+
+  router.get("/admin/business-onboarding", authenticate, async (req: AuthenticatedRequest, res, next) => {
+    try {
+      const context = currentContext(req); assertScope(context, context.tenantId, "admin.manage");
+      if (!(context.role === "SUPER_ADMIN" || context.role === "PLATFORM_ADMIN")) throw httpError(403, "platform-admin-required", "هذه القائمة متاحة لمراجع المنصة فقط.");
+      const applications = await getDataPlane().prepare("SELECT b.id, b.tenant_id, b.name, b.category, b.phone, b.publication_status, b.created_at, t.name AS tenant_name FROM businesses b JOIN tenants t ON t.id = b.tenant_id WHERE b.publication_status = 'PENDING' ORDER BY b.created_at ASC LIMIT 200").all();
+      return res.json({ ok: true, applications });
+    } catch (error) { next(error); }
+  });
+
+  router.patch("/admin/business-onboarding/:businessId", authenticate, async (req: AuthenticatedRequest, res, next) => {
+    try {
+      const context = currentContext(req); assertScope(context, context.tenantId, "admin.manage");
+      if (!(context.role === "SUPER_ADMIN" || context.role === "PLATFORM_ADMIN")) throw httpError(403, "platform-admin-required", "هذه العملية متاحة لمراجع المنصة فقط.");
+      const decision = req.body?.publicationStatus;
+      if (!["APPROVED", "REJECTED"].includes(decision)) throw httpError(400, "invalid-publication-status", "قرار المراجعة غير صالح.");
+      const db = getDataPlane(); const result = await db.prepare("UPDATE businesses SET publication_status = ?, updated_at = ? WHERE id = ? AND publication_status = 'PENDING'").run(decision, now(), req.params.businessId);
+      if (!result.changes) throw httpError(404, "business-application-not-found", "طلب النشاط غير موجود أو تمت مراجعته سابقًا.");
+      await recordAudit(db, context, "marketplace.business.review", "business", req.params.businessId, req.requestId, { publicationStatus: decision });
+      return res.json({ ok: true, businessId: req.params.businessId, publicationStatus: decision });
+    } catch (error) { next(error); }
+  });
+
   router.get("/marketplace/directory", async (req, res, next) => {
     try {
       const query = typeof req.query.query === "string" ? req.query.query.trim() : "";

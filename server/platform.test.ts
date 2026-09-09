@@ -47,6 +47,24 @@ describe("platform core", () => {
     await expect(response.json()).resolves.toMatchObject({ context: { tenantId: identity.tenantId, userId: identity.userId, role: "TENANT_OWNER" } });
   });
 
+  it("completes business onboarding through pending review and Super Admin approval", async () => {
+    const owner = await register("onboarding-owner@example.com", "Onboarding Tenant");
+    const submission = await request("/api/platform/marketplace/onboarding", { method: "POST", headers: auth(owner), body: JSON.stringify({ name: "نشاط اختبار المراجعة", category: "الصحة والطب", district: "المساعيد", phone: "201000000000" }) });
+    expect(submission.status).toBe(201);
+    const submitted = await submission.json() as { businessId: string; publicationStatus: string };
+    expect(submitted.publicationStatus).toBe("PENDING");
+    const hidden = await request("/api/platform/marketplace/directory?query=نشاط اختبار المراجعة");
+    await expect(hidden.json()).resolves.toMatchObject({ businesses: [] });
+    getDatabase().prepare("UPDATE tenant_members SET role = 'PLATFORM_ADMIN' WHERE tenant_id = ? AND user_id = ?").run(owner.tenantId, owner.userId);
+    const queue = await request("/api/platform/admin/business-onboarding", { headers: auth(owner) });
+    expect(queue.status).toBe(200);
+    await expect(queue.json()).resolves.toMatchObject({ applications: [expect.objectContaining({ id: submitted.businessId, publication_status: "PENDING" })] });
+    const approval = await request(`/api/platform/admin/business-onboarding/${submitted.businessId}`, { method: "PATCH", headers: auth(owner), body: JSON.stringify({ publicationStatus: "APPROVED" }) });
+    expect(approval.status).toBe(200);
+    const visible = await request("/api/platform/marketplace/directory?query=نشاط اختبار المراجعة");
+    await expect(visible.json()).resolves.toMatchObject({ businesses: [expect.objectContaining({ id: submitted.businessId, name: "نشاط اختبار المراجعة" })] });
+  });
+
   it("denies Tenant A from reading Tenant B data even with a changed tenant id", async () => {
     const a = await register("owner-b@example.com", "Tenant B");
     const b = await register("owner-c@example.com", "Tenant C");
