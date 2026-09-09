@@ -171,6 +171,9 @@ export default function MobileApp() {
   useEffect(() => {
     const handleInstall = (event: Event) => { event.preventDefault(); setInstallPrompt(event as InstallPromptEvent); };
     window.addEventListener("beforeinstallprompt", handleInstall);
+    const storedToken = localStorage.getItem("platform_token");
+    const storedTenantId = localStorage.getItem("platform_tenant_id");
+    if (storedToken && storedTenantId) setSession({ token: storedToken, tenantId: storedTenantId });
     const cleanup = loadApi();
     fetch("/api/platform/me").then(async (response) => { if (response.ok) { const payload = await response.json() as { context?: PlatformContext }; setPlatformContext(payload.context ?? {}); } }).catch(() => undefined);
     return () => { cleanup?.(); window.removeEventListener("beforeinstallprompt", handleInstall); };
