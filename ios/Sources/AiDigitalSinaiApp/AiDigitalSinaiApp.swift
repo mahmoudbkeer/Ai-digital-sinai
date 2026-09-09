@@ -37,7 +37,7 @@ struct LoginView: View {
         NavigationStack {
             Form {
                 Section("AI DIGITAL SINAI") {
-                    TextField("البريد الإلكتروني", text: $email).textInputAutocapitalization(.never).keyboardType(.emailAddress)
+                    TextField("البريد الإلكتروني", text: $email)
                     SecureField("كلمة المرور", text: $password)
                     if registerMode { TextField("الاسم", text: $displayName); TextField("اسم النشاط", text: $tenantName) }
                 }
