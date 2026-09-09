@@ -65,6 +65,69 @@ describe("platform core", () => {
     await expect(visible.json()).resolves.toMatchObject({ businesses: [expect.objectContaining({ id: submitted.businessId, name: "نشاط اختبار المراجعة" })] });
   });
 
+
+  it("closes V7 scoped read coverage for ledger, business, branch, advertising, availability, and bookings", async () => {
+    const a = await register("rbac-v7-a@example.com", "RBAC V7 Tenant A");
+    const b = await register("rbac-v7-b@example.com", "RBAC V7 Tenant B");
+    const headersA = auth(a);
+    const headersB = auth(b);
+    const db = getDatabase();
+    const accounts = db.prepare("SELECT id FROM ledger_accounts WHERE tenant_id = ? ORDER BY code LIMIT 2").all(a.tenantId) as Array<{ id: string }>;
+    expect(accounts.length).toBeGreaterThanOrEqual(2);
+    const journal = await request("/api/platform/ledger/journals", { method: "POST", headers: headersA, body: JSON.stringify({ referenceType: "RBAC_V7", referenceId: "fixture", memo: "V7 scoped read", idempotencyKey: "rbac-v7-journal", entries: [{ accountId: accounts[0].id, debitCents: 100, creditCents: 0 }, { accountId: accounts[1].id, debitCents: 0, creditCents: 100 }] }) });
+    expect(journal.status).toBe(201);
+    const journalId = (await journal.json() as { journalId: string }).journalId;
+    const adResponse = await request("/api/platform/ads", { method: "POST", headers: headersA, body: JSON.stringify({ resourceType: "BUSINESS", resourceId: a.businessId, placement: "V7", budgetCents: 100 }) });
+    expect(adResponse.status).toBe(201);
+    const adId = (await adResponse.json() as { adId: string }).adId;
+    const serviceResponse = await request("/api/platform/services", { method: "POST", headers: headersA, body: JSON.stringify({ businessId: a.businessId, name: "خدمة V7", priceCents: 100, durationMinutes: 30 }) });
+    expect(serviceResponse.status).toBe(201);
+    const serviceId = (await serviceResponse.json() as { serviceId: string }).serviceId;
+    const startsAt = Date.now() + 172800000;
+    const availabilityResponse = await request(`/api/platform/services/${serviceId}/availability`, { method: "POST", headers: headersA, body: JSON.stringify({ branchId: a.branchId, startsAt, endsAt: startsAt + 1800000 }) });
+    expect(availabilityResponse.status).toBe(201);
+    const availabilityId = (await availabilityResponse.json() as { availabilityId: string }).availabilityId;
+    const bookingResponse = await request("/api/platform/service-bookings", { method: "POST", headers: headersA, body: JSON.stringify({ serviceId, availabilityId, branchId: a.branchId, idempotencyKey: "rbac-v7-booking" }) });
+    expect(bookingResponse.status).toBe(201);
+    const bookingId = (await bookingResponse.json() as { bookingId: string }).bookingId;
+
+    const scopedReads: Array<[string, string, string, string]> = [
+      ["ledger list", "/api/platform/ledger/journals", "journals", "ledger.read"],
+      ["ledger by id", `/api/platform/ledger/journals/${journalId}`, "journal", "ledger.read"],
+      ["business by id", `/api/platform/businesses/${a.businessId}`, "business", "business.read"],
+      ["branch by id", `/api/platform/branches/${a.branchId}`, "branch", "branch.read"],
+      ["advertising list", "/api/platform/ads", "ads", "advertising.read"],
+      ["advertising by id", `/api/platform/ads/${adId}`, "ad", "advertising.read"],
+      ["availability by id", `/api/platform/service-availability/${availabilityId}`, "availability", "order.read"],
+      ["booking by id", `/api/platform/service-bookings/${bookingId}`, "booking", "order.read"],
+    ];
+    for (const [label, path, key] of scopedReads) {
+      const own = await request(path, { headers: headersA });
+      expect(own.status, `${label} own tenant`).toBe(200);
+      const ownBody = await own.json() as Record<string, unknown>;
+      expect(ownBody[key] ?? ownBody[key === "journal" ? "journal" : key], `${label} payload`).toBeTruthy();
+      const cross = await request(path, { headers: headersB });
+      if (path === "/api/platform/ledger/journals" || path === "/api/platform/ads") {
+        expect(cross.status, `${label} cross tenant list`).toBe(200);
+        const crossBody = await cross.json() as Record<string, unknown>;
+        const list = crossBody[key] as Array<Record<string, unknown>>;
+        expect(list.some((entry) => entry.id === journalId || entry.id === adId)).toBe(false);
+      } else {
+        expect(cross.status, `${label} cross tenant`).toBe(404);
+      }
+    }
+
+    db.prepare("UPDATE tenant_members SET role = 'CUSTOMER', permissions_json = '[]' WHERE tenant_id = ? AND user_id = ?").run(a.tenantId, a.userId);
+    expect((await request(`/api/platform/businesses/${a.businessId}`, { headers: headersA })).status).toBe(403);
+    expect((await request(`/api/platform/branches/${a.branchId}`, { headers: headersA })).status).toBe(403);
+    db.prepare("INSERT INTO tenant_members (tenant_id, user_id, role, permissions_json, created_at) VALUES (?, ?, 'HR', '[]', ?)").run(a.tenantId, b.userId, Date.now());
+    db.prepare("UPDATE service_bookings SET customer_user_id = ?, provider_user_id = ? WHERE id = ?").run(b.userId, b.userId, bookingId);
+    db.prepare("UPDATE tenant_members SET role = 'HR', permissions_json = '[]' WHERE tenant_id = ? AND user_id = ?").run(a.tenantId, a.userId);
+    for (const [label, path] of [["ledger", `/api/platform/ledger/journals/${journalId}`], ["advertising", `/api/platform/ads/${adId}`], ["availability", `/api/platform/service-availability/${availabilityId}`], ["booking", `/api/platform/service-bookings/${bookingId}`]] as const) {
+      expect((await request(path, { headers: headersA })).status, `${label} unauthorized role`).toBe(403);
+    }
+  });
+
   it("denies Tenant A from reading Tenant B data even with a changed tenant id", async () => {
     const a = await register("owner-b@example.com", "Tenant B");
     const b = await register("owner-c@example.com", "Tenant C");

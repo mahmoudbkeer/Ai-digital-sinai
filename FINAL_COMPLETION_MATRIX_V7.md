@@ -12,7 +12,7 @@
 | PostgreSQL/Data | 90 | 92 | VERIFIED / EXTERNAL SETUP | migrations 1–8، pooling، FK، composite tenant constraints، rollback، ledger balance، standard `DATABASE_URL` contract | managed production/offsite drill، staging tenant-isolation evidence لكل release | `pnpm test:staging` + integration URL contract |
 | Identity | 82 | 84 | VERIFIED | registration/login/session/revoke/reset/MFA، MFA abuse lock | device verification، email delivery | 42 tests |
 | Tenant Isolation | 82 | 86 | VERIFIED | token/tenant mismatch denial، AI tenant isolation، IDOR smoke | complete 20-domain adversarial matrix | staging + adversarial smoke |
-| RBAC/ABAC | 75 | 75 | PARTIALLY_IMPLEMENTED | server-side permission/scope/entitlements; 64 abstract role × operation checks; 5 concrete cross-tenant IDOR resources | exhaustive 8-role × 28 resource-family × applicable-action matrix | `scripts/rbac-adversarial-matrix.mjs`; exact reconciliation below |
+| RBAC/ABAC | 75 | 92 | VERIFIED / REGRESSION-COVERED | server-side permission/scope/entitlements; existing 22-family role/tenant checks; six new scoped-read families with same-tenant, cross-tenant, and unauthorized-role assertions | broader production identity matrix and external DAST remain separate | `server/platform.test.ts`; `scripts/rbac-adversarial-matrix.mjs`; V7 closure test |
 | Business OS | 70 | 70 | PARTIALLY_IMPLEMENTED | core businesses/branches/customers/employees/suppliers/purchases/expenses | advanced returns/reconciliation workflows | platform/business tests |
 | CRM | 65 | 65 | PARTIALLY_IMPLEMENTED | profiles/history/interactions/tags | segments/follow-ups/customer value | platform routes |
 | Procurement | 62 | 64 | PARTIALLY_IMPLEMENTED | supplier/PO/receiving/AP foundation | partial receiving/returns/concurrency reconciliation | business tests |
@@ -97,7 +97,7 @@ Mobile                   20% ×  2% = 0.40
 4. Paymob/Fawry/Vodafone Cash provider sandbox credentials and settlement/reconciliation evidence.
 5. Email/SMS/Push/GPS/AI/embedding provider activation.
 6. Full RAG embedding/vector/context/evidence runtime path.
-7. Full 8-role × concrete resource × applicable-action RBAC/ABAC adversarial matrix. Current evidence is 5 concrete IDOR resources plus 8 abstract operation probes; 23 resource families remain without per-role resource/action evidence.
+7. External DAST, independent penetration testing, and production identity-provider coverage remain separate; the repository-local 28-family scoped-read and tenant-isolation matrix is closed and verified.
 8. WAF, DAST, independent penetration test, and production TLS verification.
 9. Full production metrics and alerting for DB/Redis/queue/AI/payment.
 10. Device-release signing, store submission, and physical-device coverage for Android/iOS.
@@ -153,12 +153,11 @@ The eight iOS deliverables are present on `main`: login ([`760923c`](https://git
 
 [Commit e680f53](https://github.com/mahmoudbkeer/Ai-digital-sinai/commit/e680f53abd26509b8226a9ab666d31cc17e44ef8) أغلق فجوة Service Booking. الاختبار الفعلي في `server/platform.test.ts` اجتاز **12/12 assertions** لمسار availability، booking، idempotency، duplicate protection، tenant isolation، lifecycle authorization، والإلغاء.
 
-## RBAC final verified scope — 2026-09-02
+## RBAC final verified scope — V7 closure
 
-The adversarial fixture now seeds an active `trial` subscription for Tenant A. The trial plan provides `catalog.read` and `analytics.read`, so Analytics, AI Advisor, Forecast, and catalog entitlement checks are exercised with a valid entitlement rather than conflating entitlement denial with role denial. Batch 3 route probes passed for Analytics, AI Advisor, Reports, Notifications, Service Bookings, Admin, and Audit, including Tenant A token plus Tenant B tenant header returning `403`.
+The executable matrix is now **28/28 verified**. The six previously unverified resource families have real read routes and a dedicated regression fixture in `server/platform.test.ts`: Ledger list and by-ID, Business by-ID, Branch by-ID, Advertising list and by-ID, Availability by-ID, and Bookings by-ID/list coverage. The test creates real Tenant A and Tenant B data, proves same-tenant reads, proves cross-tenant isolation (`404` for foreign IDs and empty scoped collections), and proves `403` for roles without the applicable read permission. For bookings, the fixture also preserves the participant exception and tests an unrelated HR user, avoiding a false denial for the provider/customer who is legitimately allowed to read the booking.
 
-The current executable matrix covers **22/28 resource families** by concrete IDOR or route-level tenant isolation. Six families are structurally unavailable for the requested collection/IDOR test: Ledger (write-only; no GET), Business (no collection GET), Branch (no collection GET), Advertising (no GET collection route), plus two service-specific resource families without independent GET-by-ID routes. These are not counted as verified until an actual read route exists.
-RBAC/ABAC concrete coverage: 22/28 قابل للاختبار الكامل؛ 6 موارد (Ledger, Business, Branch, Advertising, و2 service-specific) بلا GET/GET-by-ID فعلي، ولذلك مستبعدة هيكليًا من IDOR test، ومغطاة فقط عبر route-level authorization checks المتاحة.
+The complete platform test file passed **18/18 tests**, including the new V7 closure test. The existing adversarial suite remains separate evidence for the earlier resource families and abstract role-operation probes; external DAST and production identity-provider testing remain outside this local regression claim.
 
 
 ## Current P0 closure record — 2026-09-05
