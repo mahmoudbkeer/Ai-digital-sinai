@@ -6012,6 +6012,7 @@ export function createPlatformRouter(): Router {
           items,
           taxCents = 0,
           idempotencyKey,
+          receiveImmediately = true,
         } = req.body ?? {};
         const tax = validateMoney(taxCents, "taxCents");
         if (
@@ -6109,7 +6110,7 @@ export function createPlatformRouter(): Router {
           const timestamp = now();
           await db
             .prepare(
-              "INSERT INTO purchases (id, tenant_id, business_id, branch_id, supplier_id, status, subtotal_cents, tax_cents, total_cents, idempotency_key, created_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?, 'RECEIVED', ?, ?, ?, ?, ?, ?, ?)"
+              "INSERT INTO purchases (id, tenant_id, business_id, branch_id, supplier_id, status, subtotal_cents, tax_cents, total_cents, idempotency_key, created_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
             )
             .run(
               purchaseId,
@@ -6117,6 +6118,7 @@ export function createPlatformRouter(): Router {
               businessId,
               branchId,
               supplierId,
+              receiveImmediately === false ? "DRAFT" : "RECEIVED",
               subtotal,
               tax,
               total,
@@ -6132,8 +6134,9 @@ export function createPlatformRouter(): Router {
             "INSERT INTO inventory_movements (id, tenant_id, branch_id, product_id, quantity_delta, reason, idempotency_key, created_by, created_at) VALUES (?, ?, ?, ?, ?, 'purchase', ?, ?, ?)"
           );
           for (const item of resolved) {
+            const purchaseItemId = randomUUID();
             await itemInsert.run(
-              randomUUID(),
+              purchaseItemId,
               context.tenantId,
               purchaseId,
               item.productId,
@@ -6141,45 +6144,17 @@ export function createPlatformRouter(): Router {
               item.unitCostCents,
               item.lineTotal
             );
-            await movementInsert.run(
-              randomUUID(),
-              context.tenantId,
-              branchId,
-              item.productId,
-              item.quantity,
-              `purchase:${purchaseId}:${item.productId}`,
-              context.userId,
-              timestamp
-            );
-            await db
-              .prepare(
-                "INSERT INTO inventory_stock (tenant_id, branch_id, product_id, quantity, updated_at) VALUES (?, ?, ?, ?, ?) ON CONFLICT (tenant_id, branch_id, product_id) DO UPDATE SET quantity = inventory_stock.quantity + EXCLUDED.quantity, updated_at = EXCLUDED.updated_at"
-              )
-              .run(
-                context.tenantId,
-                branchId,
-                item.productId,
-                item.quantity,
-                timestamp
-              );
+            if (receiveImmediately !== false) {
+              await db.prepare("INSERT INTO purchase_receipts (id, tenant_id, purchase_id, purchase_item_id, quantity, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)").run(randomUUID(), context.tenantId, purchaseId, purchaseItemId, item.quantity, context.userId, timestamp);
+              await movementInsert.run(randomUUID(), context.tenantId, branchId, item.productId, item.quantity, `purchase:${purchaseId}:${item.productId}`, context.userId, timestamp);
+              await db.prepare("INSERT INTO inventory_stock (tenant_id, branch_id, product_id, quantity, updated_at) VALUES (?, ?, ?, ?, ?) ON CONFLICT (tenant_id, branch_id, product_id) DO UPDATE SET quantity = inventory_stock.quantity + EXCLUDED.quantity, updated_at = EXCLUDED.updated_at").run(context.tenantId, branchId, item.productId, item.quantity, timestamp);
+            }
           }
-          await postBalancedJournal(
-            db,
-            context,
-            "PURCHASE",
-            purchaseId,
-            `Purchase ${purchaseId}`,
-            `purchase:${purchaseId}`,
-            "1100",
-            "2000",
-            total,
-            "ledger.purchase.post",
-            req.requestId
-          );
+          if (receiveImmediately !== false) await postBalancedJournal(db, context, "PURCHASE", purchaseId, `Purchase ${purchaseId}`, `purchase:${purchaseId}`, "1100", "2000", total, "ledger.purchase.post", req.requestId);
           await recordAudit(
             db,
             context,
-            "purchase.receive",
+            receiveImmediately === false ? "purchase.create" : "purchase.receive",
             "purchase",
             purchaseId,
             req.requestId,
@@ -6187,7 +6162,7 @@ export function createPlatformRouter(): Router {
           );
           return {
             purchaseId,
-            status: "RECEIVED",
+            status: receiveImmediately === false ? "DRAFT" : "RECEIVED",
             totalCents: total,
             replay: false,
           };
@@ -6198,6 +6173,245 @@ export function createPlatformRouter(): Router {
       } catch (error) {
         next(error);
       }
+    }
+  );
+
+  router.post(
+    "/returns",
+    authenticate,
+    async (req: AuthenticatedRequest, res, next) => {
+      try {
+        const context = currentContext(req);
+        assertScope(context, context.tenantId, "order.refund");
+        const { orderId, items, reason, idempotencyKey } = req.body ?? {};
+        if (!isNonEmptyString(orderId, 100) || !Array.isArray(items) || items.length < 1 || items.length > 100 || !isNonEmptyString(reason, 500) || !/^[A-Za-z0-9._:-]{8,200}$/.test(idempotencyKey ?? ""))
+          throw httpError(400, "invalid-return", "بيانات المرتجع ومفتاح Idempotency مطلوبة.");
+        const db = getDataPlane();
+        const result = await withDataPlaneTransaction(db, async () => {
+          const replay = await db.prepare("SELECT id, total_cents, status FROM sales_returns WHERE tenant_id = ? AND idempotency_key = ?").get(context.tenantId, idempotencyKey) as { id: string; total_cents: number; status: string } | undefined;
+          if (replay) return { returnId: replay.id, totalCents: replay.total_cents, status: replay.status, replay: true };
+          const order = await db.prepare("SELECT id, business_id, branch_id, customer_id, state FROM orders WHERE id = ? AND tenant_id = ?").get(orderId, context.tenantId) as { id: string; business_id: string; branch_id: string; customer_id: string | null; state: string } | undefined;
+          if (!order) throw httpError(404, "order-not-found", "الطلب غير موجود داخل المستأجر الحالي.");
+          if (order.state === "CANCELLED") throw httpError(409, "order-not-refundable", "لا يمكن رد طلب ملغى.");
+          let total = 0;
+          const resolved: Array<{ productId: string; quantity: number; unitRefundCents: number; lineTotal: number }> = [];
+          for (const item of items) {
+            if (!isNonEmptyString(item?.productId, 100)) throw httpError(400, "invalid-return", "معرف المنتج مطلوب.");
+            const quantity = validatePositiveInteger(item.quantity, "quantity");
+            const unitRefundCents = validateMoney(item.unitRefundCents, "unitRefundCents");
+            const sold = await db.prepare("SELECT quantity, unit_price_cents FROM order_items WHERE id = ? AND order_id = ? AND tenant_id = ? AND product_id = ?").get(item.orderItemId ?? "", orderId, context.tenantId, item.productId) as { quantity: number; unit_price_cents: number } | undefined;
+            if (!sold) throw httpError(404, "order-item-not-found", "عنصر الطلب غير موجود.");
+            const returned = await db.prepare("SELECT COALESCE(SUM(ri.quantity), 0) AS quantity FROM sales_return_items ri JOIN sales_returns r ON r.id = ri.return_id AND r.tenant_id = ri.tenant_id WHERE r.order_id = ? AND r.tenant_id = ? AND ri.product_id = ? AND r.status = 'POSTED'").get(orderId, context.tenantId, item.productId) as { quantity: number };
+            if (Number(returned.quantity) + quantity > sold.quantity) throw httpError(409, "return-quantity-exceeded", "كمية المرتجع تتجاوز الكمية المباعة.");
+            const lineTotal = unitRefundCents * quantity;
+            total += lineTotal;
+            resolved.push({ productId: item.productId, quantity, unitRefundCents, lineTotal });
+          }
+          const returnId = randomUUID();
+          const timestamp = now();
+          await db.prepare("INSERT INTO sales_returns (id, tenant_id, order_id, business_id, branch_id, customer_id, reason, total_cents, idempotency_key, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)").run(returnId, context.tenantId, orderId, order.business_id, order.branch_id, order.customer_id, reason.trim(), total, idempotencyKey, context.userId, timestamp);
+          for (const item of resolved) {
+            await db.prepare("INSERT INTO sales_return_items (id, tenant_id, return_id, product_id, quantity, unit_refund_cents, line_total_cents) VALUES (?, ?, ?, ?, ?, ?, ?)").run(randomUUID(), context.tenantId, returnId, item.productId, item.quantity, item.unitRefundCents, item.lineTotal);
+            await db.prepare("INSERT INTO inventory_movements (id, tenant_id, branch_id, product_id, quantity_delta, reason, idempotency_key, created_by, created_at) VALUES (?, ?, ?, ?, ?, 'sales_return', ?, ?, ?)").run(randomUUID(), context.tenantId, order.branch_id, item.productId, item.quantity, `sales-return:${returnId}:${item.productId}`, context.userId, timestamp);
+            await db.prepare("INSERT INTO inventory_stock (tenant_id, branch_id, product_id, quantity, updated_at) VALUES (?, ?, ?, ?, ?) ON CONFLICT (tenant_id, branch_id, product_id) DO UPDATE SET quantity = inventory_stock.quantity + EXCLUDED.quantity, updated_at = EXCLUDED.updated_at").run(context.tenantId, order.branch_id, item.productId, item.quantity, timestamp);
+          }
+          await postBalancedJournal(db, context, "SALES_RETURN", returnId, `Sales return ${returnId}`, `sales-return:${returnId}`, "4000", "1200", total, "ledger.sales_return.post", req.requestId);
+          await db.prepare("UPDATE orders SET state = CASE WHEN ? >= total_cents THEN 'REFUNDED' ELSE state END, updated_at = ? WHERE id = ? AND tenant_id = ?").run(total, timestamp, orderId, context.tenantId);
+          await recordAudit(db, context, "order.return", "sales_return", returnId, req.requestId, { orderId, totalCents: total });
+          return { returnId, totalCents: total, status: "POSTED", replay: false };
+        });
+        return res.status(result.replay ? 200 : 201).json({ ok: true, ...result });
+      } catch (error) { next(error); }
+    }
+  );
+
+  router.post(
+    "/purchases/:purchaseId/receipts",
+    authenticate,
+    async (req: AuthenticatedRequest, res, next) => {
+      try {
+        const context = currentContext(req);
+        assertScope(context, context.tenantId, "purchase.manage");
+        const { items } = req.body ?? {};
+        if (!Array.isArray(items) || items.length < 1 || items.length > 100) throw httpError(400, "invalid-receipt", "عناصر الاستلام مطلوبة.");
+        const db = getDataPlane();
+        const result = await withDataPlaneTransaction(db, async () => {
+          const purchase = await db.prepare("SELECT id, branch_id FROM purchases WHERE id = ? AND tenant_id = ?").get(req.params.purchaseId, context.tenantId) as { id: string; branch_id: string } | undefined;
+          if (!purchase) throw httpError(404, "purchase-not-found", "المشتريات غير موجودة.");
+          let received = 0;
+          for (const item of items) {
+            const quantity = validatePositiveInteger(item.quantity, "quantity");
+            const source = await db.prepare("SELECT pi.id, pi.product_id, pi.quantity, pi.unit_cost_cents FROM purchase_items pi WHERE pi.id = ? AND pi.purchase_id = ? AND pi.tenant_id = ?").get(item.purchaseItemId, purchase.id, context.tenantId) as { id: string; product_id: string; quantity: number; unit_cost_cents: number } | undefined;
+            if (!source) throw httpError(404, "purchase-item-not-found", "عنصر المشتريات غير موجود.");
+            const already = await db.prepare("SELECT COALESCE(SUM(quantity), 0) AS quantity FROM purchase_receipts WHERE purchase_item_id = ? AND tenant_id = ?").get(source.id, context.tenantId) as { quantity: number };
+            if (Number(already.quantity) + quantity > source.quantity) throw httpError(409, "receipt-quantity-exceeded", "كمية الاستلام تتجاوز الكمية المطلوبة.");
+            await db.prepare("INSERT INTO purchase_receipts (id, tenant_id, purchase_id, purchase_item_id, quantity, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)").run(randomUUID(), context.tenantId, purchase.id, source.id, quantity, context.userId, now());
+            await db.prepare("INSERT INTO inventory_movements (id, tenant_id, branch_id, product_id, quantity_delta, reason, idempotency_key, created_by, created_at) VALUES (?, ?, ?, ?, ?, 'purchase_receipt', ?, ?, ?)").run(randomUUID(), context.tenantId, purchase.branch_id, source.product_id, quantity, `purchase-receipt:${purchase.id}:${source.id}:${now()}`, context.userId, now());
+            await db.prepare("INSERT INTO inventory_stock (tenant_id, branch_id, product_id, quantity, updated_at) VALUES (?, ?, ?, ?, ?) ON CONFLICT (tenant_id, branch_id, product_id) DO UPDATE SET quantity = inventory_stock.quantity + EXCLUDED.quantity, updated_at = EXCLUDED.updated_at").run(context.tenantId, purchase.branch_id, source.product_id, quantity, now());
+            received += quantity;
+          }
+          const pending = await db.prepare("SELECT COUNT(*) AS count FROM purchase_items pi WHERE pi.purchase_id = ? AND pi.tenant_id = ? AND pi.quantity > (SELECT COALESCE(SUM(pr.quantity), 0) FROM purchase_receipts pr WHERE pr.purchase_item_id = pi.id AND pr.tenant_id = ?)").get(purchase.id, context.tenantId, context.tenantId) as { count: number };
+          const receiptStatus = Number(pending.count) === 0 ? "RECEIVED" : "PARTIALLY_RECEIVED";
+          await recordAudit(db, context, "purchase.partial_receive", "purchase", purchase.id, req.requestId, { received, receiptStatus });
+          return { purchaseId: purchase.id, receivedQuantity: received, receiptStatus };
+        });
+        return res.status(201).json({ ok: true, ...result });
+      } catch (error) { next(error); }
+    }
+  );
+
+  router.post(
+    "/supplier-returns",
+    authenticate,
+    async (req: AuthenticatedRequest, res, next) => {
+      try {
+        const context = currentContext(req);
+        assertScope(context, context.tenantId, "purchase.manage");
+        const { purchaseId, items, reason, idempotencyKey } = req.body ?? {};
+        if (!isNonEmptyString(purchaseId, 100) || !Array.isArray(items) || items.length < 1 || !isNonEmptyString(reason, 500) || !/^[A-Za-z0-9._:-]{8,200}$/.test(idempotencyKey ?? "")) throw httpError(400, "invalid-supplier-return", "بيانات مرتجع المورد مطلوبة.");
+        const db = getDataPlane();
+        const result = await withDataPlaneTransaction(db, async () => {
+          const replay = await db.prepare("SELECT id, total_cents FROM supplier_returns WHERE tenant_id = ? AND idempotency_key = ?").get(context.tenantId, idempotencyKey) as { id: string; total_cents: number } | undefined;
+          if (replay) return { supplierReturnId: replay.id, totalCents: replay.total_cents, replay: true };
+          const purchase = await db.prepare("SELECT id, supplier_id, branch_id FROM purchases WHERE id = ? AND tenant_id = ?").get(purchaseId, context.tenantId) as { id: string; supplier_id: string; branch_id: string } | undefined;
+          if (!purchase) throw httpError(404, "purchase-not-found", "المشتريات غير موجودة.");
+          let total = 0;
+          const resolved: Array<{ productId: string; quantity: number; unitCostCents: number; lineTotal: number }> = [];
+          for (const item of items) {
+            const source = await db.prepare("SELECT pi.product_id, pi.quantity, pi.unit_cost_cents FROM purchase_items pi WHERE pi.id = ? AND pi.purchase_id = ? AND pi.tenant_id = ?").get(item.purchaseItemId, purchase.id, context.tenantId) as { product_id: string; quantity: number; unit_cost_cents: number } | undefined;
+            if (!source) throw httpError(404, "purchase-item-not-found", "عنصر المشتريات غير موجود.");
+            const quantity = validatePositiveInteger(item.quantity, "quantity");
+            const returned = await db.prepare("SELECT COALESCE(SUM(sri.quantity), 0) AS quantity FROM supplier_return_items sri JOIN supplier_returns sr ON sr.id = sri.return_id AND sr.tenant_id = sri.tenant_id WHERE sr.purchase_id = ? AND sr.tenant_id = ? AND sri.product_id = ? AND sr.status = 'POSTED'").get(purchase.id, context.tenantId, source.product_id) as { quantity: number };
+            if (Number(returned.quantity) + quantity > source.quantity) throw httpError(409, "supplier-return-quantity-exceeded", "كمية مرتجع المورد تتجاوز المشتريات.");
+            const lineTotal = source.unit_cost_cents * quantity;
+            total += lineTotal;
+            resolved.push({ productId: source.product_id, quantity, unitCostCents: source.unit_cost_cents, lineTotal });
+          }
+          const supplierReturnId = randomUUID();
+          const timestamp = now();
+          await db.prepare("INSERT INTO supplier_returns (id, tenant_id, purchase_id, supplier_id, branch_id, reason, total_cents, idempotency_key, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)").run(supplierReturnId, context.tenantId, purchase.id, purchase.supplier_id, purchase.branch_id, reason.trim(), total, idempotencyKey, context.userId, timestamp);
+          for (const item of resolved) {
+            await db.prepare("INSERT INTO supplier_return_items (id, tenant_id, return_id, product_id, quantity, unit_cost_cents, line_total_cents) VALUES (?, ?, ?, ?, ?, ?, ?)").run(randomUUID(), context.tenantId, supplierReturnId, item.productId, item.quantity, item.unitCostCents, item.lineTotal);
+            await db.prepare("INSERT INTO inventory_movements (id, tenant_id, branch_id, product_id, quantity_delta, reason, idempotency_key, created_by, created_at) VALUES (?, ?, ?, ?, ?, 'supplier_return', ?, ?, ?)").run(randomUUID(), context.tenantId, purchase.branch_id, item.productId, -item.quantity, `supplier-return:${supplierReturnId}:${item.productId}`, context.userId, timestamp);
+            const stock = await db.prepare("SELECT quantity FROM inventory_stock WHERE tenant_id = ? AND branch_id = ? AND product_id = ?").get(context.tenantId, purchase.branch_id, item.productId) as { quantity: number } | undefined;
+            if (!stock || Number(stock.quantity) < item.quantity) throw httpError(409, "insufficient-stock", "المخزون المتاح لا يكفي لمرتجع المورد.");
+            await db.prepare("UPDATE inventory_stock SET quantity = quantity - ?, updated_at = ? WHERE tenant_id = ? AND branch_id = ? AND product_id = ?").run(item.quantity, timestamp, context.tenantId, purchase.branch_id, item.productId);
+          }
+          await postBalancedJournal(db, context, "SUPPLIER_RETURN", supplierReturnId, `Supplier return ${supplierReturnId}`, `supplier-return:${supplierReturnId}`, "2000", "1100", total, "ledger.supplier_return.post", req.requestId);
+          await recordAudit(db, context, "supplier.return", "supplier_return", supplierReturnId, req.requestId, { purchaseId, totalCents: total });
+          return { supplierReturnId, totalCents: total, replay: false };
+        });
+        return res.status(result.replay ? 200 : 201).json({ ok: true, ...result });
+      } catch (error) { next(error); }
+    }
+  );
+
+  router.post(
+    "/reconciliations",
+    authenticate,
+    async (req: AuthenticatedRequest, res, next) => {
+      try {
+        const context = currentContext(req);
+        assertScope(context, context.tenantId, "ledger.manage");
+        const { accountCode, from = 0, to = now(), expectedCents, note } = req.body ?? {};
+        const expected = validateMoney(expectedCents, "expectedCents");
+        if (!/^[0-9]{3,20}$/.test(accountCode ?? "") || !Number.isSafeInteger(from) || !Number.isSafeInteger(to) || from < 0 || to < from) throw httpError(400, "invalid-reconciliation", "بيانات التسوية غير صالحة.");
+        const db = getDataPlane();
+        const actualRow = await db.prepare("SELECT COALESCE(SUM(e.debit_cents), 0) AS debit, COALESCE(SUM(e.credit_cents), 0) AS credit FROM ledger_entries e JOIN ledger_accounts a ON a.id = e.account_id AND a.tenant_id = e.tenant_id WHERE e.tenant_id = ? AND a.code = ? AND e.created_at >= ? AND e.created_at <= ?").get(context.tenantId, accountCode, from, to) as { debit: number; credit: number };
+        const actual = Number(actualRow.debit) - Number(actualRow.credit);
+        const variance = expected - actual;
+        const id = randomUUID();
+        await db.prepare("INSERT INTO reconciliations (id, tenant_id, account_code, period_from, period_to, expected_cents, actual_cents, variance_cents, status, note, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)").run(id, context.tenantId, accountCode, from, to, expected, actual, variance, variance === 0 ? "MATCHED" : "VARIANCE", isNonEmptyString(note, 500) ? note.trim() : null, context.userId, now());
+        await recordAudit(db, context, "ledger.reconciliation.create", "reconciliation", id, req.requestId, { accountCode, varianceCents: variance });
+        return res.status(201).json({ ok: true, reconciliationId: id, accountCode, expectedCents: expected, actualCents: actual, varianceCents: variance, status: variance === 0 ? "MATCHED" : "VARIANCE" });
+      } catch (error) { next(error); }
+    }
+  );
+
+  router.post(
+    "/customer-segments",
+    authenticate,
+    async (req: AuthenticatedRequest, res, next) => {
+      try {
+        const context = currentContext(req);
+        assertScope(context, context.tenantId, "crm.manage");
+        const { name, minOrders = 0, minSpendCents = 0, tagName } = req.body ?? {};
+        const minSpend = validateMoney(minSpendCents, "minSpendCents");
+        if (!isNonEmptyString(name, 100) || !Number.isSafeInteger(minOrders) || minOrders < 0 || (tagName !== undefined && !isNonEmptyString(tagName, 80))) throw httpError(400, "invalid-segment", "بيانات الشريحة غير صالحة.");
+        const db = getDataPlane();
+        const segmentId = randomUUID();
+        const rules = { minOrders, minSpendCents: minSpend, tagName: isNonEmptyString(tagName, 80) ? tagName.trim() : null };
+        await withDataPlaneTransaction(db, async () => {
+          await db.prepare("INSERT INTO customer_segments (id, tenant_id, name, rules_json, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?)").run(segmentId, context.tenantId, name.trim(), JSON.stringify(rules), context.userId, now());
+          const customers = await db.prepare("SELECT c.id FROM customers c WHERE c.tenant_id = ? AND (SELECT COUNT(*) FROM orders o WHERE o.customer_id = c.id AND o.tenant_id = c.tenant_id AND o.state = 'COMPLETED') >= ? AND (SELECT COALESCE(SUM(o.total_cents), 0) FROM orders o WHERE o.customer_id = c.id AND o.tenant_id = c.tenant_id AND o.state = 'COMPLETED') >= ?").all(context.tenantId, minOrders, minSpend);
+          for (const customer of customers as Array<{ id: string }>) await db.prepare("INSERT INTO customer_segment_members (tenant_id, segment_id, customer_id, matched_at) VALUES (?, ?, ?, ?)").run(context.tenantId, segmentId, customer.id, now());
+        });
+        await recordAudit(db, context, "crm.segment.create", "customer_segment", segmentId, req.requestId, rules);
+        return res.status(201).json({ ok: true, segmentId, rules });
+      } catch (error) { next(error); }
+    }
+  );
+
+  router.get(
+    "/customer-segments/:segmentId",
+    authenticate,
+    async (req: AuthenticatedRequest, res, next) => {
+      try {
+        const context = currentContext(req);
+        assertScope(context, context.tenantId, "crm.read");
+        const db = getDataPlane();
+        const segment = await db.prepare("SELECT id, name, rules_json, created_at FROM customer_segments WHERE id = ? AND tenant_id = ?").get(req.params.segmentId, context.tenantId);
+        if (!segment) throw httpError(404, "segment-not-found", "الشريحة غير موجودة.");
+        const members = await db.prepare("SELECT c.id, c.name, c.email, c.phone, m.matched_at FROM customer_segment_members m JOIN customers c ON c.id = m.customer_id AND c.tenant_id = m.tenant_id WHERE m.segment_id = ? AND m.tenant_id = ? ORDER BY c.name").all(req.params.segmentId, context.tenantId);
+        return res.json({ ok: true, segment, members });
+      } catch (error) { next(error); }
+    }
+  );
+
+  router.get(
+    "/reports/profit",
+    authenticate,
+    async (req: AuthenticatedRequest, res, next) => {
+      try {
+        const context = currentContext(req);
+        assertScope(context, context.tenantId, "report.read");
+        const db = getDataPlane();
+        await assertEntitlement(db, context, "analytics.read");
+        const from = Number(req.query.from ?? 0) || 0;
+        const to = Number(req.query.to ?? now()) || now();
+        const result = await db.prepare("SELECT COALESCE(SUM(CASE WHEN state = 'COMPLETED' THEN total_cents ELSE 0 END), 0) AS revenue_cents, COALESCE((SELECT SUM(e.debit_cents - e.credit_cents) FROM ledger_entries e JOIN ledger_journals j ON j.id = e.journal_id AND j.tenant_id = e.tenant_id WHERE e.tenant_id = ? AND j.reference_type = 'PURCHASE' AND e.created_at BETWEEN ? AND ?), 0) AS inventory_cost_cents, COALESCE((SELECT SUM(amount_cents) FROM expenses WHERE tenant_id = ? AND status = 'POSTED' AND created_at BETWEEN ? AND ?), 0) AS operating_expense_cents FROM orders WHERE tenant_id = ? AND created_at BETWEEN ? AND ?").get(context.tenantId, from, to, context.tenantId, from, to, context.tenantId, from, to) as Record<string, number>;
+        return res.json({ ok: true, source: "database", period: { from, to }, report: { ...result, net_profit_cents: Number(result.revenue_cents) - Number(result.inventory_cost_cents) - Number(result.operating_expense_cents) } });
+      } catch (error) { next(error); }
+    }
+  );
+
+  router.get(
+    "/reports/inventory",
+    authenticate,
+    async (req: AuthenticatedRequest, res, next) => {
+      try {
+        const context = currentContext(req);
+        assertScope(context, context.tenantId, "report.read");
+        const db = getDataPlane();
+        await assertEntitlement(db, context, "analytics.read");
+        const rows = await db.prepare("SELECT s.branch_id, s.product_id, p.sku, p.name, s.quantity, p.price_cents, (s.quantity * p.price_cents) AS retail_value_cents FROM inventory_stock s JOIN products p ON p.id = s.product_id AND p.tenant_id = s.tenant_id WHERE s.tenant_id = ? ORDER BY retail_value_cents DESC").all(context.tenantId);
+        return res.json({ ok: true, source: "database", report: { rows, sku_count: rows.length, units: (rows as Array<{ quantity: number }>).reduce((sum, row) => sum + Number(row.quantity), 0) } });
+      } catch (error) { next(error); }
+    }
+  );
+
+  router.get(
+    "/reports/customers",
+    authenticate,
+    async (req: AuthenticatedRequest, res, next) => {
+      try {
+        const context = currentContext(req);
+        assertScope(context, context.tenantId, "report.read");
+        const db = getDataPlane();
+        await assertEntitlement(db, context, "analytics.read");
+        const rows = await db.prepare("SELECT c.id, c.name, c.email, COUNT(o.id) AS orders, COALESCE(SUM(CASE WHEN o.state = 'COMPLETED' THEN o.total_cents ELSE 0 END), 0) AS spend_cents, MAX(o.created_at) AS last_order_at FROM customers c LEFT JOIN orders o ON o.customer_id = c.id AND o.tenant_id = c.tenant_id WHERE c.tenant_id = ? GROUP BY c.id, c.name, c.email ORDER BY spend_cents DESC").all(context.tenantId);
+        return res.json({ ok: true, source: "database", report: { rows, customer_count: rows.length } });
+      } catch (error) { next(error); }
     }
   );
 
