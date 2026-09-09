@@ -19,6 +19,7 @@ test("submits a business from Marketplace work area and keeps it pending review"
   await page.getByLabel("البريد الإلكتروني").fill(email);
   await page.getByLabel("كلمة المرور").fill(password);
   await page.getByRole("button", { name: "دخول" }).last().click();
+  await page.getByRole("button", { name: "التشغيل", exact: true }).click();
   await expect(page.getByRole("heading", { name: "مساحة التشغيل" })).toBeVisible();
   await page.getByRole("button", { name: "ابدأ تسجيل النشاط" }).click();
   await page.getByLabel("اسم النشاط").fill("مخبز اختبار المراجعة");
