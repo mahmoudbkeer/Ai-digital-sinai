@@ -10,6 +10,8 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.wrapContentWidth
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Button
@@ -188,7 +190,7 @@ private fun LoginScreen(api: PlatformApi, store: SessionStore, onAuthenticated: 
     }
 
     Column(
-        modifier = Modifier.fillMaxSize().padding(PaddingValues(24.dp)),
+        modifier = Modifier.fillMaxSize().padding(PaddingValues(24.dp)).widthIn(max = 960.dp).wrapContentWidth(),
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
         if (!authenticated) {

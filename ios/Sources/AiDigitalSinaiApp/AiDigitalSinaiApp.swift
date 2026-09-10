@@ -89,6 +89,7 @@ struct LoginView: View {
 struct MarketplaceView: View {
     let api: PlatformAPI
     let onProtectedAction: (String) -> Void
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(\.openURL) private var openURL
     @State private var businesses: [MarketplaceBusiness] = []
     @State private var directoryQuery = ""
@@ -128,6 +129,8 @@ struct MarketplaceView: View {
             }
         }
         .navigationTitle("Marketplace")
+        .frame(maxWidth: horizontalSizeClass == .regular ? 960 : .infinity)
+        .frame(maxWidth: .infinity)
         .toolbar { ToolbarItemGroup(placement: .automatic) { NavigationLink("الإشعارات") { NotificationsView(api: api) }; NavigationLink("Analytics") { AnalyticsView(api: api) }; NavigationLink("Subscription") { SubscriptionView(api: api) } } }
         .searchable(text: $directoryQuery, prompt: "ابحث في دليل سيناء")
         .task { await loadDirectory(); await loadProducts() }
