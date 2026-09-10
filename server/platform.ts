@@ -249,6 +249,9 @@ type AuthenticatedRequest = Request & {
 function now() {
   return Date.now();
 }
+function analyticsMonth(timestamp: number) {
+  return new Date(Number(timestamp)).toISOString().slice(0, 7);
+}
 function hashToken(token: string) {
   return createHash("sha256").update(token).digest("hex");
 }
@@ -6364,6 +6367,107 @@ export function createPlatformRouter(): Router {
         if (!segment) throw httpError(404, "segment-not-found", "الشريحة غير موجودة.");
         const members = await db.prepare("SELECT c.id, c.name, c.email, c.phone, m.matched_at FROM customer_segment_members m JOIN customers c ON c.id = m.customer_id AND c.tenant_id = m.tenant_id WHERE m.segment_id = ? AND m.tenant_id = ? ORDER BY c.name").all(req.params.segmentId, context.tenantId);
         return res.json({ ok: true, segment, members });
+      } catch (error) { next(error); }
+    }
+  );
+
+  router.get(
+    "/analytics/cohorts",
+    authenticate,
+    async (req: AuthenticatedRequest, res, next) => {
+      try {
+        const context = currentContext(req);
+        assertScope(context, context.tenantId, "report.read");
+        const db = getDataPlane();
+        await assertEntitlement(db, context, "analytics.read");
+        const orders = await db.prepare("SELECT customer_id AS subject_id, created_at AS occurred_at, total_cents AS value_cents FROM orders WHERE tenant_id = ? AND customer_id IS NOT NULL AND state = 'COMPLETED'").all(context.tenantId) as Array<{ subject_id: string; occurred_at: number; value_cents: number }>;
+        const bookings = await db.prepare("SELECT customer_user_id AS subject_id, starts_at AS occurred_at, o.total_cents AS value_cents FROM service_bookings b JOIN orders o ON o.id = b.order_id AND o.tenant_id = b.tenant_id WHERE b.tenant_id = ? AND b.status = 'COMPLETED'").all(context.tenantId) as Array<{ subject_id: string; occurred_at: number; value_cents: number }>;
+        const events = [...orders.map(event => ({ ...event, source: "orders" })), ...bookings.map(event => ({ ...event, source: "bookings" }))];
+        const first = new Map<string, string>();
+        for (const event of events) {
+          const key = `${event.source}:${event.subject_id}`;
+          const month = analyticsMonth(event.occurred_at);
+          if (!first.has(key) || month < (first.get(key) as string)) first.set(key, month);
+        }
+        const groups = new Map<string, { source: string; cohortMonth: string; activityMonth: string; activeSubjects: Set<string>; valueCents: number }>();
+        for (const event of events) {
+          const cohortMonth = first.get(`${event.source}:${event.subject_id}`);
+          if (!cohortMonth) continue;
+          const activityMonth = analyticsMonth(event.occurred_at);
+          const key = `${event.source}:${cohortMonth}:${activityMonth}`;
+          const group = groups.get(key) ?? { source: event.source, cohortMonth, activityMonth, activeSubjects: new Set<string>(), valueCents: 0 };
+          group.activeSubjects.add(event.subject_id);
+          group.valueCents += Number(event.value_cents ?? 0);
+          groups.set(key, group);
+        }
+        const rows = Array.from(groups.values()).sort((a, b) => `${a.cohortMonth}${a.source}${a.activityMonth}`.localeCompare(`${b.cohortMonth}${b.source}${b.activityMonth}`)).map(group => ({ source: group.source, cohort_month: group.cohortMonth, activity_month: group.activityMonth, active_subjects: group.activeSubjects.size, value_cents: group.valueCents }));
+        return res.json({ ok: true, source: "database", methodology: "first completed order or booking by subject; subsequent completed activity by UTC month", rows });
+      } catch (error) { next(error); }
+    }
+  );
+
+  router.get(
+    "/analytics/retention",
+    authenticate,
+    async (req: AuthenticatedRequest, res, next) => {
+      try {
+        const context = currentContext(req);
+        assertScope(context, context.tenantId, "report.read");
+        const db = getDataPlane();
+        await assertEntitlement(db, context, "analytics.read");
+        const events = await db.prepare("SELECT customer_id AS subject_id, created_at AS occurred_at FROM orders WHERE tenant_id = ? AND customer_id IS NOT NULL AND state = 'COMPLETED'").all(context.tenantId) as Array<{ subject_id: string; occurred_at: number }>;
+        const first = new Map<string, string>();
+        for (const event of events) { const month = analyticsMonth(event.occurred_at); if (!first.has(event.subject_id) || month < (first.get(event.subject_id) as string)) first.set(event.subject_id, month); }
+        const cohortSizes = new Map<string, Set<string>>();
+        const active = new Map<string, Set<string>>();
+        first.forEach((cohort, subject) => (cohortSizes.get(cohort) ?? (cohortSizes.set(cohort, new Set<string>()), cohortSizes.get(cohort) as Set<string>)).add(subject));
+        for (const event of events) { const cohort = first.get(event.subject_id); if (!cohort) continue; const month = analyticsMonth(event.occurred_at); const key = `${cohort}:${month}`; (active.get(key) ?? (active.set(key, new Set<string>()), active.get(key) as Set<string>)).add(event.subject_id); }
+        const rows = Array.from(active.entries()).sort(([a], [b]) => a.localeCompare(b)).map(([key, subjects]) => { const [cohortMonth, activityMonth] = key.split(":"); const cohortSize = cohortSizes.get(cohortMonth)?.size ?? 0; return { cohort_month: cohortMonth, activity_month: activityMonth, cohort_size: cohortSize, retained_subjects: subjects.size, retention_rate: cohortSize ? Number((subjects.size / cohortSize).toFixed(4)) : 0 }; });
+        return res.json({ ok: true, source: "database", methodology: "completed-order customer retention by UTC calendar month", rows });
+      } catch (error) { next(error); }
+    }
+  );
+
+  router.get(
+    "/analytics/cac",
+    authenticate,
+    async (req: AuthenticatedRequest, res, next) => {
+      try {
+        const context = currentContext(req);
+        assertScope(context, context.tenantId, "report.read");
+        const db = getDataPlane();
+        await assertEntitlement(db, context, "analytics.read");
+        const campaigns = await db.prepare("SELECT id, name, spent_cents, created_at FROM ad_campaigns WHERE tenant_id = ?").all(context.tenantId) as Array<{ id: string; name: string; spent_cents: number; created_at: number }>;
+        const orders = await db.prepare("SELECT customer_id, created_at FROM orders WHERE tenant_id = ? AND customer_id IS NOT NULL AND state = 'COMPLETED' ORDER BY created_at").all(context.tenantId) as Array<{ customer_id: string; created_at: number }>;
+        const acquired = new Map<string, string>();
+        for (const order of orders) if (!acquired.has(order.customer_id)) acquired.set(order.customer_id, analyticsMonth(order.created_at));
+        const byMonth = new Map<string, number>();
+        acquired.forEach(month => byMonth.set(month, (byMonth.get(month) ?? 0) + 1));
+        const spendCents = campaigns.reduce((sum, campaign) => sum + Number(campaign.spent_cents ?? 0), 0);
+        const rows = Array.from(byMonth.entries()).sort(([a], [b]) => a.localeCompare(b)).map(([month, newCustomers]) => ({ month, new_customers: newCustomers, spend_cents: spendCents, cac_cents: newCustomers ? Math.round(spendCents / newCustomers) : null }));
+        return res.json({ ok: true, source: "database", methodology: "ad_campaigns.spent_cents divided by first completed-order customers; no modeled or synthetic spend", total_spend_cents: spendCents, total_new_customers: acquired.size, blended_cac_cents: acquired.size ? Math.round(spendCents / acquired.size) : null, campaigns, rows });
+      } catch (error) { next(error); }
+    }
+  );
+
+  router.get(
+    "/analytics/ltv",
+    authenticate,
+    async (req: AuthenticatedRequest, res, next) => {
+      try {
+        const context = currentContext(req);
+        assertScope(context, context.tenantId, "report.read");
+        const db = getDataPlane();
+        await assertEntitlement(db, context, "analytics.read");
+        const rows = await db.prepare("SELECT customer_id, COUNT(*) AS order_count, COALESCE(SUM(total_cents), 0) AS revenue_cents, MIN(created_at) AS first_order_at, MAX(created_at) AS last_order_at FROM orders WHERE tenant_id = ? AND customer_id IS NOT NULL AND state = 'COMPLETED' GROUP BY customer_id").all(context.tenantId) as Array<{ customer_id: string; order_count: number; revenue_cents: number; first_order_at: number; last_order_at: number }>;
+        const customerCount = rows.length;
+        const totalRevenue = rows.reduce((sum, row) => sum + Number(row.revenue_cents), 0);
+        const totalOrders = rows.reduce((sum, row) => sum + Number(row.order_count), 0);
+        const averageOrderValue = totalOrders ? totalRevenue / totalOrders : 0;
+        const averageOrdersPerCustomer = customerCount ? totalOrders / customerCount : 0;
+        const historicalLtv = customerCount ? totalRevenue / customerCount : 0;
+        const projectedLtv = Math.round(averageOrderValue * averageOrdersPerCustomer);
+        return res.json({ ok: true, source: "database", methodology: "completed-order revenue per customer; projected LTV is average order value multiplied by observed orders per customer", summary: { customers: customerCount, completed_orders: totalOrders, revenue_cents: totalRevenue, average_order_value_cents: Math.round(averageOrderValue), average_orders_per_customer: Number(averageOrdersPerCustomer.toFixed(4)), historical_ltv_cents: Math.round(historicalLtv), projected_ltv_cents: projectedLtv }, customers: rows });
       } catch (error) { next(error); }
     }
   );

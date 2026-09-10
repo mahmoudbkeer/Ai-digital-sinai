@@ -537,4 +537,31 @@ describe("Business OS workflows", () => {
     await expect(segmentView.json()).resolves.toMatchObject({ members: expect.arrayContaining([expect.objectContaining({ id: customerId })]) });
     for (const path of ["/api/platform/reports/profit", "/api/platform/reports/inventory", "/api/platform/reports/customers"]) expect((await request(path, { headers })).status).toBe(200);
   });
+
+  it("exposes real-data cohorts, retention, CAC, and LTV analytics with tenant isolation", async () => {
+    const identity = await register("analytics-depth@example.com", "Analytics Depth Tenant");
+    const headers = auth(identity);
+    await expect((await request("/api/platform/subscriptions", { method: "POST", headers, body: JSON.stringify({ planCode: "trial" }) })).status).toBe(201);
+    const product = await request("/api/platform/products", { method: "POST", headers, body: JSON.stringify({ businessId: identity.businessId, sku: "ANALYTICS-001", name: "منتج التحليلات", priceCents: 1800 }) });
+    const { productId } = (await product.json()) as { productId: string };
+    const supplier = await request("/api/platform/suppliers", { method: "POST", headers, body: JSON.stringify({ businessId: identity.businessId, name: "مورد التحليلات" }) });
+    const { supplierId } = (await supplier.json()) as { supplierId: string };
+    await request("/api/platform/purchases", { method: "POST", headers, body: JSON.stringify({ businessId: identity.businessId, branchId: identity.branchId, supplierId, idempotencyKey: "analytics-purchase-1", items: [{ productId, quantity: 4, unitCostCents: 700 }] }) });
+    const customer = await request("/api/platform/customers", { method: "POST", headers, body: JSON.stringify({ name: "عميل التحليلات" }) });
+    const { customerId } = (await customer.json()) as { customerId: string };
+    const order = await request("/api/platform/orders", { method: "POST", headers, body: JSON.stringify({ businessId: identity.businessId, branchId: identity.branchId, customerId, items: [{ productId, quantity: 1 }] }) });
+    const { orderId } = (await order.json()) as { orderId: string };
+    await getDataPlane().prepare("UPDATE orders SET state = 'COMPLETED' WHERE id = ? AND tenant_id = ?").run(orderId, identity.tenantId);
+    for (const path of ["/api/platform/analytics/cohorts", "/api/platform/analytics/retention", "/api/platform/analytics/cac", "/api/platform/analytics/ltv"]) {
+      const response = await request(path, { headers });
+      expect(response.status).toBe(200);
+      await expect(response.json()).resolves.toMatchObject({ ok: true, source: "database" });
+    }
+    const ltv = await request("/api/platform/analytics/ltv", { headers });
+    await expect(ltv.json()).resolves.toMatchObject({ summary: expect.objectContaining({ customers: 1, completed_orders: 1, revenue_cents: 1800 }) });
+    const other = await register("analytics-other@example.com", "Analytics Other Tenant");
+    await expect((await request("/api/platform/subscriptions", { method: "POST", headers: auth(other), body: JSON.stringify({ planCode: "trial" }) })).status).toBe(201);
+    const otherAnalytics = await request("/api/platform/analytics/ltv", { headers: auth(other) });
+    await expect(otherAnalytics.json()).resolves.toMatchObject({ summary: expect.objectContaining({ customers: 0, completed_orders: 0, revenue_cents: 0 }) });
+  });
 });
