@@ -17,6 +17,20 @@ jobs:
   quality:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: ai_digital_sinai
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d ai_digital_sinai"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -105,3 +119,11 @@ jobs:
 
       - name: Adversarial security integration test
         run: pnpm test:security:adversarial
+
+      - name: PostgreSQL critical tenant and financial integrity test
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/ai_digital_sinai
+          NODE_ENV: staging
+          COMMAND_CONTEXT_SECRET: ci-postgres-command-secret
+          PAYMENT_WEBHOOK_SECRET: ci-postgres-webhook-secret
+        run: pnpm test:staging:api
