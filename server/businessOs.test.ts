@@ -564,4 +564,32 @@ describe("Business OS workflows", () => {
     const otherAnalytics = await request("/api/platform/analytics/ltv", { headers: auth(other) });
     await expect(otherAnalytics.json()).resolves.toMatchObject({ summary: expect.objectContaining({ customers: 0, completed_orders: 0, revenue_cents: 0 }) });
   });
+
+  it("supports tenant-scoped delivery zones, distance pricing, and recorded GPS tracking", async () => {
+    const identity = await register("logistics-depth@example.com", "Logistics Depth Tenant");
+    const headers = auth(identity);
+    const zone = await request("/api/platform/delivery-zones", { method: "POST", headers, body: JSON.stringify({ businessId: identity.businessId, branchId: identity.branchId, name: "وسط المدينة", centerLatitude: 30, centerLongitude: 33, radiusMeters: 10000, baseFeeCents: 100, perKmCents: 100 }) });
+    expect(zone.status).toBe(201);
+    const { zoneId } = (await zone.json()) as { zoneId: string };
+    const quote = await request("/api/platform/delivery-quotes", { method: "POST", headers, body: JSON.stringify({ branchId: identity.branchId, latitude: 30.01, longitude: 33, zoneId }) });
+    expect(quote.status).toBe(200);
+    await expect(quote.json()).resolves.toMatchObject({ source: "database", zone: { id: zoneId }, pricing: "base_fee_cents + ceil(distance_km) * per_km_cents" });
+    const product = await request("/api/platform/products", { method: "POST", headers, body: JSON.stringify({ businessId: identity.businessId, sku: "LOGISTICS-001", name: "منتج التوصيل", priceCents: 900 }) });
+    const { productId } = (await product.json()) as { productId: string };
+    const supplier = await request("/api/platform/suppliers", { method: "POST", headers, body: JSON.stringify({ businessId: identity.businessId, name: "مورد التوصيل" }) });
+    const { supplierId } = (await supplier.json()) as { supplierId: string };
+    await request("/api/platform/purchases", { method: "POST", headers, body: JSON.stringify({ businessId: identity.businessId, branchId: identity.branchId, supplierId, idempotencyKey: "logistics-purchase-1", items: [{ productId, quantity: 2, unitCostCents: 400 }] }) });
+    const order = await request("/api/platform/orders", { method: "POST", headers, body: JSON.stringify({ businessId: identity.businessId, branchId: identity.branchId, items: [{ productId, quantity: 1 }] }) });
+    const { orderId } = (await order.json()) as { orderId: string };
+    const delivery = await request("/api/platform/deliveries", { method: "POST", headers, body: JSON.stringify({ orderId }) });
+    expect(delivery.status).toBe(201);
+    const { deliveryId } = (await delivery.json()) as { deliveryId: string };
+    const location = await request(`/api/platform/deliveries/${deliveryId}/location`, { method: "POST", headers, body: JSON.stringify({ latitude: 30.01, longitude: 33.01, accuracyMeters: 8, recordedAt: 1700000000000 }) });
+    expect(location.status).toBe(201);
+    const locations = await request(`/api/platform/deliveries/${deliveryId}/locations`, { headers });
+    await expect(locations.json()).resolves.toMatchObject({ deliveryId, locations: [expect.objectContaining({ latitude: 30.01, longitude: 33.01, accuracy_meters: 8, recorded_at: 1700000000000 })] });
+    const other = await register("logistics-other@example.com", "Logistics Other Tenant");
+    const crossTenant = await request(`/api/platform/deliveries/${deliveryId}/locations`, { headers: auth(other) });
+    expect(crossTenant.status).toBe(404);
+  });
 });

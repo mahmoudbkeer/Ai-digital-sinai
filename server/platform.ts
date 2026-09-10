@@ -252,6 +252,14 @@ function now() {
 function analyticsMonth(timestamp: number) {
   return new Date(Number(timestamp)).toISOString().slice(0, 7);
 }
+function haversineMeters(latitudeA: number, longitudeA: number, latitudeB: number, longitudeB: number) {
+  const radians = (value: number) => (value * Math.PI) / 180;
+  const earthRadiusMeters = 6371000;
+  const deltaLatitude = radians(latitudeB - latitudeA);
+  const deltaLongitude = radians(longitudeB - longitudeA);
+  const a = Math.sin(deltaLatitude / 2) ** 2 + Math.cos(radians(latitudeA)) * Math.cos(radians(latitudeB)) * Math.sin(deltaLongitude / 2) ** 2;
+  return 2 * earthRadiusMeters * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
 function hashToken(token: string) {
   return createHash("sha256").update(token).digest("hex");
 }
@@ -1864,6 +1872,111 @@ export function createPlatformRouter(): Router {
       } catch (error) {
         next(error);
       }
+    }
+  );
+
+  router.post(
+    "/delivery-zones",
+    authenticate,
+    async (req: AuthenticatedRequest, res, next) => {
+      try {
+        const context = currentContext(req);
+        assertScope(context, context.tenantId, "order.manage");
+        const { businessId, branchId, name, centerLatitude, centerLongitude, radiusMeters, baseFeeCents = 0, perKmCents = 0 } = req.body ?? {};
+        const latitude = Number(centerLatitude);
+        const longitude = Number(centerLongitude);
+        const radius = validatePositiveInteger(radiusMeters, "radiusMeters");
+        const baseFee = validateMoney(baseFeeCents, "baseFeeCents");
+        const perKm = validateMoney(perKmCents, "perKmCents");
+        if (!isNonEmptyString(businessId, 100) || !isNonEmptyString(branchId, 100) || !isNonEmptyString(name, 120) || !Number.isFinite(latitude) || latitude < -90 || latitude > 90 || !Number.isFinite(longitude) || longitude < -180 || longitude > 180) throw httpError(400, "invalid-delivery-zone", "بيانات منطقة التوصيل غير صالحة.");
+        const db = getDataPlane();
+        if (!(await db.prepare("SELECT id FROM branches WHERE id = ? AND tenant_id = ? AND business_id = ?").get(branchId, context.tenantId, businessId))) throw httpError(404, "branch-not-found", "الفرع غير موجود داخل النشاط الحالي.");
+        const zoneId = randomUUID();
+        const timestamp = now();
+        await db.prepare("INSERT INTO delivery_zones (id, tenant_id, business_id, branch_id, name, center_latitude, center_longitude, radius_meters, base_fee_cents, per_km_cents, created_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)").run(zoneId, context.tenantId, businessId, branchId, name.trim(), latitude, longitude, radius, baseFee, perKm, context.userId, timestamp, timestamp);
+        await recordAudit(db, context, "delivery.zone.create", "delivery_zone", zoneId, req.requestId, { branchId, radiusMeters: radius, baseFeeCents: baseFee, perKmCents: perKm });
+        return res.status(201).json({ ok: true, zoneId, status: "ACTIVE" });
+      } catch (error) { next(error); }
+    }
+  );
+
+  router.get(
+    "/delivery-zones",
+    authenticate,
+    async (req: AuthenticatedRequest, res, next) => {
+      try {
+        const context = currentContext(req);
+        assertScope(context, context.tenantId, "order.read");
+        const zones = await getDataPlane().prepare("SELECT id, business_id, branch_id, name, center_latitude, center_longitude, radius_meters, base_fee_cents, per_km_cents, active, created_at, updated_at FROM delivery_zones WHERE tenant_id = ? AND active = 1 ORDER BY name").all(context.tenantId);
+        return res.json({ ok: true, zones });
+      } catch (error) { next(error); }
+    }
+  );
+
+  router.post(
+    "/delivery-quotes",
+    authenticate,
+    async (req: AuthenticatedRequest, res, next) => {
+      try {
+        const context = currentContext(req);
+        assertScope(context, context.tenantId, "order.read");
+        const { branchId, latitude: rawLatitude, longitude: rawLongitude, zoneId } = req.body ?? {};
+        const latitude = Number(rawLatitude);
+        const longitude = Number(rawLongitude);
+        if (!isNonEmptyString(branchId, 100) || !Number.isFinite(latitude) || latitude < -90 || latitude > 90 || !Number.isFinite(longitude) || longitude < -180 || longitude > 180) throw httpError(400, "invalid-delivery-coordinate", "الفرع وإحداثيات الوجهة مطلوبة.");
+        const db = getDataPlane();
+        const branch = await db.prepare("SELECT id FROM branches WHERE id = ? AND tenant_id = ?").get(branchId, context.tenantId);
+        if (!branch) throw httpError(404, "branch-not-found", "الفرع غير موجود.");
+        const zones = await db.prepare("SELECT id, name, center_latitude, center_longitude, radius_meters, base_fee_cents, per_km_cents FROM delivery_zones WHERE tenant_id = ? AND branch_id = ? AND active = 1").all(context.tenantId, branchId) as Array<{ id: string; name: string; center_latitude: number; center_longitude: number; radius_meters: number; base_fee_cents: number; per_km_cents: number }>;
+        const eligible = zones.filter(zone => !zoneId || zone.id === zoneId).map(zone => ({ zone, distanceMeters: haversineMeters(zone.center_latitude, zone.center_longitude, latitude, longitude) })).filter(candidate => candidate.distanceMeters <= candidate.zone.radius_meters).sort((a, b) => a.distanceMeters - b.distanceMeters);
+        const selected = eligible[0];
+        if (!selected) throw httpError(422, "outside-delivery-zone", "الوجهة خارج مناطق التوصيل المتاحة.");
+        const distanceKm = selected.distanceMeters / 1000;
+        const distanceFeeCents = Math.ceil(distanceKm) * selected.zone.per_km_cents;
+        const totalFeeCents = selected.zone.base_fee_cents + distanceFeeCents;
+        return res.json({ ok: true, source: "database", zone: { id: selected.zone.id, name: selected.zone.name }, distanceMeters: Math.round(selected.distanceMeters), distanceKm: Number(distanceKm.toFixed(3)), baseFeeCents: selected.zone.base_fee_cents, distanceFeeCents, totalFeeCents, pricing: "base_fee_cents + ceil(distance_km) * per_km_cents" });
+      } catch (error) { next(error); }
+    }
+  );
+
+  router.post(
+    "/deliveries/:deliveryId/location",
+    authenticate,
+    async (req: AuthenticatedRequest, res, next) => {
+      try {
+        const context = currentContext(req);
+        const latitude = Number(req.body?.latitude);
+        const longitude = Number(req.body?.longitude);
+        const accuracy = req.body?.accuracyMeters == null ? null : Number(req.body.accuracyMeters);
+        if (!Number.isFinite(latitude) || latitude < -90 || latitude > 90 || !Number.isFinite(longitude) || longitude < -180 || longitude > 180 || (accuracy != null && (!Number.isFinite(accuracy) || accuracy < 0))) throw httpError(400, "invalid-gps-point", "إحداثيات GPS أو الدقة غير صالحة.");
+        const db = getDataPlane();
+        const delivery = await db.prepare("SELECT d.id, d.driver_id, d.state, dr.user_id AS driver_user_id FROM deliveries d LEFT JOIN drivers dr ON dr.id = d.driver_id AND dr.tenant_id = d.tenant_id WHERE d.id = ? AND d.tenant_id = ?").get(req.params.deliveryId, context.tenantId) as { id: string; driver_id: string | null; state: string; driver_user_id: string | null } | undefined;
+        if (!delivery) throw httpError(404, "delivery-not-found", "التسليم غير موجود داخل المستأجر الحالي.");
+        if (!context.permissions.includes("order.manage") && delivery.driver_user_id !== context.userId) throw httpError(403, "delivery-forbidden", "لا يمكنك تسجيل موقع هذه المهمة.");
+        if (["DELIVERED", "FAILED", "CANCELLED"].includes(delivery.state)) throw httpError(409, "closed-delivery", "لا يمكن تسجيل موقع لتسليم مغلق.");
+        const eventId = randomUUID();
+        const recordedAt = Number(req.body?.recordedAt ?? now());
+        if (!Number.isSafeInteger(recordedAt) || recordedAt < 0) throw httpError(400, "invalid-recorded-at", "وقت التسجيل غير صالح.");
+        await db.prepare("INSERT INTO delivery_location_events (id, tenant_id, delivery_id, driver_id, latitude, longitude, accuracy_meters, recorded_at, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)").run(eventId, context.tenantId, delivery.id, delivery.driver_id, latitude, longitude, accuracy, recordedAt, now());
+        await recordAudit(db, context, "delivery.location.create", "delivery", delivery.id, req.requestId, { eventId, latitude, longitude, accuracyMeters: accuracy });
+        return res.status(201).json({ ok: true, eventId, deliveryId: delivery.id, recordedAt });
+      } catch (error) { next(error); }
+    }
+  );
+
+  router.get(
+    "/deliveries/:deliveryId/locations",
+    authenticate,
+    async (req: AuthenticatedRequest, res, next) => {
+      try {
+        const context = currentContext(req);
+        assertScope(context, context.tenantId, "order.read");
+        const db = getDataPlane();
+        const delivery = await db.prepare("SELECT id FROM deliveries WHERE id = ? AND tenant_id = ?").get(req.params.deliveryId, context.tenantId);
+        if (!delivery) throw httpError(404, "delivery-not-found", "التسليم غير موجود داخل المستأجر الحالي.");
+        const locations = await db.prepare("SELECT id, driver_id, latitude, longitude, accuracy_meters, recorded_at, created_at FROM delivery_location_events WHERE delivery_id = ? AND tenant_id = ? ORDER BY recorded_at ASC").all(req.params.deliveryId, context.tenantId);
+        return res.json({ ok: true, deliveryId: req.params.deliveryId, locations });
+      } catch (error) { next(error); }
     }
   );
 

@@ -69,7 +69,7 @@ export async function migratePostgres(): Promise<void> {
     await client.query(
       "CREATE TABLE IF NOT EXISTS schema_migrations (version INTEGER PRIMARY KEY, applied_at BIGINT NOT NULL)"
     );
-    for (const version of [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]) {
+    for (const version of [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]) {
       const existing = await client.query(
         "SELECT version FROM schema_migrations WHERE version = $1",
         [version]
@@ -78,7 +78,7 @@ export async function migratePostgres(): Promise<void> {
         const migration = readFileSync(
           path.resolve(
             process.cwd(),
-            `migrations/postgres/${String(version).padStart(4, "0")}_${version === 1 ? "core" : version === 2 ? "business_os" : version === 3 ? "productization" : version === 4 ? "mfa" : version === 5 ? "service_booking" : version === 6 ? "notification_delivery_status" : version === 7 ? "ads" : version === 8 ? "payment_links" : version === 9 ? "email_verification" : version === 10 ? "marketplace_directory" : "business_os_depth"}.sql`
+            `migrations/postgres/${String(version).padStart(4, "0")}_${version === 1 ? "core" : version === 2 ? "business_os" : version === 3 ? "productization" : version === 4 ? "mfa" : version === 5 ? "service_booking" : version === 6 ? "notification_delivery_status" : version === 7 ? "ads" : version === 8 ? "payment_links" : version === 9 ? "email_verification" : version === 10 ? "marketplace_directory" : version === 11 ? "business_os_depth" : "logistics_depth"}.sql`
           ),
           "utf8"
         );
