@@ -79,8 +79,10 @@ try {
     const email = `web-full-${Date.now()}@example.test`; const password = "secure-password-123";
     const registered = await call("POST", "/api/platform/auth/register", { email, password, displayName: "Web Full Acceptance", tenantName: "Web Full Tenant" });
     const owner = registered.body;
-    const auth = { token: owner.token, tenantId: owner.tenantId };
-    await call("POST", "/api/platform/auth/login", { email, password });
+    const login = await call("POST", "/api/platform/auth/login", { email, password });
+    const loginToken = login.body?.token;
+    if (login.status !== 200 || typeof loginToken !== "string" || loginToken === owner.token) throw new Error("login did not return a fresh session token");
+    const auth = { token: loginToken, tenantId: owner.tenantId };
     await call("GET", "/api/platform/me", undefined, auth);
     const product = await call("POST", "/api/platform/products", { businessId: owner.businessId, sku: `WEB-${Date.now()}`, name: "Web Acceptance Product", description: "real browser acceptance", priceCents: 1250, category: "local" }, auth);
     const productId = product.body.productId;
