@@ -23,25 +23,30 @@ jobs:
         run: xcodebuild -scheme AiDigitalSinai-Package -destination 'generic/platform=iOS Simulator' build CODE_SIGNING_ALLOWED=NO
       - name: Attempt Simulator screenshot
         id: simulator_screenshot
-        continue-on-error: true
         working-directory: ios
         run: |
-          set -o pipefail
           mkdir -p ../artifacts
-          trap 'status=$?; if [ "$status" -ne 0 ]; then echo "Simulator screenshot unavailable: iOS executable package could not be built/installed/launched on this runner." > ../artifacts/ios-marketplace-screenshot-limitation.txt; fi; exit "$status"' EXIT
+          limitation="../artifacts/ios-marketplace-screenshot-limitation.txt"
           DEVICE=$(xcrun simctl list devices available | sed -nE 's/.*\(([A-F0-9-]{36})\) \(.*//p' | head -1)
-          if [ -z "$DEVICE" ]; then echo "No available iOS Simulator device; screenshot unavailable."; exit 1; fi
-          xcrun simctl boot "$DEVICE" 2>/dev/null || true
-          xcrun simctl bootstatus "$DEVICE" -b
-          xcodebuild -scheme AiDigitalSinaiApp -destination "platform=iOS Simulator,id=$DEVICE" build CODE_SIGNING_ALLOWED=NO -derivedDataPath /tmp/AiDigitalSinaiDerived
-          APP=$(find /tmp/AiDigitalSinaiDerived/Build/Products -name 'AiDigitalSinaiApp.app' -type d -print -quit)
-          if [ -z "$APP" ]; then echo "Package executable did not produce an installable .app bundle."; exit 1; fi
-          BUNDLE_ID=$( /usr/libexec/PlistBuddy -c 'Print:CFBundleIdentifier' "$APP/Info.plist" 2>/dev/null || echo "AiDigitalSinaiApp" )
-          xcrun simctl install "$DEVICE" "$APP"
-          xcrun simctl launch "$DEVICE" "$BUNDLE_ID"
-          sleep 3
-          mkdir -p ../artifacts
-          xcrun simctl io "$DEVICE" screenshot ../artifacts/ios-marketplace-simulator.png
+          if [ -z "$DEVICE" ]; then
+            echo "Simulator screenshot unavailable: no available iOS Simulator device." > "$limitation"
+            exit 0
+          fi
+          if ! (
+            xcrun simctl boot "$DEVICE" 2>/dev/null || true
+            xcrun simctl bootstatus "$DEVICE" -b
+            xcodebuild -scheme AiDigitalSinaiApp -destination "platform=iOS Simulator,id=$DEVICE" build CODE_SIGNING_ALLOWED=NO -derivedDataPath /tmp/AiDigitalSinaiDerived
+            APP=$(find /tmp/AiDigitalSinaiDerived/Build/Products -name 'AiDigitalSinaiApp.app' -type d -print -quit)
+            test -n "$APP"
+            BUNDLE_ID=$( /usr/libexec/PlistBuddy -c 'Print:CFBundleIdentifier' "$APP/Info.plist" 2>/dev/null || echo "AiDigitalSinaiApp" )
+            xcrun simctl install "$DEVICE" "$APP"
+            xcrun simctl launch "$DEVICE" "$BUNDLE_ID"
+            sleep 3
+            xcrun simctl io "$DEVICE" screenshot ../artifacts/ios-marketplace-simulator.png
+          ); then
+            echo "Simulator screenshot unavailable: iOS executable package could not be built/installed/launched on this runner." > "$limitation"
+          fi
+          exit 0
       - name: Upload Simulator screenshot or limitation log
         if: always()
         uses: actions/upload-artifact@v4
