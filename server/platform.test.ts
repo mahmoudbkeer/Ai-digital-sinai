@@ -47,6 +47,30 @@ describe("platform core", () => {
     await expect(response.json()).resolves.toMatchObject({ context: { tenantId: identity.tenantId, userId: identity.userId, role: "TENANT_OWNER" } });
   });
 
+  it("authenticates an existing user and rejects an incorrect password", async () => {
+    const identity = await register("login-success@example.com", "Login Success Tenant");
+    const invalid = await request("/api/platform/auth/login", {
+      method: "POST",
+      body: JSON.stringify({ email: "login-success@example.com", password: "wrong-password-123" }),
+    });
+    expect(invalid.status).toBe(401);
+    await expect(invalid.json()).resolves.toMatchObject({ error: "invalid-login" });
+
+    const login = await request("/api/platform/auth/login", {
+      method: "POST",
+      body: JSON.stringify({ email: "LOGIN-SUCCESS@EXAMPLE.COM", password: "secure-password-123" }),
+    });
+    expect(login.status).toBe(200);
+    const result = await login.json() as { token: string; userId: string; tenants: Array<{ tenant_id: string; role: string }> };
+    expect(result).toMatchObject({ ok: true, userId: identity.userId, token: expect.any(String) });
+    expect(result.tenants).toContainEqual({ tenant_id: identity.tenantId, role: "TENANT_OWNER" });
+    expect(result.token).not.toBe(identity.token);
+
+    const me = await request("/api/platform/me", { headers: auth({ token: result.token, tenantId: identity.tenantId }) });
+    expect(me.status).toBe(200);
+    await expect(me.json()).resolves.toMatchObject({ context: { userId: identity.userId, tenantId: identity.tenantId } });
+  });
+
   it("completes business onboarding through pending review and Super Admin approval", async () => {
     const owner = await register("onboarding-owner@example.com", "Onboarding Tenant");
     const submission = await request("/api/platform/marketplace/onboarding", { method: "POST", headers: auth(owner), body: JSON.stringify({ name: "نشاط اختبار المراجعة", category: "الصحة والطب", district: "المساعيد", phone: "201000000000" }) });
