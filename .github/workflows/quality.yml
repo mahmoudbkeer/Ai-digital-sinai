@@ -120,9 +120,21 @@ jobs:
       - name: Adversarial security integration test
         run: pnpm test:security:adversarial
 
+      - name: PostgreSQL migration and schema verification
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/ai_digital_sinai
+          DATABASE_ENGINE: postgresql
+          POSTGRESQL_TEST_MODE: "true"
+          NODE_ENV: staging
+          COMMAND_CONTEXT_SECRET: ci-postgres-command-secret
+          PAYMENT_WEBHOOK_SECRET: ci-postgres-webhook-secret
+        run: pnpm test:staging
+
       - name: PostgreSQL critical tenant and financial integrity test
         env:
           DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/ai_digital_sinai
+          DATABASE_ENGINE: postgresql
+          POSTGRESQL_TEST_MODE: "true"
           NODE_ENV: staging
           COMMAND_CONTEXT_SECRET: ci-postgres-command-secret
           PAYMENT_WEBHOOK_SECRET: ci-postgres-webhook-secret

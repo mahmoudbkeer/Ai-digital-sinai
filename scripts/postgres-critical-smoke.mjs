@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { Pool } from "pg";
 import { spawn } from "node:child_process";
 
 const ownsServer = !process.env.BASE_URL;
@@ -43,10 +44,15 @@ try {
   const { productId } = await json(productResponse);
   const movement = await request("/api/platform/inventory/movements", { method: "POST", headers: headersA, body: JSON.stringify({ branchId: a.branchId, productId, quantityDelta: 5, reason: "staging", idempotencyKey: `pg-movement-${Date.now()}` }) });
   assert(movement.status === 201, `inventory movement returned ${movement.status}`);
-  const order = await request("/api/platform/orders", { method: "POST", headers: headersA, body: JSON.stringify({ businessId: a.businessId, branchId: a.branchId, items: [{ productId, quantity: 1 }] }) });
+  const orderKey = `pg-order-${Date.now()}`;
+  const order = await request("/api/platform/orders", { method: "POST", headers: headersA, body: JSON.stringify({ businessId: a.businessId, branchId: a.branchId, idempotencyKey: orderKey, items: [{ productId, quantity: 1 }] }) });
   assert(order.status === 201, `order returned ${order.status}`);
   const orderBody = await json(order);
   assert(orderBody.totalCents === 1250 && orderBody.state === "PENDING", "order totals/state are invalid");
+  const duplicateOrder = await request("/api/platform/orders", { method: "POST", headers: headersA, body: JSON.stringify({ businessId: a.businessId, branchId: a.branchId, idempotencyKey: orderKey, items: [{ productId, quantity: 1 }] }) });
+  assert(duplicateOrder.status === 201, `idempotent order replay returned ${duplicateOrder.status}`);
+  const duplicateOrderBody = await json(duplicateOrder);
+  assert(duplicateOrderBody.orderId === orderBody.orderId, "idempotent order replay created a duplicate");
 
   const crossTenantSearch = await request("/api/platform/ai/search", { method: "POST", headers: headersB, body: JSON.stringify({ query: "PostgreSQL product" }) });
   assert(crossTenantSearch.status === 200, `cross tenant search returned ${crossTenantSearch.status}`);
@@ -54,7 +60,20 @@ try {
 
   const payment = await request("/api/platform/payment-intents", { method: "POST", headers: headersA, body: JSON.stringify({ amountCents: 1250, provider: "paymob", idempotencyKey: `pg-payment-${Date.now()}` }) });
   assert(payment.status === 201 && (await json(payment)).status === "REQUIRES_SETUP", "payment provider reported false success");
-  console.log(JSON.stringify({ status: "PASS", provider: "postgresql", checks: ["identity", "tenant tampering", "inventory", "order", "cross-tenant AI search", "payment setup boundary"] }));
+  const pool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: process.env.PG_SSL === "require" ? { rejectUnauthorized: true } : undefined });
+  try {
+    const financial = await pool.query("SELECT COALESCE(SUM(debit_cents), 0)::bigint AS debit, COALESCE(SUM(credit_cents), 0)::bigint AS credit FROM ledger_entries WHERE tenant_id = $1", [a.tenantId]);
+    const debit = Number(financial.rows[0].debit);
+    const credit = Number(financial.rows[0].credit);
+    assert(debit === credit, `ledger imbalance debit=${debit} credit=${credit}`);
+    const invoice = await pool.query("SELECT COUNT(*)::int AS count FROM invoices WHERE tenant_id = $1 AND order_id = $2", [a.tenantId, orderBody.orderId]);
+    assert(Number(invoice.rows[0].count) === 1, `expected one invoice for order, got ${invoice.rows[0].count}`);
+    const journals = await pool.query("SELECT COUNT(*)::int AS unbalanced FROM (SELECT j.id FROM ledger_journals j JOIN ledger_entries e ON e.tenant_id = j.tenant_id AND e.journal_id = j.id WHERE j.tenant_id = $1 GROUP BY j.id HAVING COALESCE(SUM(e.debit_cents), 0) <> COALESCE(SUM(e.credit_cents), 0)) q", [a.tenantId]);
+    assert(Number(journals.rows[0].unbalanced) === 0, `unbalanced journals=${journals.rows[0].unbalanced}`);
+    console.log(JSON.stringify({ status: "PASS", provider: "postgresql", financial: { debitCents: debit, creditCents: credit, balanced: true, invoiceCountForOrder: Number(invoice.rows[0].count), unbalancedJournals: Number(journals.rows[0].unbalanced) }, checks: ["identity", "tenant tampering", "inventory", "order", "idempotent order replay", "invoice", "balanced ledger", "cross-tenant AI search", "payment setup boundary"] }));
+  } finally {
+    await pool.end();
+  }
 } catch (error) {
   console.error(JSON.stringify({ status: "FAILED", provider: "postgresql", error: error instanceof Error ? error.message : String(error) }));
   process.exitCode = 1;
