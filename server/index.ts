@@ -24,11 +24,8 @@ import {
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-async function startServer() {
-  assertRuntimeEnvironment();
-  await ensureDataPlaneReady();
+export function createApp() {
   const app = express();
-  const server = createServer(app);
   app.use((req, res, next) => {
     const incoming = req.header("x-request-id");
     const requestId =
@@ -485,11 +482,21 @@ async function startServer() {
     res.sendFile(path.join(staticPath, "index.html"));
   });
 
-  const port = process.env.PORT || 3000;
+  return app;
+}
 
+export async function startServer() {
+  assertRuntimeEnvironment();
+  await ensureDataPlaneReady();
+  const app = createApp();
+  const server = createServer(app);
+  const port = process.env.PORT || 3000;
   server.listen(port, () => {
     console.log(`Server running on http://localhost:${port}/`);
   });
+  return server;
 }
 
-startServer().catch(console.error);
+if (process.env.RUNTIME_MODE !== "vercel") {
+  startServer().catch(console.error);
+}
