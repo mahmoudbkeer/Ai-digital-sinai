@@ -9,7 +9,7 @@ This artifact records the focused PostgreSQL CI gap closure for commit `test(ci)
 The Quality Gate now runs two explicit PostgreSQL stages against the service container `postgres:16`:
 
 1. `pnpm test:staging` runs `scripts/postgres-staging-smoke.mjs` with a PostgreSQL-only `DATABASE_URL`, `DATABASE_ENGINE=postgresql`, and `POSTGRESQL_TEST_MODE=true`. It checks connectivity and reports the actual server version, runs the existing migration runner, reruns it to prove idempotency, requires the exact schema migration versions `1..12`, checks required tables, foreign keys, tenant composite constraints, existing ledger balance, and a same-connection transaction rollback probe.
-2. `pnpm test:staging:api` runs `scripts/postgres-critical-smoke.mjs` with the same PostgreSQL-only markers. It checks two tenants, tenant-header tampering, cross-tenant AI search isolation, order creation and replay idempotency, invoice ownership, aggregate debit/credit balance, absence of unbalanced journals, and the honest `REQUIRES_SETUP` payment-provider boundary.
+2. `pnpm test:staging:api` runs `scripts/postgres-critical-smoke.mjs` with the same PostgreSQL-only markers. It checks two tenants, tenant-header tampering, cross-tenant AI search isolation, order creation, the existing payment-intent replay idempotency contract, invoice ownership, aggregate debit/credit balance, absence of unbalanced journals, and the honest `REQUIRES_SETUP` payment-provider boundary.
 
 The workflow still retains all existing quality stages, including dependency audit, secret scan, type check, unit tests, contract tests, production build, E2E, smoke, load, security, and adversarial tests.
 
@@ -34,7 +34,7 @@ The workflow still retains all existing quality stages, including dependency aud
 | Tenant isolation | Header tampering denied; cross-tenant AI search empty; invoice/ledger queries tenant-scoped |
 | RBAC/ABAC representative result | Existing authorization boundary exercised through API; no V7 RBAC suite duplicated |
 | Financial integrity | API-created order/invoice/ledger path; aggregate debit equals credit; zero unbalanced journals |
-| Idempotency | Replayed order with the same idempotency key returns the original order ID |
+| Idempotency | Replayed payment intent with the same idempotency key returns the original payment-intent ID and `replay: true` |
 | Rollback | Same-connection PostgreSQL transaction rollback probe passes |
 | Production build | Existing Quality Gate build stage retained |
 | Full Quality Gate | Must pass after push before final status is called VERIFIED |
