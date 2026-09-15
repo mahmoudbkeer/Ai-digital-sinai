@@ -56,9 +56,17 @@ const retailInventory: SectorModule = {
     { id: "retail-inventory-manage", label: "إدارة المخزون", description: "راجع الرصيد والحركات ونقاط إعادة الطلب من مصدر البيانات الحقيقي.", status: setup },
   ],
 };
+const retailSales: SectorModule = {
+  id: "retail-sales",
+  label: "المبيعات والطلبات",
+  description: "متابعة دورة البيع من الطلب إلى التنفيذ والإغلاق.",
+  operations: [
+    { id: "retail-sales-manage", label: "إدارة المبيعات والطلبات", description: "راجع الطلبات وحالاتها من مساحة العمل المعزولة للمستأجر.", status: setup },
+  ],
+};
 
 export const sectors: Sector[] = [
-  { id: "retail", name: "التجارة والتجزئة", eyebrow: "01 · بيع وتوزيع", description: "من عرض المنتج إلى الطلب والمخزون والتسليم.", modules: [retailCommerce, retailProducts, retailInventory, ...common("retail")] },
+  { id: "retail", name: "التجارة والتجزئة", eyebrow: "01 · بيع وتوزيع", description: "من عرض المنتج إلى الطلب والمخزون والتسليم.", modules: [retailCommerce, retailProducts, retailInventory, retailSales, ...common("retail")] },
   { id: "food", name: "الأغذية والمشروبات", eyebrow: "02 · مطاعم وإنتاج", description: "القائمة، التوريد، الطلبات، وسلامة التشغيل.", modules: common("food") },
   { id: "home-services", name: "الخدمات المنزلية", eyebrow: "03 · خدمة عند الطلب", description: "توزيع الطلبات والمواعيد ومتابعة التنفيذ.", modules: common("home") },
   { id: "crafts", name: "الحرف والصناعات", eyebrow: "04 · إنتاج محلي", description: "المنتج المحلي، المواد، والطلب المخصص.", modules: common("crafts") },
