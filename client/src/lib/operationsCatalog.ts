@@ -32,8 +32,17 @@ const common = (prefix: string): SectorModule[] => [
   { id: `${prefix}-insights`, label: "الرؤية والأداء", description: "مؤشرات تساعدك على اتخاذ قرار عملي.", operations: [{ id: `${prefix}-report`, label: "تقرير الأداء", description: "تقارير قابلة للتصدير بعد تفعيل مصدر البيانات.", status: deferred }, { id: `${prefix}-alerts`, label: "تنبيهات التشغيل", description: "تنبيهات للمهام المتأخرة أو المخاطر.", status: setup }] },
 ];
 
+const retailCommerce: SectorModule = {
+  id: "retail-commerce",
+  label: "التجارة والعمليات",
+  description: "نقطة دخول موحدة للمنتجات والمخزون والمبيعات والعملاء والموردين.",
+  operations: [
+    { id: "retail-commerce-overview", label: "فتح مركز التجارة", description: "ابدأ من مركز واحد لإدارة دورة التجارة داخل مساحة العمل.", status: setup },
+  ],
+};
+
 export const sectors: Sector[] = [
-  { id: "retail", name: "التجارة والتجزئة", eyebrow: "01 · بيع وتوزيع", description: "من عرض المنتج إلى الطلب والمخزون والتسليم.", modules: common("retail") },
+  { id: "retail", name: "التجارة والتجزئة", eyebrow: "01 · بيع وتوزيع", description: "من عرض المنتج إلى الطلب والمخزون والتسليم.", modules: [retailCommerce, ...common("retail")] },
   { id: "food", name: "الأغذية والمشروبات", eyebrow: "02 · مطاعم وإنتاج", description: "القائمة، التوريد، الطلبات، وسلامة التشغيل.", modules: common("food") },
   { id: "home-services", name: "الخدمات المنزلية", eyebrow: "03 · خدمة عند الطلب", description: "توزيع الطلبات والمواعيد ومتابعة التنفيذ.", modules: common("home") },
   { id: "crafts", name: "الحرف والصناعات", eyebrow: "04 · إنتاج محلي", description: "المنتج المحلي، المواد، والطلب المخصص.", modules: common("crafts") },
