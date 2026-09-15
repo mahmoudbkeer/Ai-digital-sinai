@@ -32,6 +32,9 @@ test("App Mode opens and navigates across mobile tabs", async ({ page }) => {
   await page.getByRole("button", { name: /المبيعات والطلبات/ }).click();
   await expect(page.getByRole("heading", { name: "المبيعات والطلبات", exact: true })).toBeVisible();
   await page.getByRole("button", { name: /العودة إلى وحدات/ }).click();
+  await page.getByRole("button", { name: /العملاء إدارة ملفات/ }).click();
+  await expect(page.getByRole("heading", { name: "العملاء", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: /العودة إلى وحدات/ }).click();
   await page.getByRole("button", { name: /الكتالوج والخدمات/ }).click();
   await expect(page.getByRole("heading", { name: "الكتالوج والخدمات" })).toBeVisible();
   await page.getByRole("button", { name: "فتح الأمر" }).first().click();
