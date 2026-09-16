@@ -72,9 +72,17 @@ const retailCustomers: SectorModule = {
     { id: "retail-customers-manage", label: "إدارة العملاء", description: "راجع العملاء وشرائح CRM من بيانات مساحة العمل المعزولة.", status: setup },
   ],
 };
+const retailSuppliers: SectorModule = {
+  id: "retail-suppliers",
+  label: "الموردون",
+  description: "تنظيم الموردين والمشتريات والاستلام ضمن دورة توريد قابلة للتتبع.",
+  operations: [
+    { id: "retail-suppliers-manage", label: "إدارة الموردين", description: "راجع الموردين ودورة الشراء والاستلام من مساحة العمل المعزولة.", status: setup },
+  ],
+};
 
 export const sectors: Sector[] = [
-  { id: "retail", name: "التجارة والتجزئة", eyebrow: "01 · بيع وتوزيع", description: "من عرض المنتج إلى الطلب والمخزون والتسليم.", modules: [retailCommerce, retailProducts, retailInventory, retailSales, retailCustomers, ...common("retail")] },
+  { id: "retail", name: "التجارة والتجزئة", eyebrow: "01 · بيع وتوزيع", description: "من عرض المنتج إلى الطلب والمخزون والتسليم.", modules: [retailCommerce, retailProducts, retailInventory, retailSales, retailCustomers, retailSuppliers, ...common("retail")] },
   { id: "food", name: "الأغذية والمشروبات", eyebrow: "02 · مطاعم وإنتاج", description: "القائمة، التوريد، الطلبات، وسلامة التشغيل.", modules: common("food") },
   { id: "home-services", name: "الخدمات المنزلية", eyebrow: "03 · خدمة عند الطلب", description: "توزيع الطلبات والمواعيد ومتابعة التنفيذ.", modules: common("home") },
   { id: "crafts", name: "الحرف والصناعات", eyebrow: "04 · إنتاج محلي", description: "المنتج المحلي، المواد، والطلب المخصص.", modules: common("crafts") },
