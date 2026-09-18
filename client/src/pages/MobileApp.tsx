@@ -2,7 +2,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { Bell, Home, LayoutDashboard, Search, ShoppingCart, UserRound } from "lucide-react";
 import { getLoginUrl } from "@/const";
 import { sectors, statusLabel, type Operation, type Sector, type SectorModule } from "@/lib/operationsCatalog";
-import { displayBusinessOsValue, isBusinessOsModuleId, loadBusinessOsModule, type BusinessOsData } from "@/lib/businessOsApi";
+import { displayBusinessOsValue, getBusinessOsMutation, isBusinessOsModuleId, loadBusinessOsModule, mutateBusinessOsModule, type BusinessOsData } from "@/lib/businessOsApi";
 import { useLocale } from "@/i18n";
 
 const tabs = [
@@ -35,6 +35,8 @@ export default function MobileApp() {
   const [moduleData, setModuleData] = useState<BusinessOsData | null>(null);
   const [moduleDataState, setModuleDataState] = useState<"idle" | "loading" | "ready" | "auth" | "error">("idle");
   const [moduleDataMessage, setModuleDataMessage] = useState("");
+  const [mutationValues, setMutationValues] = useState<Record<string, string>>({});
+  const [mutationState, setMutationState] = useState<"idle" | "loading" | "success" | "error">("idle");
   const [serviceState, setServiceState] = useState<ServiceState>({ health: "loading", readiness: "loading", observability: "loading", uptimeSeconds: null });
   const [offerings, setOfferings] = useState<Offering[]>([]);
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
@@ -179,9 +181,18 @@ export default function MobileApp() {
     const storedTenantId = localStorage.getItem("platform_tenant_id");
     if (storedToken && storedTenantId) setSession({ token: storedToken, tenantId: storedTenantId });
     const cleanup = loadApi();
-    fetch("/api/platform/me").then(async (response) => { if (response.ok) { const payload = await response.json() as { context?: PlatformContext }; setPlatformContext(payload.context ?? {}); } }).catch(() => undefined);
     return () => { cleanup?.(); window.removeEventListener("beforeinstallprompt", handleInstall); };
   }, []);
+
+  useEffect(() => {
+    if (!session) return;
+    fetch("/api/platform/me", { headers: authHeaders() }).then(async (response) => {
+      if (response.ok) {
+        const payload = await response.json() as { context?: PlatformContext };
+        setPlatformContext(payload.context ?? {});
+      }
+    }).catch(() => undefined);
+  }, [session]);
 
   const installApp = async () => {
     if (!installPrompt) return;
@@ -217,13 +228,19 @@ export default function MobileApp() {
       setModuleDataMessage(status === 401 ? "سجّل الدخول لقراءة بيانات مساحة العمل." : status === 403 ? "لا تملك الصلاحية المطلوبة لهذا النطاق." : (error as Error).message);
     }
   };
-  const openSector = (sector: Sector) => { setActiveSector(sector); setActiveModule(null); setSelectedOperation(null); setCommandMessage(""); setModuleData(null); setModuleDataState("idle"); };
-  const openModule = (module: SectorModule) => { setActiveModule(module); setSelectedOperation(null); setCommandMessage(""); void loadModuleData(module); };
-  const backToSectors = () => { setActiveSector(null); setActiveModule(null); setSelectedOperation(null); setCommandMessage(""); setModuleData(null); setModuleDataState("idle"); };
-  const backToModules = () => { setActiveModule(null); setSelectedOperation(null); setCommandMessage(""); setModuleData(null); setModuleDataState("idle"); };
+  const openSector = (sector: Sector) => { setActiveSector(sector); setActiveModule(null); setSelectedOperation(null); setCommandMessage(""); setModuleData(null); setModuleDataState("idle"); setMutationState("idle"); };
+  const openModule = (module: SectorModule) => { setActiveModule(module); setSelectedOperation(null); setCommandMessage(""); setMutationValues({}); setMutationState("idle"); void loadModuleData(module); };
+  const backToSectors = () => { setActiveSector(null); setActiveModule(null); setSelectedOperation(null); setCommandMessage(""); setModuleData(null); setModuleDataState("idle"); setMutationState("idle"); };
+  const backToModules = () => { setActiveModule(null); setSelectedOperation(null); setCommandMessage(""); setModuleData(null); setModuleDataState("idle"); setMutationState("idle"); };
   const runOperation = async (operation: Operation) => {
     setSelectedOperation(operation);
     if (!activeSector || !activeModule) return;
+    if (isBusinessOsModuleId(activeModule.id)) {
+      setMutationValues({});
+      setMutationState("idle");
+      setCommandMessage("أدخل البيانات المطلوبة لتنفيذ العملية داخل نطاق المستأجر الحالي.");
+      return;
+    }
     setCommandMessage("جارٍ تجهيز الأمر والتحقق من مدخلاته...");
     try {
       const idempotencyKey = `cmd-${Date.now()}-${window.crypto?.randomUUID?.() ?? Math.random().toString(36).slice(2)}`;
@@ -240,6 +257,21 @@ export default function MobileApp() {
     }
   };
 
+  const submitModuleMutation = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!activeModule || !isBusinessOsModuleId(activeModule.id)) return;
+    setMutationState("loading"); setModuleDataMessage("");
+    try {
+      await mutateBusinessOsModule(activeModule.id, mutationValues, authHeaders(), platformContext);
+      setMutationState("success"); setCommandMessage("تم تنفيذ العملية من الخادم داخل نطاق المستأجر، وتم تحديث البيانات.");
+      await loadModuleData(activeModule);
+    } catch (error) {
+      const status = (error as { status?: number }).status;
+      setMutationState("error");
+      setCommandMessage(status === 401 ? "سجّل الدخول لتنفيذ العملية." : status === 403 ? "لا تملك صلاحية RBAC المطلوبة لهذه العملية." : (error as Error).message);
+    }
+  };
+
   const moduleDataPanel = moduleDataState === "loading"
     ? <div className="mobile-command-note" role="status">جارٍ تحميل بيانات الوحدة من الخادم داخل نطاق مساحة العمل...</div>
     : moduleDataState === "auth" || moduleDataState === "error"
@@ -249,6 +281,7 @@ export default function MobileApp() {
             <small>Business OS · {moduleData.endpoint}</small>
             <h2>البيانات الحقيقية</h2>
             {moduleData.rows.length ? moduleData.rows.slice(0, 20).map((row, index) => <article key={String(row.id ?? index)} className="mobile-data-row"><b>{displayBusinessOsValue(row.name ?? row.sku ?? row.id ?? `سجل ${index + 1}`)}</b><span>{Object.entries(row).filter(([key]) => !["id", "name"].includes(key)).slice(0, 4).map(([key, value]) => `${key}: ${displayBusinessOsValue(value)}`).join(" · ")}</span></article>) : <span>لا توجد سجلات حقيقية داخل نطاق مساحة العمل الحالي.</span>}
+            {activeModule && isBusinessOsModuleId(activeModule.id) && selectedOperation && <form className="mobile-command-note" onSubmit={submitModuleMutation} aria-label={getBusinessOsMutation(activeModule.id).label}><b>{getBusinessOsMutation(activeModule.id).label}</b>{getBusinessOsMutation(activeModule.id).fields.map((field) => <input key={field.name} aria-label={field.label} required={field.required} type={field.type ?? "text"} placeholder={field.placeholder} value={mutationValues[field.name] ?? ""} onChange={(event) => setMutationValues((current) => ({ ...current, [field.name]: event.target.value }))} />)}<button className="mobile-command-button" type="submit" disabled={mutationState === "loading"}>{mutationState === "loading" ? "جارٍ التنفيذ..." : "تنفيذ وحفظ"}</button></form>}
           </section>
         : null;
 
