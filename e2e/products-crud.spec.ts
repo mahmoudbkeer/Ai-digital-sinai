@@ -1,0 +1,32 @@
+import { expect, test } from "@playwright/test";
+
+test("Products CRUD real journey: create, detail, update, archive", async ({ page }) => {
+  page.on("pageerror", (error) => console.log(`PAGE_ERROR: ${error.message}`));
+  const email = `e2e-products-${Date.now()}@example.test`;
+  const registration = await page.request.post("/api/platform/auth/register", { data: { email, password: "secure-password-123", displayName: "Products CRUD E2E", tenantName: "Products CRUD E2E Tenant" } });
+  expect(registration.status()).toBe(201);
+  const identity = await registration.json() as { token: string; tenantId: string; businessId: string };
+  const headers = { authorization: `Bearer ${identity.token}`, "x-tenant-id": identity.tenantId };
+  const created = await page.request.post("/api/platform/products", { headers, data: { businessId: identity.businessId, sku: "E2E-PRODUCT-001", name: "منتج E2E أصلي", priceCents: 1800 } });
+  expect(created.status()).toBe(201);
+  await page.addInitScript(({ token, tenantId }) => { localStorage.setItem("platform_token", token); localStorage.setItem("platform_tenant_id", tenantId); }, identity);
+  await page.goto("/app?tab=work");
+  await page.getByRole("button", { name: "التشغيل", exact: true }).click();
+  await page.getByRole("button", { name: /التجارة والتجزئة/ }).click();
+  await page.getByRole("button", { name: /المنتجات إدارة المنتجات/ }).click();
+  await expect(page.getByLabel("إدارة المنتجات الحقيقية").getByRole("heading", { name: "إدارة المنتجات", exact: true })).toBeVisible();
+  await expect(page.getByText("منتج E2E أصلي")).toBeVisible();
+  const productRow = page.locator(".mobile-data-row").filter({ hasText: "E2E-PRODUCT-001" });
+  await productRow.getByRole("button", { name: "فتح التفاصيل" }).click();
+  await expect(page.getByLabel("تفاصيل وتعديل المنتج")).toBeVisible();
+  await page.getByLabel("اسم المنتج").last().fill("منتج E2E معدل");
+  await page.getByRole("button", { name: "حفظ التعديل" }).click();
+  await expect(page.getByText("منتج E2E معدل")).toBeVisible();
+  await productRow.getByRole("button", { name: "فتح التفاصيل" }).click();
+  await page.getByRole("button", { name: "أرشفة المنتج" }).click();
+  await expect(page.getByText("تمت أرشفة المنتج دون حذف تاريخه.")).toBeVisible();
+  await expect(page.getByText("منتج E2E معدل")).not.toBeVisible();
+  await page.getByLabel("حالة المنتج").selectOption("archived");
+  await page.getByRole("button", { name: "تطبيق الفلتر" }).click();
+  await expect(page.getByText("منتج E2E معدل")).toBeVisible();
+});

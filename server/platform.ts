@@ -4405,11 +4405,19 @@ export function createPlatformRouter(): Router {
         const context = currentContext(req);
         assertScope(context, context.tenantId, "product.read");
         const db = getDataPlane();
-        const products = await db
-          .prepare(
-            "SELECT id, business_id, sku, name, description, category, price_cents, currency, status, created_at, updated_at FROM products WHERE tenant_id = ? AND status <> 'archived' ORDER BY created_at DESC LIMIT 500"
-          )
-          .all(context.tenantId);
+        const query = typeof req.query.query === "string" ? req.query.query.trim() : "";
+        const businessId = typeof req.query.businessId === "string" ? req.query.businessId.trim() : "";
+        const requestedStatus = typeof req.query.status === "string" ? req.query.status.trim().toLowerCase() : "";
+        const statusFilter = ["active", "draft", "archived"].includes(requestedStatus) ? requestedStatus : "";
+        const parameters: Array<string | number> = [context.tenantId];
+        if (businessId) parameters.push(businessId);
+        if (query) parameters.push(`%${query}%`, `%${query}%`);
+        if (statusFilter) parameters.push(statusFilter);
+        const products = await db.prepare(
+          `SELECT id, business_id, sku, name, description, category, price_cents, currency, status, created_at, updated_at
+           FROM products WHERE tenant_id = ?${businessId ? " AND business_id = ?" : ""}${query ? " AND (name LIKE ? OR sku LIKE ?)" : ""}${statusFilter ? " AND status = ?" : " AND status <> 'archived'"}
+           ORDER BY created_at DESC LIMIT 500`
+        ).all(...parameters);
         return res.json({ ok: true, products });
       } catch (error) {
         next(error);
@@ -4424,7 +4432,8 @@ export function createPlatformRouter(): Router {
       try {
         const context = currentContext(req);
         assertScope(context, context.tenantId, "product.read");
-        const product = await getDataPlane().prepare("SELECT id, business_id, sku, name, description, category, price_cents, currency, status, created_at, updated_at FROM products WHERE id = ? AND tenant_id = ? AND status <> 'archived'").get(req.params.productId, context.tenantId);
+        const includeArchived = req.query.includeArchived === "true";
+        const product = await getDataPlane().prepare(`SELECT id, business_id, sku, name, description, category, price_cents, currency, status, created_at, updated_at FROM products WHERE id = ? AND tenant_id = ?${includeArchived ? "" : " AND status <> 'archived'"}`).get(req.params.productId, context.tenantId);
         if (!product) throw httpError(404, "product-not-found", "المنتج غير موجود داخل المستأجر الحالي.");
         return res.json({ ok: true, product });
       } catch (error) { next(error); }
@@ -4461,6 +4470,8 @@ export function createPlatformRouter(): Router {
             "business-not-found",
             "النشاط غير موجود داخل المستأجر الحالي."
           );
+        if (await db.prepare("SELECT id FROM products WHERE tenant_id = ? AND sku = ?").get(context.tenantId, sku.trim()))
+          throw httpError(409, "sku-conflict", "رمز SKU مستخدم داخل المستأجر الحالي.");
         const productId = randomUUID();
         const createdAt = now();
         await db
@@ -4488,13 +4499,74 @@ export function createPlatformRouter(): Router {
           req.requestId,
           { businessId }
         );
-        return res.status(201).json({ ok: true, productId });
+        return res.status(201).json({ ok: true, productId, status: "active" });
       } catch (error) {
         next(error);
       }
     }
   );
 
+  router.patch(
+    "/products/:productId",
+    authenticate,
+    async (req: AuthenticatedRequest, res, next) => {
+      try {
+        const context = currentContext(req);
+        assertScope(context, context.tenantId, "product.manage");
+        const { sku, name, description, category, priceCents } = req.body ?? {};
+        if (sku !== undefined && !isNonEmptyString(sku, 80)) throw httpError(400, "invalid-product", "رمز SKU غير صالح.");
+        if (name !== undefined && !isNonEmptyString(name, 160)) throw httpError(400, "invalid-product", "اسم المنتج غير صالح.");
+        if (description !== undefined && description !== null && !isNonEmptyString(description, 2000)) throw httpError(400, "invalid-product", "وصف المنتج غير صالح.");
+        if (category !== undefined && category !== null && !isNonEmptyString(category, 120)) throw httpError(400, "invalid-product", "تصنيف المنتج غير صالح.");
+        const price = priceCents === undefined ? undefined : validateMoney(priceCents, "priceCents");
+        const db = getDataPlane();
+        const product = await db.prepare("SELECT id, sku, status FROM products WHERE id = ? AND tenant_id = ?").get(req.params.productId, context.tenantId) as { id: string; sku: string; status: string } | undefined;
+        if (!product) throw httpError(404, "product-not-found", "المنتج غير موجود داخل المستأجر الحالي.");
+        if (product.status === "archived") throw httpError(409, "product-archived", "لا يمكن تعديل منتج مؤرشف.");
+        if (sku !== undefined && sku.trim() !== product.sku) {
+          const linked = await db.prepare("SELECT id FROM order_items WHERE tenant_id = ? AND product_id = ? UNION ALL SELECT id FROM inventory_movements WHERE tenant_id = ? AND product_id = ? UNION ALL SELECT id FROM purchase_items WHERE tenant_id = ? AND product_id = ? LIMIT 1").get(context.tenantId, product.id, context.tenantId, product.id, context.tenantId, product.id);
+          if (linked) throw httpError(409, "sku-locked", "لا يمكن تغيير SKU بعد ارتباط المنتج بمعاملة.");
+          if (await db.prepare("SELECT id FROM products WHERE tenant_id = ? AND sku = ? AND id <> ?").get(context.tenantId, sku.trim(), product.id)) throw httpError(409, "sku-conflict", "رمز SKU مستخدم داخل المستأجر الحالي.");
+        }
+        const fields: string[] = [];
+        const values: Array<string | number | null> = [];
+        if (sku !== undefined) { fields.push("sku = ?"); values.push(sku.trim()); }
+        if (name !== undefined) { fields.push("name = ?"); values.push(name.trim()); }
+        if (description !== undefined) { fields.push("description = ?"); values.push(description === null ? null : description.trim()); }
+        if (category !== undefined) { fields.push("category = ?"); values.push(category === null ? null : category.trim()); }
+        if (price !== undefined) { fields.push("price_cents = ?"); values.push(price); }
+        if (!fields.length) throw httpError(400, "empty-product-update", "أرسل حقلاً واحداً على الأقل للتعديل.");
+        const timestamp = now();
+        await withDataPlaneTransaction(db, async () => {
+          values.push(timestamp, context.tenantId, product.id);
+          await db.prepare(`UPDATE products SET ${fields.join(", ")}, updated_at = ? WHERE tenant_id = ? AND id = ?`).run(...values);
+          await recordAudit(db, context, "product.update", "product", product.id, req.requestId, { fields: fields.map(field => field.split(" ")[0]) });
+        });
+        return res.json({ ok: true, productId: product.id, status: "updated" });
+      } catch (error) { next(error); }
+    }
+  );
+  router.patch(
+    "/products/:productId/status",
+    authenticate,
+    async (req: AuthenticatedRequest, res, next) => {
+      try {
+        const context = currentContext(req);
+        assertScope(context, context.tenantId, "product.manage");
+        const status = req.body?.status;
+        if (!["active", "draft", "archived"].includes(status)) throw httpError(400, "invalid-product-status", "حالة المنتج غير صالحة.");
+        const db = getDataPlane();
+        const product = await db.prepare("SELECT id, status FROM products WHERE id = ? AND tenant_id = ?").get(req.params.productId, context.tenantId) as { id: string; status: string } | undefined;
+        if (!product) throw httpError(404, "product-not-found", "المنتج غير موجود داخل المستأجر الحالي.");
+        if (product.status === status) return res.json({ ok: true, productId: product.id, status });
+        await withDataPlaneTransaction(db, async () => {
+          await db.prepare("UPDATE products SET status = ?, updated_at = ? WHERE id = ? AND tenant_id = ?").run(status, now(), product.id, context.tenantId);
+          await recordAudit(db, context, status === "archived" ? "product.archive" : "product.status", "product", product.id, req.requestId, { from: product.status, to: status });
+        });
+        return res.json({ ok: true, productId: product.id, status });
+      } catch (error) { next(error); }
+    }
+  );
   router.post(
     "/inventory/movements",
     authenticate,

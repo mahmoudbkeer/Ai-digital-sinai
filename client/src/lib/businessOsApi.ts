@@ -14,6 +14,11 @@ export type BusinessOsData = {
 };
 
 export type BusinessOsApiError = Error & { status?: number };
+export type BusinessOsProduct = {
+  id: string; business_id: string; sku: string; name: string; description?: string | null;
+  category?: string | null; price_cents: number; currency: string; status: "active" | "draft" | "archived";
+  created_at: number; updated_at: number;
+};
 export type BusinessOsMutation = {
   label: string;
   fields: Array<{ name: string; label: string; type?: "text" | "number"; required?: boolean; placeholder?: string }>;
@@ -113,6 +118,38 @@ export async function loadBusinessOsModule(moduleId: BusinessOsModuleId, headers
     throw error;
   }
   return { moduleId, endpoint, rows: responseRows(payload, keys) };
+}
+
+async function productRequest<T>(endpoint: string, init: RequestInit, headers: Record<string, string>): Promise<T> {
+  const response = await fetch(endpoint, { ...init, headers: { Accept: "application/json", ...headers, ...(init.headers ?? {}) } });
+  const payload = await response.json().catch(() => ({})) as Record<string, unknown>;
+  if (!response.ok) {
+    const error = new Error(typeof payload.message === "string" ? payload.message : "تعذر تنفيذ عملية المنتج.") as BusinessOsApiError;
+    error.status = response.status; throw error;
+  }
+  return payload as T;
+}
+
+export async function loadBusinessOsProducts(headers: Record<string, string>, filters: { query?: string; status?: string } = {}) {
+  const params = new URLSearchParams();
+  if (filters.query) params.set("query", filters.query);
+  if (filters.status) params.set("status", filters.status);
+  const payload = await productRequest<{ products?: BusinessOsProduct[] }>(`/api/platform/products${params.toString() ? `?${params}` : ""}`, {}, headers);
+  return payload.products ?? [];
+}
+
+export async function loadBusinessOsProduct(productId: string, headers: Record<string, string>, includeArchived = false) {
+  const payload = await productRequest<{ product: BusinessOsProduct }>(`/api/platform/products/${encodeURIComponent(productId)}${includeArchived ? "?includeArchived=true" : ""}`, {}, headers);
+  return payload.product;
+}
+
+export async function updateBusinessOsProduct(productId: string, values: Partial<Pick<BusinessOsProduct, "sku" | "name" | "description" | "category" | "price_cents">>, headers: Record<string, string>) {
+  const body = { ...values, description: values.description?.trim() || null, category: values.category?.trim() || null, priceCents: values.price_cents };
+  return productRequest<{ productId: string; status: string }>(`/api/platform/products/${encodeURIComponent(productId)}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }, headers);
+}
+
+export async function setBusinessOsProductStatus(productId: string, status: "active" | "draft" | "archived", headers: Record<string, string>) {
+  return productRequest<{ productId: string; status: string }>(`/api/platform/products/${encodeURIComponent(productId)}/status`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status }) }, headers);
 }
 
 export async function mutateBusinessOsModule(moduleId: BusinessOsModuleId, values: Record<string, string>, headers: Record<string, string>, context: { businessId?: string; branchId?: string }) {
