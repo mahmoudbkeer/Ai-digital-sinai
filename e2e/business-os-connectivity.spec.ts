@@ -32,6 +32,7 @@ test("Business OS core modules load tenant data through their domain APIs", asyn
     data: { businessId: identity.businessId, branchId: identity.branchId, customerId, items: [{ productId, quantity: 1 }] },
   });
   expect(orderResponse.status()).toBe(201);
+  const { orderId } = await orderResponse.json() as { orderId: string };
   const purchaseResponse = await page.request.post("/api/platform/purchases", {
     headers,
     data: { businessId: identity.businessId, branchId: identity.branchId, supplierId, items: [{ productId, quantity: 1, unitCostCents: 700 }], idempotencyKey: `connectivity-purchase-${Date.now()}` },
@@ -49,7 +50,7 @@ test("Business OS core modules load tenant data through their domain APIs", asyn
   const modules = [
     { button: /المنتجات إدارة المنتجات/, endpoint: "/api/platform/products", text: "منتج اتصال حقيقي", panel: undefined },
     { button: /المخزون متابعة الكميات/, endpoint: "/api/platform/inventory", text: "CONNECTIVITY-001", panel: "إدارة المخزون الحقيقية" },
-    { button: /المبيعات والطلبات/, endpoint: "/api/platform/orders", text: "البيانات الحقيقية", panel: undefined },
+    { button: /المبيعات والطلبات/, endpoint: "/api/platform/orders", text: "عميل اتصال حقيقي", panel: "إدارة المبيعات والطلبات الحقيقية" },
     { button: /العملاء إدارة ملفات/, endpoint: "/api/platform/customers", text: "عميل اتصال حقيقي", panel: undefined },
     { button: /الموردون تنظيم الموردين/, endpoint: "/api/platform/suppliers", text: "مورد اتصال حقيقي", panel: undefined },
   ];
@@ -63,4 +64,19 @@ test("Business OS core modules load tenant data through their domain APIs", asyn
     await expect(page.getByText(module.text, { exact: false })).toBeVisible();
     await page.getByRole("button", { name: /العودة إلى وحدات/ }).click();
   }
+  const salesResponsePromise = page.waitForResponse((response) => response.url().includes("/api/platform/orders") && response.request().method() === "GET");
+  await page.getByRole("button", { name: /المبيعات والطلبات/ }).click();
+  await salesResponsePromise;
+  await expect(page.getByLabel("إدارة المبيعات والطلبات الحقيقية")).toBeVisible();
+  await expect(page.getByText(orderId, { exact: false })).toBeVisible();
+  await page.getByRole("button", { name: "فتح التفاصيل" }).click();
+  const orderDetail = page.getByLabel("تفاصيل الطلب");
+  await expect(orderDetail).toBeVisible();
+  await expect(orderDetail.getByText("منتج اتصال حقيقي", { exact: false })).toBeVisible();
+  await expect(orderDetail.getByText("عميل اتصال حقيقي", { exact: false })).toBeVisible();
+  const transitionPromise = page.waitForResponse((response) => response.url().includes(`/api/platform/orders/${orderId}/state`) && response.request().method() === "PATCH");
+  await page.getByRole("button", { name: "نقل إلى CONFIRMED" }).click();
+  const transitionResponse = await transitionPromise;
+  expect(transitionResponse.status()).toBe(200);
+  await expect(page.getByText(/تم تحديث الطلب إلى CONFIRMED/)).toBeVisible();
 });

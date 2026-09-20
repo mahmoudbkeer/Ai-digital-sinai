@@ -27,6 +27,22 @@ export type BusinessOsInventoryRow = {
   name: string;
   updated_at: number;
 };
+export type SalesOrder = {
+  id: string; business_id: string; branch_id: string; customer_id?: string | null;
+  customer_name?: string | null; customer_phone?: string | null; state: string;
+  subtotal_cents: number; discount_cents: number; tax_cents: number; total_cents: number;
+  currency: string; created_at: number; updated_at: number;
+};
+export type SalesOrderDetail = {
+  order: SalesOrder & { customer_email?: string | null; created_by: string };
+  items: Array<{ id: string; product_id: string; product_name: string; sku?: string | null; quantity: number; unit_price_cents: number; line_total_cents: number }>;
+  inventoryMovements: Array<{ id: string; product_id: string; quantity_delta: number; reason: string; idempotency_key: string; created_at: number }>;
+  invoice: { id: string; invoice_number: string; status: string; subtotal_cents: number; tax_cents: number; total_cents: number; currency: string; issued_at: number } | null;
+  ledger: Array<{ id: string; reference_type: string; reference_id: string; memo: string; created_at: number }>;
+  payments: Array<{ id: string; provider: string; amount_cents: number; currency: string; status: string; provider_reference?: string | null; created_at: number; updated_at: number }>;
+  audit: Array<{ id: string; action: string; actor_user_id?: string | null; request_id?: string | null; metadata_json: string; created_at: number }>;
+  allowedTransitions: string[];
+};
 export type BusinessOsMutation = {
   label: string;
   fields: Array<{ name: string; label: string; type?: "text" | "number"; required?: boolean; placeholder?: string }>;
@@ -149,6 +165,22 @@ export async function loadBusinessOsProducts(headers: Record<string, string>, fi
 export async function loadBusinessOsInventory(headers: Record<string, string>) {
   const payload = await productRequest<{ stock?: BusinessOsInventoryRow[] }>("/api/platform/inventory", {}, headers);
   return payload.stock ?? [];
+}
+
+export async function loadSalesOrders(headers: Record<string, string>, filters: { query?: string; status?: string } = {}) {
+  const params = new URLSearchParams();
+  if (filters.query) params.set("query", filters.query);
+  if (filters.status) params.set("status", filters.status);
+  const payload = await productRequest<{ orders?: SalesOrder[] }>(`/api/platform/orders${params.toString() ? `?${params}` : ""}`, {}, headers);
+  return payload.orders ?? [];
+}
+
+export async function loadSalesOrder(orderId: string, headers: Record<string, string>) {
+  return productRequest<SalesOrderDetail>(`/api/platform/orders/${encodeURIComponent(orderId)}`, {}, headers);
+}
+
+export async function updateSalesOrderState(orderId: string, state: string, headers: Record<string, string>) {
+  return productRequest<{ orderId: string; state: string }>(`/api/platform/orders/${encodeURIComponent(orderId)}/state`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ state }) }, headers);
 }
 
 export async function createBusinessOsInventoryMovement(values: { branchId: string; productId: string; quantityDelta: number; reason: string }, headers: Record<string, string>) {

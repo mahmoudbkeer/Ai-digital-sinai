@@ -4915,6 +4915,19 @@ export function createPlatformRouter(): Router {
               "branch-not-found",
               "الفرع غير موجود داخل النشاط والمستأجر الحالي."
             );
+          if (isNonEmptyString(customerId, 100)) {
+            const customer = await db
+              .prepare(
+                "SELECT id FROM customers WHERE id = ? AND tenant_id = ?"
+              )
+              .get(customerId, context.tenantId);
+            if (!customer)
+              throw httpError(
+                404,
+                "customer-not-found",
+                "العميل غير موجود داخل المستأجر الحالي."
+              );
+          }
           let subtotal = 0;
           const resolved = await Promise.all(
             items.map(async (item: any) => {
@@ -5079,14 +5092,92 @@ export function createPlatformRouter(): Router {
       try {
         const context = currentContext(req);
         assertScope(context, context.tenantId, "order.read");
+        const query = typeof req.query.query === "string" ? req.query.query.trim() : "";
+        const status = typeof req.query.status === "string" ? req.query.status.trim().toUpperCase() : "";
+        const from = typeof req.query.from === "string" && /^\d+$/.test(req.query.from) ? Number(req.query.from) : null;
+        const to = typeof req.query.to === "string" && /^\d+$/.test(req.query.to) ? Number(req.query.to) : null;
+        const clauses = ["o.tenant_id = ?"];
+        const params: unknown[] = [context.tenantId];
+        if (query) {
+          clauses.push("(o.id LIKE ? OR COALESCE(c.name, '') LIKE ? OR COALESCE(c.phone, '') LIKE ?)");
+          const like = `%${query}%`;
+          params.push(like, like, like);
+        }
+        if (status) {
+          if (!Object.prototype.hasOwnProperty.call(ORDER_TRANSITIONS, status))
+            throw httpError(400, "invalid-status-filter", "فلتر الحالة غير صالح.");
+          clauses.push("o.state = ?");
+          params.push(status);
+        }
+        if (from !== null) { clauses.push("o.created_at >= ?"); params.push(from); }
+        if (to !== null) { clauses.push("o.created_at <= ?"); params.push(to); }
         return res.json({
           ok: true,
           orders: await getDataPlane()
             .prepare(
-              "SELECT id, business_id, branch_id, customer_id, state, subtotal_cents, discount_cents, tax_cents, total_cents, currency, created_at, updated_at FROM orders WHERE tenant_id = ? ORDER BY created_at DESC LIMIT 500"
+              `SELECT o.id, o.business_id, o.branch_id, o.customer_id, c.name AS customer_name, c.phone AS customer_phone, o.state, o.subtotal_cents, o.discount_cents, o.tax_cents, o.total_cents, o.currency, o.created_at, o.updated_at
+               FROM orders o LEFT JOIN customers c ON c.id = o.customer_id AND c.tenant_id = o.tenant_id
+               WHERE ${clauses.join(" AND ")} ORDER BY o.created_at DESC LIMIT 500`
             )
-            .all(context.tenantId),
+            .all(...params),
         });
+      } catch (error) {
+        next(error);
+      }
+    }
+  );
+
+  router.get(
+    "/orders/:orderId",
+    authenticate,
+    async (req: AuthenticatedRequest, res, next) => {
+      try {
+        const context = currentContext(req);
+        assertScope(context, context.tenantId, "order.read");
+        const db = getDataPlane();
+        const order = await db
+          .prepare(
+            `SELECT o.id, o.business_id, o.branch_id, o.customer_id, c.name AS customer_name, c.phone AS customer_phone, c.email AS customer_email,
+                    o.state, o.subtotal_cents, o.discount_cents, o.tax_cents, o.total_cents, o.currency, o.created_by, o.created_at, o.updated_at
+             FROM orders o LEFT JOIN customers c ON c.id = o.customer_id AND c.tenant_id = o.tenant_id
+             WHERE o.id = ? AND o.tenant_id = ?`
+          )
+          .get(req.params.orderId, context.tenantId);
+        if (!order)
+          throw httpError(404, "order-not-found", "الطلب غير موجود داخل المستأجر الحالي.");
+        const items = await db
+          .prepare(
+            `SELECT oi.id, oi.product_id, p.name AS product_name, p.sku, oi.quantity, oi.unit_price_cents, oi.line_total_cents
+             FROM order_items oi JOIN products p ON p.id = oi.product_id AND p.tenant_id = oi.tenant_id
+             WHERE oi.order_id = ? AND oi.tenant_id = ? ORDER BY oi.id`
+          )
+          .all(req.params.orderId, context.tenantId);
+        const inventoryMovements = await db
+          .prepare(
+            "SELECT id, product_id, quantity_delta, reason, idempotency_key, created_at FROM inventory_movements WHERE tenant_id = ? AND idempotency_key LIKE ? ORDER BY created_at"
+          )
+          .all(context.tenantId, `${req.params.orderId}:%`);
+        const invoice = await db
+          .prepare(
+            "SELECT id, invoice_number, status, subtotal_cents, tax_cents, total_cents, currency, issued_at FROM invoices WHERE order_id = ? AND tenant_id = ?"
+          )
+          .get(req.params.orderId, context.tenantId);
+        const ledger = await db
+          .prepare(
+            "SELECT id, reference_type, reference_id, memo, created_at FROM ledger_journals WHERE tenant_id = ? AND reference_id = ? ORDER BY created_at"
+          )
+          .all(context.tenantId, req.params.orderId);
+        const payments = await db
+          .prepare(
+            "SELECT id, provider, amount_cents, currency, status, provider_reference, created_at, updated_at FROM payment_intents WHERE order_id = ? AND tenant_id = ? ORDER BY created_at DESC"
+          )
+          .all(req.params.orderId, context.tenantId);
+        const audit = await db
+          .prepare(
+            "SELECT id, action, actor_user_id, request_id, metadata_json, created_at FROM audit_logs WHERE tenant_id = ? AND resource_type = 'order' AND resource_id = ? ORDER BY created_at DESC LIMIT 50"
+          )
+          .all(context.tenantId, req.params.orderId);
+        return res.json({ ok: true, order, items, inventoryMovements, invoice: invoice ?? null, ledger, payments, audit, allowedTransitions: ORDER_TRANSITIONS[(order as { state: string }).state] ?? [] });
       } catch (error) {
         next(error);
       }
