@@ -53,7 +53,7 @@ const retailInventory: SectorModule = {
   label: "المخزون",
   description: "متابعة الكميات والحركات والتنبيهات قبل تأثر المبيعات.",
   operations: [
-    { id: "retail-inventory-manage", label: "إدارة المخزون", description: "راجع الرصيد والحركات ونقاط إعادة الطلب من مصدر البيانات الحقيقي.", status: setup },
+    { id: "retail-inventory-manage", label: "إدارة المخزون", description: "راجع الرصيد وسجل حركة مدعومة من الخادم داخل نطاق مساحة العمل.", status: ready },
   ],
 };
 const retailSales: SectorModule = {

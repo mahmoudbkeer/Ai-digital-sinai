@@ -47,18 +47,19 @@ test("Business OS core modules load tenant data through their domain APIs", asyn
   await page.getByRole("button", { name: /التجارة والتجزئة/ }).click();
 
   const modules = [
-    { button: /المنتجات إدارة المنتجات/, endpoint: "/api/platform/products", text: "منتج اتصال حقيقي" },
-    { button: /المخزون متابعة الكميات/, endpoint: "/api/platform/inventory", text: "CONNECTIVITY-001" },
-    { button: /المبيعات والطلبات/, endpoint: "/api/platform/orders", text: "البيانات الحقيقية" },
-    { button: /العملاء إدارة ملفات/, endpoint: "/api/platform/customers", text: "عميل اتصال حقيقي" },
-    { button: /الموردون تنظيم الموردين/, endpoint: "/api/platform/suppliers", text: "مورد اتصال حقيقي" },
+    { button: /المنتجات إدارة المنتجات/, endpoint: "/api/platform/products", text: "منتج اتصال حقيقي", panel: undefined },
+    { button: /المخزون متابعة الكميات/, endpoint: "/api/platform/inventory", text: "CONNECTIVITY-001", panel: "إدارة المخزون الحقيقية" },
+    { button: /المبيعات والطلبات/, endpoint: "/api/platform/orders", text: "البيانات الحقيقية", panel: undefined },
+    { button: /العملاء إدارة ملفات/, endpoint: "/api/platform/customers", text: "عميل اتصال حقيقي", panel: undefined },
+    { button: /الموردون تنظيم الموردين/, endpoint: "/api/platform/suppliers", text: "مورد اتصال حقيقي", panel: undefined },
   ];
   for (const module of modules) {
     const responsePromise = page.waitForResponse((response) => response.url().includes(module.endpoint) && response.request().method() === "GET");
     await page.getByRole("button", { name: module.button }).click();
     const response = await responsePromise;
     expect(response.status()).toBe(200);
-    await expect(page.getByText("البيانات الحقيقية")).toBeVisible();
+    if (module.panel) await expect(page.getByLabel(module.panel)).toBeVisible();
+    else await expect(page.getByText("البيانات الحقيقية")).toBeVisible();
     await expect(page.getByText(module.text, { exact: false })).toBeVisible();
     await page.getByRole("button", { name: /العودة إلى وحدات/ }).click();
   }

@@ -19,6 +19,14 @@ export type BusinessOsProduct = {
   category?: string | null; price_cents: number; currency: string; status: "active" | "draft" | "archived";
   created_at: number; updated_at: number;
 };
+export type BusinessOsInventoryRow = {
+  branch_id: string;
+  product_id: string;
+  quantity: number;
+  sku: string;
+  name: string;
+  updated_at: number;
+};
 export type BusinessOsMutation = {
   label: string;
   fields: Array<{ name: string; label: string; type?: "text" | "number"; required?: boolean; placeholder?: string }>;
@@ -136,6 +144,16 @@ export async function loadBusinessOsProducts(headers: Record<string, string>, fi
   if (filters.status) params.set("status", filters.status);
   const payload = await productRequest<{ products?: BusinessOsProduct[] }>(`/api/platform/products${params.toString() ? `?${params}` : ""}`, {}, headers);
   return payload.products ?? [];
+}
+
+export async function loadBusinessOsInventory(headers: Record<string, string>) {
+  const payload = await productRequest<{ stock?: BusinessOsInventoryRow[] }>("/api/platform/inventory", {}, headers);
+  return payload.stock ?? [];
+}
+
+export async function createBusinessOsInventoryMovement(values: { branchId: string; productId: string; quantityDelta: number; reason: string }, headers: Record<string, string>) {
+  const idempotencyKey = `ui-inventory-${Date.now()}-${window.crypto?.randomUUID?.() ?? Math.random().toString(36).slice(2)}`;
+  return productRequest<{ movementId: string; quantity: number; replay: boolean }>("/api/platform/inventory/movements", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...values, idempotencyKey }) }, headers);
 }
 
 export async function loadBusinessOsProduct(productId: string, headers: Record<string, string>, includeArchived = false) {
