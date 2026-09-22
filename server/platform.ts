@@ -6189,6 +6189,25 @@ export function createPlatformRouter(): Router {
   );
 
   router.get(
+    "/suppliers/:supplierId/history",
+    authenticate,
+    async (req: AuthenticatedRequest, res, next) => {
+      try {
+        const context = currentContext(req);
+        assertScope(context, context.tenantId, "supplier.read");
+        const db = getDataPlane();
+        const supplier = await db.prepare("SELECT id, business_id, name, phone, email, status, created_at, updated_at FROM suppliers WHERE id = ? AND tenant_id = ?").get(req.params.supplierId, context.tenantId) as Record<string, unknown> | undefined;
+        if (!supplier) throw httpError(404, "supplier-not-found", "المورد غير موجود.");
+        const purchases = await db.prepare("SELECT id, status, subtotal_cents, tax_cents, total_cents, created_at, updated_at FROM purchases WHERE supplier_id = ? AND tenant_id = ? ORDER BY created_at DESC LIMIT 500").all(req.params.supplierId, context.tenantId);
+        const audit = hasPermission(context, "audit.read")
+          ? await db.prepare("SELECT id, action, resource_type, resource_id, created_at FROM audit_logs WHERE tenant_id = ? AND ((resource_type = 'supplier' AND resource_id = ?) OR (resource_type = 'purchase' AND resource_id IN (SELECT id FROM purchases WHERE supplier_id = ? AND tenant_id = ?))) ORDER BY created_at DESC LIMIT 500").all(context.tenantId, req.params.supplierId, req.params.supplierId, context.tenantId)
+          : [];
+        return res.json({ ok: true, supplier, purchases, audit });
+      } catch (error) { next(error); }
+    }
+  );
+
+  router.get(
     "/suppliers",
     authenticate,
     async (req: AuthenticatedRequest, res, next) => {

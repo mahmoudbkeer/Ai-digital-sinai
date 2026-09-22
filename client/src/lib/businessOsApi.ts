@@ -247,3 +247,23 @@ export async function mutateBusinessOsModule(moduleId: BusinessOsModuleId, value
 export function getBusinessOsMutation(moduleId: BusinessOsModuleId) { return config[moduleId].mutation; }
 export function isBusinessOsModuleId(moduleId: string): moduleId is BusinessOsModuleId { return moduleId in config; }
 export function displayBusinessOsValue(value: unknown) { if (value === null || value === undefined || value === "") return "—"; if (typeof value === "object") return JSON.stringify(value); return String(value); }
+
+export type BusinessOsSupplier = { id: string; business_id?: string | null; name: string; phone?: string | null; email?: string | null; status: string; created_at: number; updated_at: number };
+export type BusinessOsSupplierHistory = {
+  supplier: BusinessOsSupplier;
+  purchases: Array<{ id: string; status: string; subtotal_cents: number; tax_cents: number; total_cents: number; created_at: number; updated_at: number }>;
+  audit: Array<{ id: string; action: string; resource_type: string; resource_id: string; created_at: number }>;
+};
+
+export async function loadBusinessOsSuppliers(headers: Record<string, string>) {
+  const payload = await productRequest<{ suppliers?: BusinessOsSupplier[] }>("/api/platform/suppliers", {}, headers);
+  return payload.suppliers ?? [];
+}
+
+export async function createBusinessOsSupplier(values: { businessId?: string; name: string; phone?: string; email?: string }, headers: Record<string, string>) {
+  return productRequest<{ supplierId: string }>("/api/platform/suppliers", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(values) }, headers);
+}
+
+export async function loadBusinessOsSupplierHistory(supplierId: string, headers: Record<string, string>) {
+  return productRequest<BusinessOsSupplierHistory>(`/api/platform/suppliers/${encodeURIComponent(supplierId)}/history`, {}, headers);
+}
