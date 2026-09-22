@@ -19,7 +19,7 @@ test("Customers operational journey: create, list, history, interaction, tag and
   await page.getByLabel("بريد العميل").fill("customers-e2e@example.test");
   await page.getByRole("button", { name: "إنشاء وحفظ" }).click();
   await expect(page.getByText("تم إنشاء العميل وتسجيل العملية في Audit.")).toBeVisible();
-  await expect(page.getByText("عميل Customers E2E")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "عميل Customers E2E" })).toBeVisible();
 
   const listResponse = await page.request.get("/api/platform/customers?query=Customers%20E2E", { headers });
   expect(listResponse.status()).toBe(200);

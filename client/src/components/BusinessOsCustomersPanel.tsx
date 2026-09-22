@@ -101,8 +101,8 @@ export function BusinessOsCustomersPanel({ headers }: Props) {
       );
       setCreateValues({ name: "", phone: "", email: "" });
       await refresh();
+      if (created.customerId) await openCustomer(created.customerId);
       setMessage("تم إنشاء العميل وتسجيل العملية في Audit.");
-      if (created.customerId) void openCustomer(created.customerId);
     } catch (error) {
       setMessage(errorMessage(error, "تعذر إنشاء العميل. تحقق من البريد أو البيانات المدخلة."));
     } finally {
