@@ -27,6 +27,13 @@ export type BusinessOsInventoryRow = {
   name: string;
   updated_at: number;
 };
+export type BusinessOsCustomer = { id: string; name: string; phone?: string | null; email?: string | null; created_at: number };
+export type BusinessOsCustomerHistory = {
+  customer: BusinessOsCustomer;
+  orders: Array<{ id: string; state: string; total_cents: number; currency: string; created_at: number }>;
+  interactions: Array<{ id: string; interaction_type: string; note: string; user_id: string; created_at: number }>;
+  tags: Array<{ id: string; name: string }>;
+};
 export type SalesOrder = {
   id: string; business_id: string; branch_id: string; customer_id?: string | null;
   customer_name?: string | null; customer_phone?: string | null; state: string;
@@ -163,8 +170,30 @@ export async function loadBusinessOsProducts(headers: Record<string, string>, fi
 }
 
 export async function loadBusinessOsInventory(headers: Record<string, string>) {
-  const payload = await productRequest<{ stock?: BusinessOsInventoryRow[] }>("/api/platform/inventory", {}, headers);
+  const payload = await productRequest<{ stock?: BusinessOsInventoryRow[] }>('/api/platform/inventory', {}, headers);
   return payload.stock ?? [];
+}
+
+export async function loadBusinessOsCustomers(headers: Record<string, string>, query = "") {
+  const params = query.trim() ? `?query=${encodeURIComponent(query.trim())}` : "";
+  const payload = await productRequest<{ customers?: BusinessOsCustomer[] }>(`/api/platform/customers${params}`, {}, headers);
+  return payload.customers ?? [];
+}
+
+export async function createBusinessOsCustomer(values: { name: string; phone?: string; email?: string }, headers: Record<string, string>) {
+  return productRequest<{ customerId: string }>("/api/platform/customers", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(values) }, headers);
+}
+
+export async function loadBusinessOsCustomerHistory(customerId: string, headers: Record<string, string>) {
+  return productRequest<BusinessOsCustomerHistory>(`/api/platform/customers/${encodeURIComponent(customerId)}/history`, {}, headers);
+}
+
+export async function addBusinessOsCustomerInteraction(customerId: string, values: { interactionType: string; note: string }, headers: Record<string, string>) {
+  return productRequest<{ interactionId: string }>(`/api/platform/customers/${encodeURIComponent(customerId)}/interactions`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(values) }, headers);
+}
+
+export async function addBusinessOsCustomerTag(customerId: string, name: string, headers: Record<string, string>) {
+  return productRequest<{ tagId: string }>(`/api/platform/customers/${encodeURIComponent(customerId)}/tags`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name }) }, headers);
 }
 
 export async function loadSalesOrders(headers: Record<string, string>, filters: { query?: string; status?: string } = {}) {

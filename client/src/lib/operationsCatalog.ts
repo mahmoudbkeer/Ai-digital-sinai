@@ -69,7 +69,7 @@ const retailCustomers: SectorModule = {
   label: "العملاء",
   description: "إدارة ملفات العملاء وشرائحهم وسياق العلاقة التجارية.",
   operations: [
-    { id: "retail-customers-manage", label: "إدارة العملاء", description: "راجع العملاء وشرائح CRM من بيانات مساحة العمل المعزولة.", status: setup },
+    { id: "retail-customers-manage", label: "إدارة العملاء", description: "راجع العملاء وشرائح CRM من بيانات مساحة العمل المعزولة.", status: ready },
   ],
 };
 const retailSuppliers: SectorModule = {

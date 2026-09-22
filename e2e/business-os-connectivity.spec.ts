@@ -51,7 +51,7 @@ test("Business OS core modules load tenant data through their domain APIs", asyn
     { button: /المنتجات إدارة المنتجات/, endpoint: "/api/platform/products", text: "منتج اتصال حقيقي", panel: undefined },
     { button: /المخزون متابعة الكميات/, endpoint: "/api/platform/inventory", text: "CONNECTIVITY-001", panel: "إدارة المخزون الحقيقية" },
     { button: /المبيعات والطلبات/, endpoint: "/api/platform/orders", text: "عميل اتصال حقيقي", panel: "إدارة المبيعات والطلبات الحقيقية" },
-    { button: /العملاء إدارة ملفات/, endpoint: "/api/platform/customers", text: "عميل اتصال حقيقي", panel: undefined },
+    { button: /العملاء إدارة ملفات/, endpoint: "/api/platform/customers", text: "عميل اتصال حقيقي", panel: "إدارة العملاء الحقيقية" },
     { button: /الموردون تنظيم الموردين/, endpoint: "/api/platform/suppliers", text: "مورد اتصال حقيقي", panel: undefined },
   ];
   for (const module of modules) {

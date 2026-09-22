@@ -5989,11 +5989,12 @@ export function createPlatformRouter(): Router {
       try {
         const context = currentContext(req);
         assertScope(context, context.tenantId, "customer.read");
+        const query = typeof req.query.query === "string" ? req.query.query.trim().slice(0, 160) : "";
         const customers = await getDataPlane()
           .prepare(
-            "SELECT id, name, phone, email, created_at FROM customers WHERE tenant_id = ? ORDER BY created_at DESC LIMIT 500"
+            "SELECT id, name, phone, email, created_at FROM customers WHERE tenant_id = ? AND (? = '' OR name LIKE ? OR COALESCE(phone, '') LIKE ? OR COALESCE(email, '') LIKE ?) ORDER BY created_at DESC LIMIT 500"
           )
-          .all(context.tenantId);
+          .all(context.tenantId, query, `%${query}%`, `%${query}%`, `%${query}%`);
         return res.json({ ok: true, customers });
       } catch (error) {
         next(error);
@@ -6012,6 +6013,9 @@ export function createPlatformRouter(): Router {
         if (!isNonEmptyString(name, 160))
           throw httpError(400, "invalid-customer", "اسم العميل مطلوب.");
         const db = getDataPlane();
+        const normalizedEmail = isNonEmptyString(email, 160) ? normalizeEmail(email) : null;
+        if (normalizedEmail && await db.prepare("SELECT id FROM customers WHERE tenant_id = ? AND email = ?").get(context.tenantId, normalizedEmail))
+          throw httpError(409, "customer-email-conflict", "البريد الإلكتروني مستخدم لعميل آخر داخل مساحة العمل.");
         const customerId = randomUUID();
         await db
           .prepare(
@@ -6022,7 +6026,7 @@ export function createPlatformRouter(): Router {
             context.tenantId,
             name.trim(),
             isNonEmptyString(phone, 40) ? phone.trim() : null,
-            isNonEmptyString(email, 160) ? normalizeEmail(email) : null,
+            normalizedEmail,
             now()
           );
         await recordAudit(
