@@ -33,5 +33,5 @@ test("Suppliers operational journey: create, search, detail, reload and audit co
   await page.getByRole("button", { name: "التشغيل", exact: true }).click();
   await page.getByRole("button", { name: /التجارة والتجزئة/ }).click();
   await page.getByRole("button", { name: /الموردون تنظيم الموردين/ }).click();
-  await expect(page.getByText("مورد Suppliers E2E")).toBeVisible();
+  await expect(page.getByLabel("إدارة الموردين الحقيقية").getByText("مورد Suppliers E2E", { exact: true })).toBeVisible();
 });
