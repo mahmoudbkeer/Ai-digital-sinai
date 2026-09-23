@@ -1427,7 +1427,9 @@ export function createPlatformRouter(): Router {
             "SELECT id, email, display_name, status FROM users WHERE id = ?"
           )
           .get(context.userId);
-        return res.json({ ok: true, user, tenant, context });
+        const defaultBusiness = await db.prepare("SELECT id FROM businesses WHERE tenant_id = ? ORDER BY created_at LIMIT 1").get(context.tenantId) as { id: string } | undefined;
+        const defaultBranch = defaultBusiness ? await db.prepare("SELECT id FROM branches WHERE tenant_id = ? AND business_id = ? ORDER BY created_at LIMIT 1").get(context.tenantId, defaultBusiness.id) as { id: string } | undefined : undefined;
+        return res.json({ ok: true, user, tenant, context: { ...context, businessId: context.businessId ?? defaultBusiness?.id, branchId: context.branchId ?? defaultBranch?.id } });
       } catch (error) {
         next(error);
       }
@@ -6300,6 +6302,23 @@ export function createPlatformRouter(): Router {
     }
   );
 
+  router.get(
+    "/purchases/:purchaseId",
+    authenticate,
+    async (req: AuthenticatedRequest, res, next) => {
+      try {
+        const context = currentContext(req);
+        assertScope(context, context.tenantId, "purchase.read");
+        const db = getDataPlane();
+        const purchase = await db.prepare("SELECT p.id, p.business_id, p.branch_id, p.supplier_id, s.name AS supplier_name, p.status, p.subtotal_cents, p.tax_cents, p.total_cents, p.created_at, p.updated_at FROM purchases p JOIN suppliers s ON s.id = p.supplier_id AND s.tenant_id = p.tenant_id WHERE p.id = ? AND p.tenant_id = ?").get(req.params.purchaseId, context.tenantId) as Record<string, unknown> | undefined;
+        if (!purchase) throw httpError(404, "purchase-not-found", "المشتريات غير موجودة.");
+        const items = await db.prepare("SELECT pi.id, pi.product_id, pr.name AS product_name, pr.sku, pi.quantity, pi.unit_cost_cents, pi.line_total_cents, COALESCE(SUM(rec.quantity), 0) AS received_quantity, pi.quantity - COALESCE(SUM(rec.quantity), 0) AS remaining_quantity FROM purchase_items pi JOIN products pr ON pr.id = pi.product_id AND pr.tenant_id = pi.tenant_id LEFT JOIN purchase_receipts rec ON rec.purchase_item_id = pi.id AND rec.tenant_id = pi.tenant_id WHERE pi.purchase_id = ? AND pi.tenant_id = ? GROUP BY pi.id, pi.product_id, pr.name, pr.sku, pi.quantity, pi.unit_cost_cents, pi.line_total_cents ORDER BY pr.name").all(req.params.purchaseId, context.tenantId);
+        const audit = hasPermission(context, "audit.read") ? await db.prepare("SELECT id, action, resource_type, resource_id, metadata_json, created_at FROM audit_logs WHERE tenant_id = ? AND resource_type = 'purchase' AND resource_id = ? ORDER BY created_at DESC LIMIT 100").all(context.tenantId, req.params.purchaseId) : [];
+        return res.json({ ok: true, purchase, items, audit });
+      } catch (error) { next(error); }
+    }
+  );
+
   router.post(
     "/purchases",
     authenticate,
@@ -6534,12 +6553,17 @@ export function createPlatformRouter(): Router {
       try {
         const context = currentContext(req);
         assertScope(context, context.tenantId, "purchase.manage");
-        const { items } = req.body ?? {};
-        if (!Array.isArray(items) || items.length < 1 || items.length > 100) throw httpError(400, "invalid-receipt", "عناصر الاستلام مطلوبة.");
+        const { items, idempotencyKey } = req.body ?? {};
+        if (!Array.isArray(items) || items.length < 1 || items.length > 100 || !/^[A-Za-z0-9._:-]{8,200}$/.test(idempotencyKey ?? "")) throw httpError(400, "invalid-receipt", "عناصر الاستلام ومفتاح Idempotency مطلوبة.");
         const db = getDataPlane();
         const result = await withDataPlaneTransaction(db, async () => {
           const purchase = await db.prepare("SELECT id, branch_id FROM purchases WHERE id = ? AND tenant_id = ?").get(req.params.purchaseId, context.tenantId) as { id: string; branch_id: string } | undefined;
           if (!purchase) throw httpError(404, "purchase-not-found", "المشتريات غير موجودة.");
+          const replayMovement = await db.prepare("SELECT id FROM inventory_movements WHERE tenant_id = ? AND idempotency_key = ? LIMIT 1").get(context.tenantId, `purchase-receipt:${purchase.id}:${idempotencyKey}`);
+          if (replayMovement) {
+            const pendingReplay = await db.prepare("SELECT COUNT(*) AS count FROM purchase_items pi WHERE pi.purchase_id = ? AND pi.tenant_id = ? AND pi.quantity > (SELECT COALESCE(SUM(pr.quantity), 0) FROM purchase_receipts pr WHERE pr.purchase_item_id = pi.id AND pr.tenant_id = ?)").get(purchase.id, context.tenantId, context.tenantId) as { count: number };
+            return { purchaseId: purchase.id, receivedQuantity: 0, receiptStatus: Number(pendingReplay.count) === 0 ? "RECEIVED" : "PARTIALLY_RECEIVED", replay: true };
+          }
           let received = 0;
           for (const item of items) {
             const quantity = validatePositiveInteger(item.quantity, "quantity");
@@ -6548,14 +6572,14 @@ export function createPlatformRouter(): Router {
             const already = await db.prepare("SELECT COALESCE(SUM(quantity), 0) AS quantity FROM purchase_receipts WHERE purchase_item_id = ? AND tenant_id = ?").get(source.id, context.tenantId) as { quantity: number };
             if (Number(already.quantity) + quantity > source.quantity) throw httpError(409, "receipt-quantity-exceeded", "كمية الاستلام تتجاوز الكمية المطلوبة.");
             await db.prepare("INSERT INTO purchase_receipts (id, tenant_id, purchase_id, purchase_item_id, quantity, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)").run(randomUUID(), context.tenantId, purchase.id, source.id, quantity, context.userId, now());
-            await db.prepare("INSERT INTO inventory_movements (id, tenant_id, branch_id, product_id, quantity_delta, reason, idempotency_key, created_by, created_at) VALUES (?, ?, ?, ?, ?, 'purchase_receipt', ?, ?, ?)").run(randomUUID(), context.tenantId, purchase.branch_id, source.product_id, quantity, `purchase-receipt:${purchase.id}:${source.id}:${now()}`, context.userId, now());
+            await db.prepare("INSERT INTO inventory_movements (id, tenant_id, branch_id, product_id, quantity_delta, reason, idempotency_key, created_by, created_at) VALUES (?, ?, ?, ?, ?, 'purchase_receipt', ?, ?, ?)").run(randomUUID(), context.tenantId, purchase.branch_id, source.product_id, quantity, `purchase-receipt:${purchase.id}:${idempotencyKey}`, context.userId, now());
             await db.prepare("INSERT INTO inventory_stock (tenant_id, branch_id, product_id, quantity, updated_at) VALUES (?, ?, ?, ?, ?) ON CONFLICT (tenant_id, branch_id, product_id) DO UPDATE SET quantity = inventory_stock.quantity + EXCLUDED.quantity, updated_at = EXCLUDED.updated_at").run(context.tenantId, purchase.branch_id, source.product_id, quantity, now());
             received += quantity;
           }
           const pending = await db.prepare("SELECT COUNT(*) AS count FROM purchase_items pi WHERE pi.purchase_id = ? AND pi.tenant_id = ? AND pi.quantity > (SELECT COALESCE(SUM(pr.quantity), 0) FROM purchase_receipts pr WHERE pr.purchase_item_id = pi.id AND pr.tenant_id = ?)").get(purchase.id, context.tenantId, context.tenantId) as { count: number };
           const receiptStatus = Number(pending.count) === 0 ? "RECEIVED" : "PARTIALLY_RECEIVED";
           await recordAudit(db, context, "purchase.partial_receive", "purchase", purchase.id, req.requestId, { received, receiptStatus });
-          return { purchaseId: purchase.id, receivedQuantity: received, receiptStatus };
+          return { purchaseId: purchase.id, receivedQuantity: received, receiptStatus, replay: false };
         });
         return res.status(201).json({ ok: true, ...result });
       } catch (error) { next(error); }

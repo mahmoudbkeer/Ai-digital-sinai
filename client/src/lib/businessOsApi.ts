@@ -267,3 +267,23 @@ export async function createBusinessOsSupplier(values: { businessId?: string; na
 export async function loadBusinessOsSupplierHistory(supplierId: string, headers: Record<string, string>) {
   return productRequest<BusinessOsSupplierHistory>(`/api/platform/suppliers/${encodeURIComponent(supplierId)}/history`, {}, headers);
 }
+
+export type BusinessOsPurchase = { id: string; business_id: string; branch_id: string; supplier_id: string; supplier_name: string; status: string; subtotal_cents: number; tax_cents: number; total_cents: number; created_at: number; updated_at: number };
+export type BusinessOsPurchaseDetail = {
+  purchase: BusinessOsPurchase;
+  items: Array<{ id: string; product_id: string; product_name: string; sku: string; quantity: number; unit_cost_cents: number; line_total_cents: number; received_quantity: number; remaining_quantity: number }>;
+  audit: Array<{ id: string; action: string; resource_type: string; resource_id: string; metadata_json: string; created_at: number }>;
+};
+export async function loadBusinessOsPurchases(headers: Record<string, string>) {
+  const payload = await productRequest<{ purchases?: BusinessOsPurchase[] }>("/api/platform/purchases", {}, headers);
+  return payload.purchases ?? [];
+}
+export async function createBusinessOsPurchase(values: { businessId: string; branchId: string; supplierId: string; productId: string; quantity: number; unitCostCents: number; receiveImmediately?: boolean }, headers: Record<string, string>) {
+  return productRequest<{ purchaseId: string; status: string }>("/api/platform/purchases", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...values, items: [{ productId: values.productId, quantity: values.quantity, unitCostCents: values.unitCostCents }], idempotencyKey: `ui-purchase-${Date.now()}-${window.crypto?.randomUUID?.() ?? Math.random().toString(36).slice(2)}` }) }, headers);
+}
+export async function loadBusinessOsPurchase(purchaseId: string, headers: Record<string, string>) {
+  return productRequest<BusinessOsPurchaseDetail>(`/api/platform/purchases/${encodeURIComponent(purchaseId)}`, {}, headers);
+}
+export async function receiveBusinessOsPurchase(purchaseId: string, purchaseItemId: string, quantity: number, headers: Record<string, string>) {
+  return productRequest<{ purchaseId: string; receivedQuantity: number; receiptStatus: string; replay: boolean }>(`/api/platform/purchases/${encodeURIComponent(purchaseId)}/receipts`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ items: [{ purchaseItemId, quantity }], idempotencyKey: `ui-receipt-${Date.now()}-${window.crypto?.randomUUID?.() ?? Math.random().toString(36).slice(2)}` }) }, headers);
+}

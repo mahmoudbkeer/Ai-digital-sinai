@@ -49,19 +49,24 @@ test("Business OS core modules load tenant data through their domain APIs", asyn
 
   const modules = [
     { button: /المنتجات إدارة المنتجات/, endpoint: "/api/platform/products", text: "منتج اتصال حقيقي", panel: undefined },
-    { button: /المخزون متابعة الكميات/, endpoint: "/api/platform/inventory", text: "CONNECTIVITY-001", panel: "إدارة المخزون الحقيقية" },
-    { button: /المبيعات والطلبات/, endpoint: "/api/platform/orders", text: "عميل اتصال حقيقي", panel: "إدارة المبيعات والطلبات الحقيقية" },
-    { button: /العملاء إدارة ملفات/, endpoint: "/api/platform/customers", text: "عميل اتصال حقيقي", panel: "إدارة العملاء الحقيقية" },
-    { button: /الموردون تنظيم الموردين/, endpoint: "/api/platform/suppliers", text: "مورد اتصال حقيقي", panel: "إدارة الموردين الحقيقية" },
+    { button: /المخزون متابعة الكميات/, endpoint: "/api/platform/inventory", text: "CONNECTIVITY-001", panel: "إدارة المخزون الحقيقية", exact: false },
+    { button: /المبيعات والطلبات/, endpoint: "/api/platform/orders", text: "عميل اتصال حقيقي", panel: "إدارة المبيعات والطلبات الحقيقية", exact: false },
+    { button: /العملاء إدارة ملفات/, endpoint: "/api/platform/customers", text: "عميل اتصال حقيقي", panel: "إدارة العملاء الحقيقية", exact: true },
+    { button: /الموردون تنظيم الموردين/, endpoint: "/api/platform/suppliers", text: "مورد اتصال حقيقي", panel: "إدارة الموردين الحقيقية", exact: true },
   ];
   for (const module of modules) {
     const responsePromise = page.waitForResponse((response) => response.url().includes(module.endpoint) && response.request().method() === "GET");
     await page.getByRole("button", { name: module.button }).click();
     const response = await responsePromise;
     expect(response.status()).toBe(200);
-    if (module.panel) await expect(page.getByLabel(module.panel)).toBeVisible();
-    else await expect(page.getByText("البيانات الحقيقية")).toBeVisible();
-    await expect(page.getByText(module.text, { exact: false })).toBeVisible();
+    if (module.panel) {
+      const panel = page.getByLabel(module.panel);
+      await expect(panel).toBeVisible();
+      await expect(panel.getByText(module.text, { exact: module.exact ?? false })).toBeVisible();
+    } else {
+      await expect(page.getByText("البيانات الحقيقية")).toBeVisible();
+      await expect(page.getByText(module.text, { exact: false })).toBeVisible();
+    }
     await page.getByRole("button", { name: /العودة إلى وحدات/ }).click();
   }
   const salesResponsePromise = page.waitForResponse((response) => response.url().includes("/api/platform/orders") && response.request().method() === "GET");
