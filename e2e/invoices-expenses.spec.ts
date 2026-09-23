@@ -1,0 +1,73 @@
+import { expect, test } from "@playwright/test";
+
+test("Invoices and Expenses operational journeys use real API, ledger, audit, tenant isolation, and idempotency", async ({ page }) => {
+  const registration = await page.request.post("/api/platform/auth/register", { data: { email: `e2e-finance-${Date.now()}@example.test`, password: "secure-password-123", displayName: "Finance E2E", tenantName: "Finance E2E Tenant" } });
+  expect(registration.status()).toBe(201);
+  const identity = await registration.json() as { token: string; tenantId: string; businessId: string; branchId: string };
+  const headers = { authorization: `Bearer ${identity.token}`, "x-tenant-id": identity.tenantId };
+  const product = await page.request.post("/api/platform/products", { headers, data: { businessId: identity.businessId, sku: `FIN-${Date.now()}`, name: "منتج Finance E2E", priceCents: 2400 } });
+  expect(product.status()).toBe(201);
+  const { productId } = await product.json() as { productId: string };
+  const supplier = await page.request.post("/api/platform/suppliers", { headers, data: { businessId: identity.businessId, name: "مورد Finance E2E" } });
+  const { supplierId } = await supplier.json() as { supplierId: string };
+  const purchase = await page.request.post("/api/platform/purchases", { headers, data: { businessId: identity.businessId, branchId: identity.branchId, supplierId, idempotencyKey: `e2e-fin-purchase-${Date.now()}`, items: [{ productId, quantity: 2, unitCostCents: 1000 }] } });
+  expect(purchase.status()).toBe(201);
+  const customer = await page.request.post("/api/platform/customers", { headers, data: { name: "عميل Finance E2E" } });
+  const { customerId } = await customer.json() as { customerId: string };
+  const order = await page.request.post("/api/platform/orders", { headers, data: { businessId: identity.businessId, branchId: identity.branchId, customerId, items: [{ productId, quantity: 1 }] } });
+  expect(order.status()).toBe(201);
+  const { orderId } = await order.json() as { orderId: string };
+
+  const invoices = await page.request.get("/api/platform/invoices", { headers });
+  expect(invoices.status()).toBe(200);
+  const invoiceList = await invoices.json() as { invoices: Array<{ id: string; source_id: string; total_cents: number }> };
+  const invoice = invoiceList.invoices.find((item) => item.source_id === orderId);
+  expect(invoice).toBeTruthy();
+  const invoiceDetail = await page.request.get(`/api/platform/invoices/${invoice?.id}`, { headers });
+  await expect(invoiceDetail.json()).resolves.toMatchObject({ invoice: { source_id: orderId, total_cents: 2400 }, ledger: [expect.objectContaining({ debit_cents: 2400, credit_cents: 2400 })], audit: [expect.objectContaining({ action: "invoice.issue" })] });
+  const invoiceReplay = await page.request.post("/api/platform/invoices", { headers, data: { orderId } });
+  expect(invoiceReplay.status()).toBe(200);
+  const replayList = await (await page.request.get("/api/platform/invoices", { headers })).json() as { invoices: Array<{ source_id: string }> };
+  expect(replayList.invoices.filter((item) => item.source_id === orderId)).toHaveLength(1);
+
+  await page.addInitScript(({ token, tenantId }) => { localStorage.setItem("platform_token", token); localStorage.setItem("platform_tenant_id", tenantId); }, identity);
+  await page.goto("/app?tab=work");
+  await page.getByRole("button", { name: "التشغيل", exact: true }).click();
+  await page.getByRole("button", { name: /التجارة والتجزئة/ }).click();
+  await page.getByRole("button", { name: /الفواتير/ }).click();
+  const invoicePanel = page.getByLabel("إدارة الفواتير الحقيقية");
+  await expect(invoicePanel).toBeVisible();
+  await expect(invoicePanel.getByText("24.00 EGP").first()).toBeVisible();
+  await invoicePanel.getByRole("button", { name: "فتح الفاتورة" }).first().click();
+  await expect(invoicePanel.getByText(/Ledger/)).toBeVisible();
+
+  await page.getByRole("button", { name: "← العودة إلى وحدات التجارة والتجزئة" }).click();
+  await page.getByRole("button", { name: /المصروفات/ }).click();
+  const expensePanel = page.getByLabel("إدارة المصروفات الحقيقية");
+  await expect(expensePanel).toBeVisible();
+  await expensePanel.getByLabel("المبلغ بالسنت").fill("700");
+  await expensePanel.getByLabel("فئة المصروف", { exact: true }).fill("تشغيل");
+  await expensePanel.getByLabel("وصف المصروف").fill("مصروف Finance E2E");
+  await expensePanel.getByRole("button", { name: "إنشاء وترحيل" }).click();
+  await expect(expensePanel.getByText("تم إنشاء المصروف وتسجيل Ledger وAudit.")).toBeVisible();
+  await page.reload();
+  await page.getByRole("button", { name: "التشغيل", exact: true }).click();
+  await page.getByRole("button", { name: /التجارة والتجزئة/ }).click();
+  await page.getByRole("button", { name: /المصروفات/ }).click();
+  const reloadedExpensePanel = page.getByLabel("إدارة المصروفات الحقيقية");
+  await expect(reloadedExpensePanel.getByText("مصروف Finance E2E")).toBeVisible();
+  await reloadedExpensePanel.getByRole("button", { name: "فتح التفاصيل" }).first().click();
+  await expect(reloadedExpensePanel.getByText(/Ledger/)).toBeVisible();
+
+  const expenseBody = { businessId: identity.businessId, branchId: identity.branchId, amountCents: 800, category: "اختبار", description: "Idempotent Expense E2E", idempotencyKey: `e2e-expense-${Date.now()}` };
+  const firstExpense = await page.request.post("/api/platform/expenses", { headers, data: expenseBody });
+  const secondExpense = await page.request.post("/api/platform/expenses", { headers, data: expenseBody });
+  expect(firstExpense.status()).toBe(201);
+  expect(secondExpense.status()).toBe(200);
+  await expect(secondExpense.json()).resolves.toMatchObject({ replay: true });
+  const otherRegistration = await page.request.post("/api/platform/auth/register", { data: { email: `e2e-finance-other-${Date.now()}@example.test`, password: "secure-password-123", displayName: "Other Finance E2E", tenantName: "Other Finance E2E Tenant" } });
+  const other = await otherRegistration.json() as { token: string; tenantId: string };
+  const otherHeaders = { authorization: `Bearer ${other.token}`, "x-tenant-id": other.tenantId };
+  expect((await page.request.get(`/api/platform/invoices/${invoice?.id}`, { headers: otherHeaders })).status()).toBe(404);
+  expect((await page.request.get("/api/platform/ledger/journals", { headers: otherHeaders })).status()).toBe(200);
+});

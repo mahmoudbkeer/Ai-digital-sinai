@@ -460,7 +460,7 @@ async function issueInvoice(
     .get(context.tenantId, order.id)) as
     | { id: string; invoice_number: string; status: string }
     | undefined;
-  if (existing) return existing;
+  if (existing) return { ...existing, replay: true };
   const invoiceId = randomUUID();
   const configuration = await getTenantConfiguration(db, context.tenantId);
   const invoiceNumber = `${configuration.invoice_prefix}-${new Date().getUTCFullYear()}-${invoiceId.slice(0, 8).toUpperCase()}`;
@@ -488,7 +488,7 @@ async function issueInvoice(
     requestId,
     { orderId: order.id, totalCents: order.total_cents }
   );
-  return { id: invoiceId, invoice_number: invoiceNumber, status: "ISSUED" };
+  return { id: invoiceId, invoice_number: invoiceNumber, status: "ISSUED", replay: false };
 }
 
 async function postBalancedCancellationJournal(
@@ -3034,7 +3034,7 @@ export function createPlatformRouter(): Router {
           );
         const invoice = await issueInvoice(db, context, order, req.requestId);
         return res
-          .status(invoice.status === "ISSUED" && invoice.id ? 201 : 200)
+          .status(invoice.replay ? 200 : 201)
           .json({
             ok: true,
             invoiceId: invoice.id,
@@ -3054,23 +3054,33 @@ export function createPlatformRouter(): Router {
       try {
         const context = currentContext(req);
         assertScope(context, context.tenantId, "invoice.read");
-        const limit = Math.min(
-          Math.max(Number(req.query.limit ?? 50) || 50, 1),
-          100
-        );
-        return res.json({
-          ok: true,
-          invoices: await getDataPlane()
-            .prepare(
-              "SELECT id, order_id, invoice_number, status, subtotal_cents, tax_cents, total_cents, currency, issued_at FROM invoices WHERE tenant_id = ? ORDER BY issued_at DESC LIMIT ?"
-            )
-            .all(context.tenantId, limit),
-        });
+        const conditions = ["i.tenant_id = ?"];
+        const params: Array<string | number> = [context.tenantId];
+        if (isNonEmptyString(req.query.status, 40)) { conditions.push("i.status = ?"); params.push(req.query.status.trim().toUpperCase()); }
+        if (isNonEmptyString(req.query.query, 160)) { conditions.push("(i.invoice_number LIKE ? OR i.order_id LIKE ? OR COALESCE(c.name, '') LIKE ?)"); const query = `%${req.query.query.trim()}%`; params.push(query, query, query); }
+        if (isNonEmptyString(req.query.from, 40) && Number.isFinite(Number(req.query.from))) { conditions.push("i.issued_at >= ?"); params.push(Number(req.query.from)); }
+        if (isNonEmptyString(req.query.to, 40) && Number.isFinite(Number(req.query.to))) { conditions.push("i.issued_at <= ?"); params.push(Number(req.query.to)); }
+        const invoices = await getDataPlane().prepare(`SELECT i.id, i.invoice_number, i.status, i.subtotal_cents, i.tax_cents, i.total_cents, i.currency, i.issued_at, i.order_id AS source_id, 'ORDER' AS source_type, i.order_id, o.customer_id, COALESCE(c.name, 'عميل غير مسجل') AS customer_name, o.state AS order_state, CASE WHEN EXISTS (SELECT 1 FROM payment_intents p WHERE p.order_id = o.id AND p.tenant_id = i.tenant_id AND p.status IN ('CAPTURED','AUTHORIZED')) THEN 'PAID' ELSE 'UNPAID' END AS payment_status FROM invoices i JOIN orders o ON o.id = i.order_id AND o.tenant_id = i.tenant_id LEFT JOIN customers c ON c.id = o.customer_id AND c.tenant_id = i.tenant_id WHERE ${conditions.join(" AND ")} ORDER BY i.issued_at DESC LIMIT 500`).all(...params);
+        return res.json({ ok: true, invoices });
       } catch (error) {
         next(error);
       }
     }
   );
+
+  router.get("/invoices/:invoiceId", authenticate, async (req: AuthenticatedRequest, res, next) => {
+    try {
+      const context = currentContext(req); assertScope(context, context.tenantId, "invoice.read");
+      const db = getDataPlane();
+      const invoice = await db.prepare("SELECT i.id, i.invoice_number, i.status, i.subtotal_cents, i.tax_cents, i.total_cents, i.currency, i.issued_at, i.order_id AS source_id, 'ORDER' AS source_type, o.id AS order_id, o.business_id, o.branch_id, o.customer_id, COALESCE(c.name, 'عميل غير مسجل') AS customer_name, o.state AS order_state, CASE WHEN EXISTS (SELECT 1 FROM payment_intents p WHERE p.order_id = o.id AND p.tenant_id = i.tenant_id AND p.status IN ('CAPTURED','AUTHORIZED')) THEN 'PAID' ELSE 'UNPAID' END AS payment_status FROM invoices i JOIN orders o ON o.id = i.order_id AND o.tenant_id = i.tenant_id LEFT JOIN customers c ON c.id = o.customer_id AND c.tenant_id = i.tenant_id WHERE i.id = ? AND i.tenant_id = ?").get(req.params.invoiceId, context.tenantId) as { id: string; order_id: string } | undefined;
+      if (!invoice) throw httpError(404, "invoice-not-found", "الفاتورة غير موجودة داخل المستأجر الحالي.");
+      const items = await db.prepare("SELECT oi.id, oi.product_id, p.name AS product_name, p.sku, oi.quantity, oi.unit_price_cents, oi.line_total_cents FROM order_items oi JOIN products p ON p.id = oi.product_id AND p.tenant_id = oi.tenant_id WHERE oi.order_id = ? AND oi.tenant_id = ? ORDER BY oi.id").all(invoice.order_id, context.tenantId);
+      const journals = await db.prepare("SELECT j.id, j.reference_type, j.reference_id, j.memo, j.created_at, COALESCE(SUM(e.debit_cents), 0) AS debit_cents, COALESCE(SUM(e.credit_cents), 0) AS credit_cents FROM ledger_journals j LEFT JOIN ledger_entries e ON e.journal_id = j.id AND e.tenant_id = j.tenant_id WHERE j.tenant_id = ? AND j.reference_id = ? GROUP BY j.id, j.reference_type, j.reference_id, j.memo, j.created_at ORDER BY j.created_at").all(context.tenantId, invoice.order_id);
+      const payments = await db.prepare("SELECT id, provider, amount_cents, currency, status, provider_reference, created_at, updated_at FROM payment_intents WHERE order_id = ? AND tenant_id = ? ORDER BY created_at DESC").all(invoice.order_id, context.tenantId);
+      const audit = await db.prepare("SELECT id, action, actor_user_id, request_id, metadata_json, created_at FROM audit_logs WHERE tenant_id = ? AND resource_type = 'invoice' AND resource_id = ? ORDER BY created_at DESC LIMIT 50").all(context.tenantId, invoice.id);
+      return res.json({ ok: true, invoice: { ...invoice, due_at: null }, items, ledger: journals, payments, audit, related: { orderId: invoice.order_id, purchaseId: null, returnId: null } });
+    } catch (error) { next(error); }
+  });
 
   router.post(
     "/refunds",
@@ -6851,14 +6861,13 @@ export function createPlatformRouter(): Router {
       try {
         const context = currentContext(req);
         assertScope(context, context.tenantId, "expense.read");
-        return res.json({
-          ok: true,
-          expenses: await getDataPlane()
-            .prepare(
-              "SELECT id, business_id, branch_id, amount_cents, category, description, status, created_by, created_at FROM expenses WHERE tenant_id = ? ORDER BY created_at DESC LIMIT 500"
-            )
-            .all(context.tenantId),
-        });
+        const conditions = ["e.tenant_id = ?"];
+        const params: Array<string | number> = [context.tenantId];
+        if (isNonEmptyString(req.query.status, 40)) { conditions.push("e.status = ?"); params.push(req.query.status.trim().toUpperCase()); }
+        if (isNonEmptyString(req.query.category, 100)) { conditions.push("e.category = ?"); params.push(req.query.category.trim()); }
+        if (isNonEmptyString(req.query.query, 160)) { conditions.push("(e.category LIKE ? OR e.description LIKE ? OR e.id LIKE ?)"); const query = `%${req.query.query.trim()}%`; params.push(query, query, query); }
+        const expenses = await getDataPlane().prepare(`SELECT e.id, e.business_id, e.branch_id, e.amount_cents, 'EGP' AS currency, e.category, e.description, e.status, e.created_by, e.created_at, e.updated_at, e.idempotency_key FROM expenses e WHERE ${conditions.join(" AND ")} ORDER BY e.created_at DESC LIMIT 500`).all(...params);
+        return res.json({ ok: true, expenses });
       } catch (error) {
         next(error);
       }
@@ -6872,7 +6881,7 @@ export function createPlatformRouter(): Router {
       try {
         const context = currentContext(req);
         assertScope(context, context.tenantId, "expense.manage");
-        const { businessId, branchId, amountCents, category, description } =
+        const { businessId, branchId, amountCents, category, description, idempotencyKey } =
           req.body ?? {};
         const amount = validateMoney(amountCents, "amountCents");
         if (
@@ -6883,6 +6892,7 @@ export function createPlatformRouter(): Router {
           !isNonEmptyString(description, 500)
         )
           throw httpError(400, "invalid-expense", "بيانات المصروف غير صالحة.");
+        if (idempotencyKey !== undefined && !/^[A-Za-z0-9._:-]{8,200}$/.test(idempotencyKey)) throw httpError(400, "invalid-expense-idempotency", "مفتاح Idempotency للمصروف غير صالح.");
         const db = getDataPlane();
         if (
           !(await db
@@ -6897,11 +6907,14 @@ export function createPlatformRouter(): Router {
             "الفرع غير مرتبط بالنشاط الحالي."
           );
         const result = await withDataPlaneTransaction(db, async () => {
+          const effectiveIdempotencyKey = idempotencyKey ?? `expense-${randomUUID()}`;
+          const replay = await db.prepare("SELECT id, amount_cents, status FROM expenses WHERE tenant_id = ? AND idempotency_key = ?").get(context.tenantId, effectiveIdempotencyKey) as { id: string; amount_cents: number; status: string } | undefined;
+          if (replay) return { expenseId: replay.id, amountCents: replay.amount_cents, status: replay.status, replay: true };
           const expenseId = randomUUID();
           const timestamp = now();
           await db
             .prepare(
-              "INSERT INTO expenses (id, tenant_id, business_id, branch_id, amount_cents, category, description, created_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+              "INSERT INTO expenses (id, tenant_id, business_id, branch_id, amount_cents, category, description, created_by, created_at, updated_at, idempotency_key) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
             )
             .run(
               expenseId,
@@ -6913,7 +6926,8 @@ export function createPlatformRouter(): Router {
               description.trim(),
               context.userId,
               timestamp,
-              timestamp
+              timestamp,
+              effectiveIdempotencyKey
             );
           await postBalancedJournal(
             db,
@@ -6937,14 +6951,43 @@ export function createPlatformRouter(): Router {
             req.requestId,
             { amountCents: amount, category }
           );
-          return { expenseId, amountCents: amount, status: "POSTED" };
+          return { expenseId, amountCents: amount, status: "POSTED", replay: false };
         });
-        return res.status(201).json({ ok: true, ...result });
+        return res.status(result.replay ? 200 : 201).json({ ok: true, ...result });
       } catch (error) {
         next(error);
       }
     }
   );
+
+  router.get("/expenses/:expenseId", authenticate, async (req: AuthenticatedRequest, res, next) => {
+    try {
+      const context = currentContext(req); assertScope(context, context.tenantId, "expense.read");
+      const db = getDataPlane();
+      const expense = await db.prepare("SELECT id, business_id, branch_id, amount_cents, 'EGP' AS currency, category, description, status, created_by, created_at, updated_at, idempotency_key FROM expenses WHERE id = ? AND tenant_id = ?").get(req.params.expenseId, context.tenantId);
+      if (!expense) throw httpError(404, "expense-not-found", "المصروف غير موجود داخل المستأجر الحالي.");
+      const ledger = await db.prepare("SELECT j.id, j.reference_type, j.reference_id, j.memo, j.created_at, COALESCE(SUM(e.debit_cents), 0) AS debit_cents, COALESCE(SUM(e.credit_cents), 0) AS credit_cents FROM ledger_journals j LEFT JOIN ledger_entries e ON e.journal_id = j.id AND e.tenant_id = j.tenant_id WHERE j.tenant_id = ? AND j.reference_id = ? GROUP BY j.id, j.reference_type, j.reference_id, j.memo, j.created_at ORDER BY j.created_at").all(context.tenantId, req.params.expenseId);
+      const audit = await db.prepare("SELECT id, action, actor_user_id, request_id, metadata_json, created_at FROM audit_logs WHERE tenant_id = ? AND resource_type = 'expense' AND resource_id = ? ORDER BY created_at DESC LIMIT 50").all(context.tenantId, req.params.expenseId);
+      return res.json({ ok: true, expense, ledger, audit });
+    } catch (error) { next(error); }
+  });
+
+  router.post("/expenses/:expenseId/cancel", authenticate, async (req: AuthenticatedRequest, res, next) => {
+    try {
+      const context = currentContext(req); assertScope(context, context.tenantId, "expense.manage");
+      const db = getDataPlane();
+      const result = await withDataPlaneTransaction(db, async () => {
+        const expense = await db.prepare("SELECT id, amount_cents, status FROM expenses WHERE id = ? AND tenant_id = ?").get(req.params.expenseId, context.tenantId) as { id: string; amount_cents: number; status: string } | undefined;
+        if (!expense) throw httpError(404, "expense-not-found", "المصروف غير موجود داخل المستأجر الحالي.");
+        if (expense.status === "CANCELLED") return { expenseId: expense.id, status: "CANCELLED", replay: true };
+        await db.prepare("UPDATE expenses SET status = 'CANCELLED', updated_at = ? WHERE id = ? AND tenant_id = ? AND status = 'POSTED'").run(now(), expense.id, context.tenantId);
+        await postBalancedJournal(db, context, "EXPENSE_CANCEL", expense.id, `Expense cancellation ${expense.id}`, `expense-cancel:${expense.id}`, "1000", "5000", expense.amount_cents, "ledger.expense.cancel", req.requestId);
+        await recordAudit(db, context, "expense.cancel", "expense", expense.id, req.requestId, { amountCents: expense.amount_cents });
+        return { expenseId: expense.id, status: "CANCELLED", replay: false };
+      });
+      return res.json({ ok: true, ...result });
+    } catch (error) { next(error); }
+  });
 
   router.get(
     "/reports/summary",

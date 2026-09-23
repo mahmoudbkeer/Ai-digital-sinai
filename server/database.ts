@@ -831,6 +831,13 @@ export function getDatabase(): AppDatabase {
     database.exec(readFileSync(path.resolve(process.cwd(), "migrations/0012_logistics_depth.sql"), "utf8"));
     database.prepare("INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)").run(12, Date.now());
   }
+  const appliedFinanceDepth = database
+    .prepare("SELECT version FROM schema_migrations WHERE version = 13")
+    .get() as { version?: number } | undefined;
+  if (!appliedFinanceDepth) {
+    database.exec(readFileSync(path.resolve(process.cwd(), "migrations/0013_finance_depth.sql"), "utf8"));
+    database.prepare("INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)").run(13, Date.now());
+  }
   const planInsert = database.prepare(
     "INSERT OR IGNORE INTO plans (code, name, price_cents, trial_days, active, created_at) VALUES (?, ?, ?, ?, 1, ?)"
   );

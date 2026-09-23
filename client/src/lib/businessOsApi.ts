@@ -3,7 +3,9 @@ export type BusinessOsModuleId =
   | "retail-inventory"
   | "retail-sales"
   | "retail-customers"
-  | "retail-suppliers";
+  | "retail-suppliers"
+  | "retail-invoices"
+  | "retail-expenses";
 
 type ApiRow = Record<string, unknown>;
 
@@ -131,6 +133,16 @@ const config: Record<BusinessOsModuleId, { endpoint: string; keys: string[]; mut
       method: "POST",
       buildBody: (values, context) => ({ businessId: context.businessId, name: values.name, phone: values.phone }),
     },
+  },
+  "retail-invoices": {
+    endpoint: "/api/platform/invoices",
+    keys: ["invoices"],
+    mutation: { label: "إدارة الفواتير", fields: [], endpoint: "/api/platform/invoices", method: "POST", buildBody: () => ({}) },
+  },
+  "retail-expenses": {
+    endpoint: "/api/platform/expenses",
+    keys: ["expenses"],
+    mutation: { label: "إنشاء مصروف", fields: [], endpoint: "/api/platform/expenses", method: "POST", buildBody: () => ({}) },
   },
 };
 
@@ -294,3 +306,14 @@ export async function receiveBusinessOsPurchase(purchaseId: string, purchaseItem
 export async function createBusinessOsSupplierReturn(values: { purchaseId: string; purchaseItemId: string; quantity: number; reason: string }, headers: Record<string, string>) {
   return productRequest<{ supplierReturnId: string; totalCents: number; replay: boolean }>("/api/platform/supplier-returns", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...values, items: [{ purchaseItemId: values.purchaseItemId, quantity: values.quantity }], idempotencyKey: `ui-supplier-return-${Date.now()}-${window.crypto?.randomUUID?.() ?? Math.random().toString(36).slice(2)}` }) }, headers);
 }
+
+export type BusinessOsInvoice = { id: string; invoice_number: string; status: string; subtotal_cents: number; tax_cents: number; total_cents: number; currency: string; issued_at: number; source_id: string; source_type: string; customer_id?: string | null; customer_name?: string | null; order_state?: string; payment_status: string };
+export type BusinessOsInvoiceDetail = { invoice: BusinessOsInvoice & { order_id: string; business_id: string; branch_id: string; due_at?: number | null }; items: Array<{ id: string; product_id: string; product_name: string; sku?: string | null; quantity: number; unit_price_cents: number; line_total_cents: number }>; ledger: Array<{ id: string; reference_type: string; reference_id: string; memo: string; debit_cents: number; credit_cents: number; created_at: number }>; payments: Array<{ id: string; provider: string; amount_cents: number; currency: string; status: string; provider_reference?: string | null; created_at: number; updated_at: number }>; audit: Array<{ id: string; action: string; metadata_json: string; created_at: number }>; related: { orderId: string; purchaseId: string | null; returnId: string | null } };
+export type BusinessOsExpense = { id: string; business_id: string; branch_id: string; amount_cents: number; currency: string; category: string; description: string; status: string; created_by: string; created_at: number; updated_at: number; idempotency_key?: string | null };
+export type BusinessOsExpenseDetail = { expense: BusinessOsExpense; ledger: Array<{ id: string; reference_type: string; reference_id: string; memo: string; debit_cents: number; credit_cents: number; created_at: number }>; audit: Array<{ id: string; action: string; metadata_json: string; created_at: number }> };
+export async function loadBusinessOsInvoices(headers: Record<string, string>, filters: { query?: string; status?: string } = {}) { const params = new URLSearchParams(); if (filters.query) params.set("query", filters.query); if (filters.status) params.set("status", filters.status); const payload = await productRequest<{ invoices?: BusinessOsInvoice[] }>(`/api/platform/invoices${params.toString() ? `?${params}` : ""}`, {}, headers); return payload.invoices ?? []; }
+export async function loadBusinessOsInvoice(invoiceId: string, headers: Record<string, string>) { return productRequest<BusinessOsInvoiceDetail>(`/api/platform/invoices/${encodeURIComponent(invoiceId)}`, {}, headers); }
+export async function loadBusinessOsExpenses(headers: Record<string, string>, filters: { query?: string; category?: string; status?: string } = {}) { const params = new URLSearchParams(); if (filters.query) params.set("query", filters.query); if (filters.category) params.set("category", filters.category); if (filters.status) params.set("status", filters.status); const payload = await productRequest<{ expenses?: BusinessOsExpense[] }>(`/api/platform/expenses${params.toString() ? `?${params}` : ""}`, {}, headers); return payload.expenses ?? []; }
+export async function loadBusinessOsExpense(expenseId: string, headers: Record<string, string>) { return productRequest<BusinessOsExpenseDetail>(`/api/platform/expenses/${encodeURIComponent(expenseId)}`, {}, headers); }
+export async function createBusinessOsExpense(values: { businessId: string; branchId: string; amountCents: number; category: string; description: string }, headers: Record<string, string>) { const idempotencyKey = `ui-expense-${Date.now()}-${window.crypto?.randomUUID?.() ?? Math.random().toString(36).slice(2)}`; return productRequest<{ expenseId: string; amountCents: number; status: string; replay: boolean }>("/api/platform/expenses", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...values, idempotencyKey }) }, headers); }
+export async function cancelBusinessOsExpense(expenseId: string, headers: Record<string, string>) { return productRequest<{ expenseId: string; status: string; replay: boolean }>(`/api/platform/expenses/${encodeURIComponent(expenseId)}/cancel`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({}) }, headers); }

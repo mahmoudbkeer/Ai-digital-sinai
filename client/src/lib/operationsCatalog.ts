@@ -80,9 +80,13 @@ const retailSuppliers: SectorModule = {
     { id: "retail-suppliers-manage", label: "إدارة الموردين", description: "راجع الموردين ودورة الشراء والاستلام من مساحة العمل المعزولة.", status: setup },
   ],
 };
+const retailFinance: SectorModule[] = [
+  { id: "retail-invoices", label: "الفواتير", description: "تشغيل الفواتير المرتبطة بالطلبات مع Ledger وAudit.", operations: [{ id: "retail-invoices-manage", label: "إدارة الفواتير", description: "راجع الفواتير الحقيقية وافتح تفاصيل المصدر والدفتر والتدقيق.", status: ready }] },
+  { id: "retail-expenses", label: "المصروفات", description: "تسجيل ومراجعة المصروفات المرحّلة داخل نطاق النشاط والفرع.", operations: [{ id: "retail-expenses-manage", label: "إدارة المصروفات", description: "أنشئ مصروفًا حقيقيًا أو ألغِه بقيد عكسي مع Ledger وAudit.", status: ready }] },
+];
 
 export const sectors: Sector[] = [
-  { id: "retail", name: "التجارة والتجزئة", eyebrow: "01 · بيع وتوزيع", description: "من عرض المنتج إلى الطلب والمخزون والتسليم.", modules: [retailCommerce, retailProducts, retailInventory, retailSales, retailCustomers, retailSuppliers, ...common("retail")] },
+  { id: "retail", name: "التجارة والتجزئة", eyebrow: "01 · بيع وتوزيع", description: "من عرض المنتج إلى الطلب والمخزون والتسليم.", modules: [retailCommerce, retailProducts, retailInventory, retailSales, retailCustomers, retailSuppliers, ...retailFinance, ...common("retail")] },
   { id: "food", name: "الأغذية والمشروبات", eyebrow: "02 · مطاعم وإنتاج", description: "القائمة، التوريد، الطلبات، وسلامة التشغيل.", modules: common("food") },
   { id: "home-services", name: "الخدمات المنزلية", eyebrow: "03 · خدمة عند الطلب", description: "توزيع الطلبات والمواعيد ومتابعة التنفيذ.", modules: common("home") },
   { id: "crafts", name: "الحرف والصناعات", eyebrow: "04 · إنتاج محلي", description: "المنتج المحلي، المواد، والطلب المخصص.", modules: common("crafts") },
