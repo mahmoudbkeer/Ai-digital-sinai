@@ -513,9 +513,13 @@ describe("Business OS workflows", () => {
     const supplierItem = (await getDataPlane().prepare("SELECT id FROM purchase_items WHERE purchase_id = ?").get(receivedPurchaseBody.purchaseId)) as { id: string };
     const supplierReturn = await request("/api/platform/supplier-returns", { method: "POST", headers, body: JSON.stringify({ purchaseId: receivedPurchaseBody.purchaseId, reason: "اختبار مرتجع المورد", idempotencyKey: "depth-supplier-return-1", items: [{ purchaseItemId: supplierItem.id, quantity: 1 }] }) });
     expect(supplierReturn.status).toBe(201);
+    const supplierReturnReplay = await request("/api/platform/supplier-returns", { method: "POST", headers, body: JSON.stringify({ purchaseId: receivedPurchaseBody.purchaseId, reason: "اختبار مرتجع المورد", idempotencyKey: "depth-supplier-return-1", items: [{ purchaseItemId: supplierItem.id, quantity: 1 }] }) });
+    expect(supplierReturnReplay.status).toBe(200);
     const draftPurchase = await request("/api/platform/purchases", { method: "POST", headers, body: JSON.stringify({ businessId: identity.businessId, branchId: identity.branchId, supplierId, receiveImmediately: false, idempotencyKey: "depth-purchase-draft", items: [{ productId, quantity: 2, unitCostCents: 1000 }] }) });
     const { purchaseId: draftPurchaseId } = (await draftPurchase.json()) as { purchaseId: string };
     const draftItem = (await getDataPlane().prepare("SELECT id FROM purchase_items WHERE purchase_id = ?").get(draftPurchaseId)) as { id: string };
+    const unreceivedSupplierReturn = await request("/api/platform/supplier-returns", { method: "POST", headers, body: JSON.stringify({ purchaseId: draftPurchaseId, reason: "لا يجب قبول هذا المرتجع", idempotencyKey: "depth-supplier-return-unreceived", items: [{ purchaseItemId: draftItem.id, quantity: 1 }] }) });
+    expect(unreceivedSupplierReturn.status).toBe(409);
     const receipt = await request(`/api/platform/purchases/${draftPurchaseId}/receipts`, { method: "POST", headers, body: JSON.stringify({ items: [{ purchaseItemId: draftItem.id, quantity: 1 }], idempotencyKey: "depth-receipt-1" }) });
     expect(receipt.status).toBe(201);
     const receiptBody = await receipt.json() as { receiptStatus: string; receivedQuantity: number };
@@ -537,6 +541,12 @@ describe("Business OS workflows", () => {
     const salesReturn = await request("/api/platform/returns", { method: "POST", headers, body: JSON.stringify({ orderId, reason: "اختبار مرتجع العميل", idempotencyKey: "depth-sales-return-1", items: [{ orderItemId: orderItem.id, productId, quantity: 1, unitRefundCents: 2500 }] }) });
     expect(salesReturn.status).toBe(201);
     await expect(salesReturn.json()).resolves.toMatchObject({ status: "POSTED", totalCents: 2500 });
+    const salesReturnReplay = await request("/api/platform/returns", { method: "POST", headers, body: JSON.stringify({ orderId, reason: "اختبار مرتجع العميل", idempotencyKey: "depth-sales-return-1", items: [{ orderItemId: orderItem.id, productId, quantity: 1, unitRefundCents: 2500 }] }) });
+    expect(salesReturnReplay.status).toBe(200);
+    const otherTenant = await register("business-depth-other@example.com", "Business Depth Other Tenant");
+    expect((await request("/api/platform/returns", { method: "POST", headers: auth(otherTenant), body: JSON.stringify({ orderId, reason: "cross tenant", idempotencyKey: "cross-tenant-return", items: [{ orderItemId: orderItem.id, productId, quantity: 1, unitRefundCents: 2500 }] }) })).status).toBe(404);
+    const returnMovements = await getDataPlane().prepare("SELECT COUNT(*) AS count FROM inventory_movements WHERE tenant_id = ? AND reason = 'sales_return'").get(identity.tenantId) as { count: number };
+    expect(returnMovements.count).toBe(1);
     const reconciliation = await request("/api/platform/reconciliations", { method: "POST", headers, body: JSON.stringify({ accountCode: "4000", expectedCents: 0 }) });
     expect(reconciliation.status).toBe(201);
     const segment = await request("/api/platform/customer-segments", { method: "POST", headers, body: JSON.stringify({ name: "كل عملاء الاختبار", minOrders: 0, minSpendCents: 0 }) });

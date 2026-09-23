@@ -212,6 +212,10 @@ export async function updateSalesOrderState(orderId: string, state: string, head
   return productRequest<{ orderId: string; state: string }>(`/api/platform/orders/${encodeURIComponent(orderId)}/state`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ state }) }, headers);
 }
 
+export async function createBusinessOsSalesReturn(values: { orderId: string; orderItemId: string; productId: string; quantity: number; unitRefundCents: number; reason: string }, headers: Record<string, string>) {
+  return productRequest<{ returnId: string; totalCents: number; status: string; replay: boolean }>("/api/platform/returns", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...values, items: [{ orderItemId: values.orderItemId, productId: values.productId, quantity: values.quantity, unitRefundCents: values.unitRefundCents }], idempotencyKey: `ui-sales-return-${Date.now()}-${window.crypto?.randomUUID?.() ?? Math.random().toString(36).slice(2)}` }) }, headers);
+}
+
 export async function createBusinessOsInventoryMovement(values: { branchId: string; productId: string; quantityDelta: number; reason: string }, headers: Record<string, string>) {
   const idempotencyKey = `ui-inventory-${Date.now()}-${window.crypto?.randomUUID?.() ?? Math.random().toString(36).slice(2)}`;
   return productRequest<{ movementId: string; quantity: number; replay: boolean }>("/api/platform/inventory/movements", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...values, idempotencyKey }) }, headers);
@@ -286,4 +290,7 @@ export async function loadBusinessOsPurchase(purchaseId: string, headers: Record
 }
 export async function receiveBusinessOsPurchase(purchaseId: string, purchaseItemId: string, quantity: number, headers: Record<string, string>) {
   return productRequest<{ purchaseId: string; receivedQuantity: number; receiptStatus: string; replay: boolean }>(`/api/platform/purchases/${encodeURIComponent(purchaseId)}/receipts`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ items: [{ purchaseItemId, quantity }], idempotencyKey: `ui-receipt-${Date.now()}-${window.crypto?.randomUUID?.() ?? Math.random().toString(36).slice(2)}` }) }, headers);
+}
+export async function createBusinessOsSupplierReturn(values: { purchaseId: string; purchaseItemId: string; quantity: number; reason: string }, headers: Record<string, string>) {
+  return productRequest<{ supplierReturnId: string; totalCents: number; replay: boolean }>("/api/platform/supplier-returns", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...values, items: [{ purchaseItemId: values.purchaseItemId, quantity: values.quantity }], idempotencyKey: `ui-supplier-return-${Date.now()}-${window.crypto?.randomUUID?.() ?? Math.random().toString(36).slice(2)}` }) }, headers);
 }

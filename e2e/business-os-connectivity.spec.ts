@@ -72,8 +72,9 @@ test("Business OS core modules load tenant data through their domain APIs", asyn
   const salesResponsePromise = page.waitForResponse((response) => response.url().includes("/api/platform/orders") && response.request().method() === "GET");
   await page.getByRole("button", { name: /المبيعات والطلبات/ }).click();
   await salesResponsePromise;
-  await expect(page.getByLabel("إدارة المبيعات والطلبات الحقيقية")).toBeVisible();
-  await expect(page.getByText(orderId, { exact: false })).toBeVisible();
+  const salesPanel = page.getByLabel("إدارة المبيعات والطلبات الحقيقية");
+  await expect(salesPanel).toBeVisible();
+  await expect(salesPanel.getByText(orderId, { exact: false })).toBeVisible();
   await page.getByRole("button", { name: "فتح التفاصيل" }).click();
   const orderDetail = page.getByLabel("تفاصيل الطلب");
   await expect(orderDetail).toBeVisible();

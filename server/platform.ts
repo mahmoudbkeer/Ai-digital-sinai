@@ -6607,8 +6607,10 @@ export function createPlatformRouter(): Router {
             const source = await db.prepare("SELECT pi.product_id, pi.quantity, pi.unit_cost_cents FROM purchase_items pi WHERE pi.id = ? AND pi.purchase_id = ? AND pi.tenant_id = ?").get(item.purchaseItemId, purchase.id, context.tenantId) as { product_id: string; quantity: number; unit_cost_cents: number } | undefined;
             if (!source) throw httpError(404, "purchase-item-not-found", "عنصر المشتريات غير موجود.");
             const quantity = validatePositiveInteger(item.quantity, "quantity");
+            const received = await db.prepare("SELECT COALESCE(SUM(quantity), 0) AS quantity FROM purchase_receipts WHERE purchase_item_id = ? AND tenant_id = ?").get(item.purchaseItemId, context.tenantId) as { quantity: number };
+            if (Number(received.quantity) < quantity) throw httpError(409, "supplier-return-not-received", "لا يمكن إرجاع كمية لم يتم استلامها من المورد.");
             const returned = await db.prepare("SELECT COALESCE(SUM(sri.quantity), 0) AS quantity FROM supplier_return_items sri JOIN supplier_returns sr ON sr.id = sri.return_id AND sr.tenant_id = sri.tenant_id WHERE sr.purchase_id = ? AND sr.tenant_id = ? AND sri.product_id = ? AND sr.status = 'POSTED'").get(purchase.id, context.tenantId, source.product_id) as { quantity: number };
-            if (Number(returned.quantity) + quantity > source.quantity) throw httpError(409, "supplier-return-quantity-exceeded", "كمية مرتجع المورد تتجاوز المشتريات.");
+            if (Number(returned.quantity) + quantity > Number(received.quantity)) throw httpError(409, "supplier-return-quantity-exceeded", "كمية مرتجع المورد تتجاوز الكمية المستلمة.");
             const lineTotal = source.unit_cost_cents * quantity;
             total += lineTotal;
             resolved.push({ productId: source.product_id, quantity, unitCostCents: source.unit_cost_cents, lineTotal });
