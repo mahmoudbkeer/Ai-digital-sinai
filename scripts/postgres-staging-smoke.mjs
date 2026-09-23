@@ -7,7 +7,7 @@ const fail = (name, detail) => {
   results.push({ name, status: "FAIL", detail });
   throw new Error(`${name}: ${detail}`);
 };
-const expectedVersions = Array.from({ length: 12 }, (_, index) => index + 1);
+const expectedVersions = Array.from({ length: 13 }, (_, index) => index + 1);
 
 try {
   if (!/^(postgres|postgresql):\/\//i.test(process.env.DATABASE_URL ?? "")) {
