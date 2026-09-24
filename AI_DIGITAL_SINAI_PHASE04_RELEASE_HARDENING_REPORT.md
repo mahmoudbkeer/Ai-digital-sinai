@@ -1,7 +1,6 @@
 # AI Digital Sinai — Phase 04 Release Hardening Report
 
 **Code baseline:** `a149e9542b1f4480138b77bf0348d3edc7604904`
-**Current documentation HEAD:** `350962c`
 **Branch:** `main`  
 **Assessment date:** 25 September 2026  
 **Decision rule:** This report uses only `VERIFIED`, `OPERATIONAL`, `PARTIAL`, `BLOCKED`, `NOT_VERIFIED`, `EXTERNAL_SETUP_REQUIRED`, and `NOT_IMPLEMENTED`.
@@ -103,7 +102,7 @@ The release board is provided in `AI_DIGITAL_SINAI_FINAL_RELEASE_BOARD.md`. Its 
 
 | Item | Result |
 |---|---|
-| `HEAD` | `350962c` (documentation commit after code baseline) |
+| `HEAD` | Documentation commits after code baseline; exact final SHA is recorded in the delivery verification. |
 | `origin/main` | Same SHA as HEAD |
 | Branch | `main` |
 | Working tree | No code changes; two pre-existing local artifacts remain outside the commit: `artifacts/marketplace-assistant-search.png` and `artifacts/business-onboarding-pending.png`. |

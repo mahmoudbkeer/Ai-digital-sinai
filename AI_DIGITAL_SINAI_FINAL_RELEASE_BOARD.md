@@ -1,7 +1,6 @@
 # AI Digital Sinai — Final Release Board
 
 **Code baseline:** `a149e9542b1f4480138b77bf0348d3edc7604904`
-**Current documentation HEAD:** `350962c`
 **Branch:** `main`  
 **Overall status:** **BLOCKED / NOT_VERIFIED** for Production Runtime and Closed Beta.
 
@@ -9,7 +8,7 @@
 
 | Item | Status | Evidence |
 |---|---|---|
-| HEAD | VERIFIED | `350962c` (documentation commit after code baseline) |
+| HEAD | VERIFIED | Current release-board commit; exact final SHA is recorded in delivery verification. |
 | `origin/main` | VERIFIED | Same SHA as HEAD |
 | Branch | VERIFIED | `main` |
 | Code working tree | VERIFIED | No code changes; only two local artifact files remain outside the commit. |
