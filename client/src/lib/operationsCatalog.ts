@@ -83,6 +83,8 @@ const retailSuppliers: SectorModule = {
 const retailFinance: SectorModule[] = [
   { id: "retail-invoices", label: "الفواتير", description: "تشغيل الفواتير المرتبطة بالطلبات مع Ledger وAudit.", operations: [{ id: "retail-invoices-manage", label: "إدارة الفواتير", description: "راجع الفواتير الحقيقية وافتح تفاصيل المصدر والدفتر والتدقيق.", status: ready }] },
   { id: "retail-expenses", label: "المصروفات", description: "تسجيل ومراجعة المصروفات المرحّلة داخل نطاق النشاط والفرع.", operations: [{ id: "retail-expenses-manage", label: "إدارة المصروفات", description: "أنشئ مصروفًا حقيقيًا أو ألغِه بقيد عكسي مع Ledger وAudit.", status: ready }] },
+  { id: "retail-profit", label: "الربحية", description: "مؤشر ربحية تشغيلي مرتبط بتقرير الخادم والفترة المحددة.", operations: [{ id: "retail-profit-manage", label: "تقرير الربحية", description: "اعرض الإيراد وتكلفة المخزون والمصروفات وصافي المؤشر من البيانات الحقيقية.", status: ready }] },
+  { id: "retail-reconciliation", label: "التسوية المالية", description: "مقارنة الرصيد المتوقع برصيد Ledger مع سجل Audit.", operations: [{ id: "retail-reconciliation-manage", label: "تنفيذ التسوية", description: "نفذ فحصًا ماليًا لحساب وفترة محددين دون تعديل القيود.", status: ready }] },
 ];
 
 export const sectors: Sector[] = [
