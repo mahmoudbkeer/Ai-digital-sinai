@@ -49,6 +49,8 @@ jobs:
           distribution: temurin
           java-version: "21"
       - uses: android-actions/setup-android@v3
+        with:
+          packages: "platform-tools platforms;android-35 build-tools;35.0.0"
       - run: chmod +x ./gradlew
       - name: Android unit and APK acceptance build
         run: ./gradlew :app:testDebugUnitTest :app:assembleDebug --no-daemon
