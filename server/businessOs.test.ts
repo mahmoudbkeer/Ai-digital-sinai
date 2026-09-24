@@ -525,7 +525,7 @@ describe("Business OS workflows", () => {
     const receiptBody = await receipt.json() as { receiptStatus: string; receivedQuantity: number };
     expect(receiptBody).toMatchObject({ receiptStatus: "PARTIALLY_RECEIVED", receivedQuantity: 1 });
     const receiptReplay = await request(`/api/platform/purchases/${draftPurchaseId}/receipts`, { method: "POST", headers, body: JSON.stringify({ items: [{ purchaseItemId: draftItem.id, quantity: 1 }], idempotencyKey: "depth-receipt-1" }) });
-    expect(receiptReplay.status).toBe(201);
+    expect(receiptReplay.status).toBe(200);
     await expect(receiptReplay.json()).resolves.toMatchObject({ replay: true, receivedQuantity: 0, receiptStatus: "PARTIALLY_RECEIVED" });
     const receiptCount = await getDataPlane().prepare("SELECT COUNT(*) AS count FROM purchase_receipts WHERE purchase_id = ?").get(draftPurchaseId) as { count: number };
     expect(receiptCount.count).toBe(1);

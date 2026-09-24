@@ -6591,7 +6591,7 @@ export function createPlatformRouter(): Router {
           await recordAudit(db, context, "purchase.partial_receive", "purchase", purchase.id, req.requestId, { received, receiptStatus });
           return { purchaseId: purchase.id, receivedQuantity: received, receiptStatus, replay: false };
         });
-        return res.status(201).json({ ok: true, ...result });
+        return res.status(result.replay ? 200 : 201).json({ ok: true, ...result });
       } catch (error) { next(error); }
     }
   );
@@ -6908,8 +6908,11 @@ export function createPlatformRouter(): Router {
           );
         const result = await withDataPlaneTransaction(db, async () => {
           const effectiveIdempotencyKey = idempotencyKey ?? `expense-${randomUUID()}`;
-          const replay = await db.prepare("SELECT id, amount_cents, status FROM expenses WHERE tenant_id = ? AND idempotency_key = ?").get(context.tenantId, effectiveIdempotencyKey) as { id: string; amount_cents: number; status: string } | undefined;
-          if (replay) return { expenseId: replay.id, amountCents: replay.amount_cents, status: replay.status, replay: true };
+          const replay = await db.prepare("SELECT id, business_id, branch_id, amount_cents, category, description, status FROM expenses WHERE tenant_id = ? AND idempotency_key = ?").get(context.tenantId, effectiveIdempotencyKey) as { id: string; business_id: string; branch_id: string; amount_cents: number; category: string; description: string; status: string } | undefined;
+          if (replay) {
+            if (replay.business_id !== businessId || replay.branch_id !== branchId || replay.amount_cents !== amount || replay.category !== category.trim() || replay.description !== description.trim()) throw httpError(409, "idempotency-conflict", "مفتاح المصروف مستخدم بطلب مختلف.");
+            return { expenseId: replay.id, amountCents: replay.amount_cents, status: replay.status, replay: true };
+          }
           const expenseId = randomUUID();
           const timestamp = now();
           await db
