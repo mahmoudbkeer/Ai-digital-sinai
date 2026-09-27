@@ -17,6 +17,7 @@ No closed module was redesigned. No SQLite fallback was introduced into producti
 |---|---|---|---|
 | Backup script inspection | VERIFIED | `scripts/backup.mjs` creates PostgreSQL custom-format dumps or SQLite file backups, optional AES-256-GCM encryption, SHA-256 manifest, and retention cleanup. | None in the inspected script contract. |
 | Restore script inspection | VERIFIED | `scripts/restore.mjs` verifies the manifest before decrypting; PostgreSQL uses `pg_restore`; SQLite creates a safety copy before replacement. | Runtime PostgreSQL proof is still required. |
+| Supported environment variables | VERIFIED | The scripts read `DATABASE_URL` for PostgreSQL selection/connection, `BACKUP_DIR`, `BACKUP_RETENTION`, `BACKUP_ENCRYPTION_KEY`, `SQLITE_PATH`, and optional `ALLOW_LEGACY_BACKUP`; they do not read `SOURCE_DATABASE_URL` or `TARGET_DATABASE_URL`. | Source/target separation must be orchestrated externally and never by placing secrets in Git or chat. |
 | Local encrypted Restore Drill | VERIFIED | `node scripts/backup-restore-drill.mjs` returned `PASS`; original and restored SHA-256 were both `383440773b46ae14c34a9bada6f930c9c95281256e0c531e8d426b7e3ba55787`. | This is SQLite, not a production PostgreSQL restore. |
 | PostgreSQL backup creation | NOT_VERIFIED | No `pg_dump` executable and no `DATABASE_URL` were available. | Provide a real PostgreSQL source and backup destination. |
 | PostgreSQL restore to separate database | NOT_VERIFIED | No `psql`, `pg_restore`, PostgreSQL server, production dump, or separate target was available. | Execute the real restore and verify schema, data, constraints, indexes, and financial totals. |
@@ -52,11 +53,12 @@ No closed module was redesigned. No SQLite fallback was introduced into producti
 | Check | Status | Evidence | Remaining gap |
 |---|---|---|---|
 | Native source and Gradle project | VERIFIED | Existing `android/` Kotlin/Compose project; no Capacitor, React Native, Expo, or Flutter introduced. | None for source scope. |
-| Unit tests and debug APK build | VERIFIED | Android CI run `35964521761` passed unit tests and `assembleDebug`. | Device installation and launch are not evidenced here. |
-| CI artifact | VERIFIED | Android CI uploaded the debug APK in run `35964521761`. | Record artifact SHA-256 from the retained CI artifact when preparing distribution. |
-| Physical/emulator runtime flows | NOT_VERIFIED | No emulator or device runtime evidence was available in this execution context. | Install and exercise login, marketplace, checkout, Business OS, and finance on a device/emulator. |
+| Unit tests and Debug/Release builds | VERIFIED | Local `./gradlew :app:testDebugUnitTest :app:assembleDebug :app:assembleRelease --no-daemon` passed after installing Android SDK 35 and full JDK 21. | None for local build scope. |
+| Debug APK artifact | VERIFIED | `app-debug.apk`, 12,640,669 bytes, SHA-256 `fec4f4e5b36d1317cb6fe22ab76bd682edf7e5b5b300915d0550fa05c89ef0a8`; `apksigner verify` passed with APK v2 signature. | Debug signing is not a distribution/release key. |
+| Release APK artifact | PARTIAL | `app-release-unsigned.apk`, 9,058,148 bytes, SHA-256 `6cc24a9da0a2d2dc48e8685eb5669cecea521651ea7e10776dfe25b6f7b76ba0`; build passed. | No release signing config/key; APK is not installable as a signed release. |
+| Physical/emulator install and launch | NOT_VERIFIED | AVD `sinai-api35` was created, but launch failed because `/dev/kvm` is unavailable; no device was connected. | Run install/launch on a device or emulator with hardware acceleration. |
 
-**Stage D result: PARTIAL.** Build and CI artifact are verified; device runtime is not verified.
+**Stage D result: PARTIAL.** Native source, local tests, and build artifacts are verified; release signing and device runtime are not verified.
 
 ## E — iOS Final Acceptance
 
@@ -64,7 +66,8 @@ No closed module was redesigned. No SQLite fallback was introduced into producti
 |---|---|---|---|
 | Native Swift/SwiftUI source | VERIFIED | Existing `ios/` Swift Package; no WebView, Capacitor, React Native, Expo, or Flutter introduced. | None for source scope. |
 | XCTest and package build | VERIFIED | iOS CI run `35964524113` passed XCTest and package build. | None for CI scope. |
-| Device/simulator API runtime | NOT_VERIFIED | No attached Apple device or simulator runtime evidence was available in this environment. | Execute simulator/device installation and critical-flow acceptance on macOS/Xcode. |
+| Local Swift package test | NOT_VERIFIED | `swift` is unavailable in the current Linux sandbox. | Execute on macOS/Xcode or a Swift-enabled runner. |
+| Device/simulator API runtime | NOT_VERIFIED | No Xcode, simulator, or Apple device is available in this environment. | Execute simulator/device installation and critical-flow acceptance on macOS/Xcode. |
 
 **Stage E result: PARTIAL.** CI is verified; device runtime remains unverified.
 
@@ -73,7 +76,7 @@ No closed module was redesigned. No SQLite fallback was introduced into producti
 | Surface | Status | Evidence | Remaining gap |
 |---|---|---|---|
 | Web tablet responsive behavior | VERIFIED | Local Playwright run passed 29 tests, including 768x1024, 800x1280, 1024x1366, 1280x800, and 1024x768 landscape coverage. | Add captured visual evidence if release board requires screenshots. |
-| Android tablet | NOT_VERIFIED | Android CI verifies build/unit tests, not tablet installation and layout. | Run tablet emulator/device acceptance. |
+| Android tablet | NOT_VERIFIED | AVD creation succeeded but runtime could not start without `/dev/kvm`; no tablet runtime was available. | Run tablet emulator/device acceptance with hardware acceleration. |
 | iPad | NOT_VERIFIED | iOS CI verifies package/XCTest, not iPad runtime/layout. | Run iPad simulator/device acceptance. |
 
 **Stage F result: PARTIAL.** Web tablet behavior is verified; native tablet runtime is not verified.

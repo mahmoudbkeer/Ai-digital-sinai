@@ -98,9 +98,14 @@
 
 | Surface | Status | Evidence | Remaining gap |
 |---|---|---|---|
-| Android source/build | VERIFIED | Android CI `35964521761`. | Device installation and runtime. |
-| Android tablet | NOT_VERIFIED | No tablet runtime evidence. | Emulator/device. |
-| iOS source/build | VERIFIED | iOS CI `35964524113`. | Device/iPad runtime. |
+| Android source | VERIFIED | Existing Kotlin/Compose source and `applicationId com.aidigitalsinai`. | None for source scope. |
+| Android unit/build | VERIFIED | Local `testDebugUnitTest`, `assembleDebug`, and `assembleRelease` passed with SDK 35/JDK 21. | None for local build scope. |
+| Android Debug APK | VERIFIED | 12,640,669 bytes; SHA-256 `fec4f4e5b36d1317cb6fe22ab76bd682edf7e5b5b300915d0550fa05c89ef0a8`; v2 signature verified. | Debug key is not a release distribution key. |
+| Android Release APK | PARTIAL | Release build exists as unsigned APK; SHA-256 `6cc24a9da0a2d2dc48e8685eb5669cecea521651ea7e10776dfe25b6f7b76ba0`. | Release signing key/config is absent. |
+| Android install/launch | NOT_VERIFIED | AVD created but could not boot because `/dev/kvm` is unavailable; no device connected. | Hardware-accelerated emulator or physical device. |
+| Android tablet | NOT_VERIFIED | No tablet runtime; same KVM/device blocker. | Emulator/device. |
+| iOS source/build | VERIFIED | Existing Swift/SwiftUI source and CI run `35964524113`. | Local Swift/Xcode unavailable. |
+| iOS device/runtime | NOT_VERIFIED | No Xcode, simulator, or Apple device in this Linux sandbox. | macOS/Xcode runtime. |
 | iPad | NOT_VERIFIED | No iPad runtime evidence. | Simulator/device. |
 | Web tablet | VERIFIED | 29 local Playwright tests across tablet/landscape sizes. | Visual artifact capture optional. |
 
@@ -134,6 +139,8 @@
 - Full Regression Acceptance: [run 35969556323][2] — **success**.
 - Android CI: [run 35964521761][3] — **success**.
 - iOS CI: [run 35964524113][4] — **success**.
+- Local Android build: **success**; Debug APK is signed with the fixed debug key, Release APK remains unsigned.
+- Android runtime: **NOT_VERIFIED**; emulator requires `/dev/kvm` or a physical device.
 
 ## 13. Closed Beta Decision
 
