@@ -101,7 +101,8 @@
 | Android source | VERIFIED | Existing Kotlin/Compose source and `applicationId com.aidigitalsinai`. | None for source scope. |
 | Android unit/build | VERIFIED | Local `testDebugUnitTest`, `assembleDebug`, and `assembleRelease` passed with SDK 35/JDK 21. | None for local build scope. |
 | Android Debug APK | VERIFIED | 12,640,669 bytes; SHA-256 `fec4f4e5b36d1317cb6fe22ab76bd682edf7e5b5b300915d0550fa05c89ef0a8`; v2 signature verified. | Debug key is not a release distribution key. |
-| Android Release APK | PARTIAL | Release build exists as unsigned APK; SHA-256 `6cc24a9da0a2d2dc48e8685eb5669cecea521651ea7e10776dfe25b6f7b76ba0`. | Release signing key/config is absent. |
+| Android Release signing mechanism | VERIFIED | Gradle supports `releaseEnv` through four `ANDROID_RELEASE_*` environment variables without committing or logging secrets. | Approved production keystore and secret injection. |
+| Android Release APK | PARTIAL | Release build exists as unsigned APK; SHA-256 `6cc24a9da0a2d2dc48e8685eb5669cecea521651ea7e10776dfe25b6f7b76ba0`; unsigned rejection verified. | Release signing key is absent. |
 | Android install/launch | NOT_VERIFIED | AVD created but could not boot because `/dev/kvm` is unavailable; no device connected. | Hardware-accelerated emulator or physical device. |
 | Android tablet | NOT_VERIFIED | No tablet runtime; same KVM/device blocker. | Emulator/device. |
 | iOS source/build | VERIFIED | Existing Swift/SwiftUI source and CI run `35964524113`. | Local Swift/Xcode unavailable. |

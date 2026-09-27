@@ -4,6 +4,17 @@ plugins {
     id("org.jetbrains.kotlin.plugin.compose")
 }
 
+val releaseKeystorePath = System.getenv("ANDROID_RELEASE_KEYSTORE_PATH")?.trim().orEmpty()
+val releaseKeystorePassword = System.getenv("ANDROID_RELEASE_STORE_PASSWORD")?.trim().orEmpty()
+val releaseKeyAlias = System.getenv("ANDROID_RELEASE_KEY_ALIAS")?.trim().orEmpty()
+val releaseKeyPassword = System.getenv("ANDROID_RELEASE_KEY_PASSWORD")?.trim().orEmpty()
+val hasReleaseSigning = listOf(
+    releaseKeystorePath,
+    releaseKeystorePassword,
+    releaseKeyAlias,
+    releaseKeyPassword,
+).all(String::isNotEmpty)
+
 android {
     namespace = "com.aidigitalsinai"
     compileSdk = 35
@@ -30,11 +41,24 @@ android {
             keyAlias = "androiddebugkey"
             keyPassword = "android"
         }
+        if (hasReleaseSigning) {
+            create("releaseEnv") {
+                storeFile = rootProject.file(releaseKeystorePath)
+                storePassword = releaseKeystorePassword
+                keyAlias = releaseKeyAlias
+                keyPassword = releaseKeyPassword
+            }
+        }
     }
 
     buildTypes {
         getByName("debug") {
             signingConfig = signingConfigs.getByName("fixedDebug")
+        }
+        getByName("release") {
+            if (hasReleaseSigning) {
+                signingConfig = signingConfigs.getByName("releaseEnv")
+            }
         }
     }
 
