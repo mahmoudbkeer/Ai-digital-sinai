@@ -8,6 +8,7 @@ val releaseKeystorePath = System.getenv("ANDROID_RELEASE_KEYSTORE_PATH")?.trim()
 val releaseKeystorePassword = System.getenv("ANDROID_RELEASE_STORE_PASSWORD")?.trim().orEmpty()
 val releaseKeyAlias = System.getenv("ANDROID_RELEASE_KEY_ALIAS")?.trim().orEmpty()
 val releaseKeyPassword = System.getenv("ANDROID_RELEASE_KEY_PASSWORD")?.trim().orEmpty()
+val apiBaseUrl = System.getenv("ANDROID_API_BASE_URL")?.trim().orEmpty().ifBlank { "http://10.0.2.2:4173" }
 val hasReleaseSigning = listOf(
     releaseKeystorePath,
     releaseKeystorePassword,
@@ -25,7 +26,7 @@ android {
         targetSdk = 35
         versionCode = 1
         versionName = "0.1.0"
-        buildConfigField("String", "API_BASE_URL", "\"http://10.0.2.2:4173\"")
+        buildConfigField("String", "API_BASE_URL", "\"${apiBaseUrl.replace("\\", "\\\\").replace("\"", "\\\"")}\"")
         buildConfigField("String", "GOOGLE_SERVER_CLIENT_ID", "\"\"")
     }
 

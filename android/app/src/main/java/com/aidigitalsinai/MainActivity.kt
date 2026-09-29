@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Button
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.material3.CircularProgressIndicator
@@ -32,6 +33,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.background
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.platform.LocalLayoutDirection
@@ -190,7 +192,7 @@ private fun LoginScreen(api: PlatformApi, store: SessionStore, onAuthenticated: 
     }
 
     Column(
-        modifier = Modifier.fillMaxSize().padding(PaddingValues(24.dp)).widthIn(max = 960.dp).wrapContentWidth(),
+        modifier = Modifier.fillMaxSize().background(Color(0xFF070A12)).padding(PaddingValues(24.dp)).widthIn(max = 960.dp).wrapContentWidth(),
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
         if (!authenticated) {
@@ -204,8 +206,14 @@ private fun LoginScreen(api: PlatformApi, store: SessionStore, onAuthenticated: 
                         verticalArrangement = Arrangement.spacedBy(14.dp)
                     ) {
                         Text("AI DIGITAL SINAI", style = MaterialTheme.typography.labelLarge, color = Color(0xFF22D3EE), letterSpacing = 2.sp)
-                        Text("NOCTURNE SIGNAL", style = MaterialTheme.typography.headlineMedium, color = Color(0xFFF4F7FB))
+                        Text("SECURE WORKSPACE ACCESS", style = MaterialTheme.typography.headlineSmall, color = Color(0xFFF4F7FB), letterSpacing = 1.sp)
+                        Text("NOCTURNE SIGNAL", style = MaterialTheme.typography.labelMedium, color = Color(0xFFA78BFA), letterSpacing = 2.sp)
                         Text(stringResource(if (registerMode) R.string.create_account else R.string.login_title), style = MaterialTheme.typography.titleLarge)
+                        Text(
+                            if (registerMode) "أنشئ مساحة عملك خلال ثوانٍ، أو استخدم هوية موثقة." else "وصول آمن إلى مساحة عملك وبياناتك التشغيلية.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = Color(0xFFB8C2D6)
+                        )
 
         Button(
             onClick = {
@@ -218,11 +226,11 @@ private fun LoginScreen(api: PlatformApi, store: SessionStore, onAuthenticated: 
                         GoogleSignInResult.Cancelled -> message = "تم إلغاء اختيار حساب Google."
                         is GoogleSignInResult.Failed -> message = google.message
                         is GoogleSignInResult.Success -> {
-                            val result = withContext(Dispatchers.IO) { api.googleLogin(google.idToken) }
+                            val result = withContext(Dispatchers.IO) { if (registerMode) api.googleRegister(google.idToken) else api.googleLogin(google.idToken) }
                             if (result.status in 200..299) {
                                 authenticated = true
                                 onAuthenticated()
-                                message = "تم تسجيل الدخول بحساب Google."
+                                message = if (registerMode) "تم إنشاء مساحة العمل بحساب Google." else "تم تسجيل الدخول بحساب Google."
                             } else {
                                 message = "Google Sign-In: HTTP ${result.status} — ${result.body.optString("message", "يتطلب إعداد Google.")}"
                             }
@@ -236,9 +244,15 @@ private fun LoginScreen(api: PlatformApi, store: SessionStore, onAuthenticated: 
                     }
                 }
             },
-            enabled = !loading && !registerMode,
+            enabled = !loading,
             modifier = Modifier.fillMaxWidth()
-        ) { Text("المتابعة بحساب Google") }
+        ) { Text(if (registerMode) "إنشاء حساب بنقرة مع Google" else "المتابعة بحساب Google") }
+        OutlinedButton(
+            onClick = { message = "Facebook يحتاج إعداد Facebook Login من لوحة Meta وربط FB identity token بالخادم قبل تفعيله بأمان." },
+            enabled = !loading,
+            modifier = Modifier.fillMaxWidth()
+        ) { Text(if (registerMode) "إنشاء حساب بنقرة مع Facebook" else "المتابعة بحساب Facebook") }
+        Text("أو استخدم البريد الإلكتروني", style = MaterialTheme.typography.labelMedium, color = Color(0xFF8F9BB3), modifier = Modifier.fillMaxWidth())
         OutlinedTextField(email, { email = it }, label = { Text(stringResource(R.string.email)) }, modifier = Modifier.fillMaxWidth())
         OutlinedTextField(password, { password = it }, label = { Text(stringResource(R.string.password)) }, visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth())
         if (registerMode) {
@@ -262,8 +276,10 @@ private fun LoginScreen(api: PlatformApi, store: SessionStore, onAuthenticated: 
                         analyticsLoading = true
                         subscriptionLoading = true
                         "تم فتح المشروع بنجاح (HTTP ${result.status}). tenant=${store.tenantId}"
+                        } else if (result.isNetworkError) {
+                            "تعذر الوصول إلى الخادم الآن. تحقق من تشغيل Backend وعنوان API ثم أعد المحاولة."
                         } else {
-                            "فشل الطلب: HTTP ${result.status} — ${result.body.optString("message", "تعذر الاتصال")}"
+                            "تعذر إكمال الطلب (HTTP ${result.status}) — ${result.body.optString("message", "تحقق من البيانات وحاول مجدداً.")}"
                         }
                     } catch (error: Throwable) {
                         if (error is CancellationException) throw error

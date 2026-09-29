@@ -22,7 +22,7 @@ import { resolveAIProvider } from "./aiProviders";
 import { createTotpSecret, createTotpUri, verifyTotp } from "./mfa";
 import { chunkDocument, resolveEmbeddingProvider } from "./rag";
 import { resolveRedisProvider } from "./integrations";
-import { findUserByEmail, verifyGoogleIdToken } from "./googleAuth";
+import { findUserByEmail, verifyGoogleIdToken, type GoogleIdentity } from "./googleAuth";
 import { issueEmailVerification, verifyEmailCode } from "./emailVerification";
 import { emitStructuredEvent } from "./observability";
 
@@ -696,6 +696,29 @@ async function createSession(db: AsyncDataPlane, userId: string) {
   return token;
 }
 
+async function provisionGoogleAccount(db: AsyncDataPlane, identity: GoogleIdentity) {
+  const userId = randomUUID();
+  const tenantId = randomUUID();
+  const createdAt = now();
+  const displayName = identity.name.trim().slice(0, 120) || identity.email.split("@")[0];
+  const tenantName = `${displayName} Workspace`.slice(0, 120);
+  const slug = `${tenantName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "workspace"}-${randomBytes(3).toString("hex")}`;
+  await db.prepare("INSERT INTO users (id, email, display_name, password_hash, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)").run(userId, identity.email, displayName, passwordHash(randomBytes(32).toString("base64url")), createdAt, createdAt);
+  await db.prepare("INSERT INTO tenants (id, name, slug, created_at, updated_at) VALUES (?, ?, ?, ?, ?)").run(tenantId, tenantName, slug, createdAt, createdAt);
+  await db.prepare("INSERT INTO tenant_members (tenant_id, user_id, role, permissions_json, created_at) VALUES (?, ?, 'TENANT_OWNER', '[]', ?)").run(tenantId, userId, createdAt);
+  await db.prepare("INSERT INTO user_security (user_id, updated_at) VALUES (?, ?)").run(userId, createdAt);
+  const businessId = randomUUID();
+  const branchId = randomUUID();
+  await db.prepare("INSERT INTO businesses (id, tenant_id, name, category, created_at, updated_at) VALUES (?, ?, ?, 'general', ?, ?)").run(businessId, tenantId, tenantName, createdAt, createdAt);
+  await db.prepare("INSERT INTO branches (id, tenant_id, business_id, name, city, created_at) VALUES (?, ?, ?, 'المقر الرئيسي', 'العريش', ?)").run(branchId, tenantId, businessId, createdAt);
+  for (const [code, name, accountType] of [["1000", "النقدية", "ASSET"], ["1100", "المخزون", "ASSET"], ["1200", "الذمم المدينة", "ASSET"], ["2000", "الدائنون", "LIABILITY"], ["4000", "المبيعات", "REVENUE"], ["5000", "تكلفة المبيعات", "EXPENSE"]] as const) {
+    await db.prepare("INSERT INTO ledger_accounts (id, tenant_id, code, name, account_type, created_at) VALUES (?, ?, ?, ?, ?, ?)").run(randomUUID(), tenantId, code, name, accountType, createdAt);
+  }
+  const token = await createSession(db, userId);
+  await recordAudit(db, { userId, tenantId }, "auth.register.social", "tenant", tenantId, undefined, { provider: "google", subject: identity.subject, businessId, branchId });
+  return { userId, tenantId, businessId, branchId, token };
+}
+
 function currentContext(req: AuthenticatedRequest): TenantContext {
   if (!req.tenantContext)
     throw httpError(
@@ -1180,6 +1203,24 @@ export function createPlatformRouter(): Router {
       const token = await createSession(db, user.id);
       const memberships = (await db.prepare("SELECT tenant_id, role FROM tenant_members WHERE user_id = ? ORDER BY created_at").all(user.id)) as Array<{ tenant_id: string; role: Role }>;
       return res.json({ ok: true, token, userId: user.id, tenants: memberships });
+    } catch (error) {
+      next(error);
+    }
+  });
+  router.post("/auth/google/register", async (req, res, next) => {
+    try {
+      const verified = await verifyGoogleIdToken(req.body?.idToken);
+      if (verified.status === "REQUIRES_SETUP") return res.status(503).json({ ok: false, status: verified.status, message: verified.message });
+      if (verified.status === "INVALID") throw httpError(401, "invalid-google-token", verified.message);
+      const db = getDataPlane();
+      const existing = await findUserByEmail(db, verified.identity.email);
+      if (existing) {
+        const token = await createSession(db, existing.id);
+        const tenants = (await db.prepare("SELECT tenant_id, role FROM tenant_members WHERE user_id = ? ORDER BY created_at").all(existing.id)) as Array<{ tenant_id: string; role: Role }>;
+        return res.json({ ok: true, status: "EXISTING_ACCOUNT", token, userId: existing.id, tenants });
+      }
+      const result = await withDataPlaneTransaction(db, () => provisionGoogleAccount(db, verified.identity));
+      return res.status(201).json({ ok: true, status: "CREATED", ...result, tenants: [{ tenant_id: result.tenantId, role: "TENANT_OWNER" }] });
     } catch (error) {
       next(error);
     }
