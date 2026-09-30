@@ -1,7 +1,7 @@
 # AI Digital Sinai — Final Release Board
 
 **Code baseline:** `a149e9542b1f4480138b77bf0348d3edc7604904`
-**Branch:** `main`  
+**Branch:** `main`
 **Overall status:** **BLOCKED / NOT_VERIFIED** for Production Runtime and Closed Beta.
 
 ## 1. Git
