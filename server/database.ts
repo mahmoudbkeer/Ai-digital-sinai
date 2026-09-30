@@ -838,6 +838,13 @@ export function getDatabase(): AppDatabase {
     database.exec(readFileSync(path.resolve(process.cwd(), "migrations/0013_finance_depth.sql"), "utf8"));
     database.prepare("INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)").run(13, Date.now());
   }
+  const appliedGoogleIdentity = database
+    .prepare("SELECT version FROM schema_migrations WHERE version = 14")
+    .get() as { version?: number } | undefined;
+  if (!appliedGoogleIdentity) {
+    database.exec(readFileSync(path.resolve(process.cwd(), "migrations/0014_google_identity.sql"), "utf8"));
+    database.prepare("INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)").run(14, Date.now());
+  }
   const planInsert = database.prepare(
     "INSERT OR IGNORE INTO plans (code, name, price_cents, trial_days, active, created_at) VALUES (?, ?, ?, ?, 1, ?)"
   );

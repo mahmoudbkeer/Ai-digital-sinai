@@ -125,3 +125,21 @@ The next execution requires a real PostgreSQL source and separate restore target
 
 [1]: https://github.com/mahmoudbkeer/Ai-digital-sinai/actions/runs/35969553300 "AI Digital Sinai Quality Gate"
 [2]: https://github.com/mahmoudbkeer/Ai-digital-sinai/actions/runs/35969556323 "AI Digital Sinai Full Regression Acceptance"
+
+
+## 2026-09-29 Addendum — Google Registration and Latest Android Evidence
+
+| Check | Status | Evidence | Remaining gap |
+|---|---|---|---|
+| CI on commit `6b1ecdc1d9fbd043f0944bc0cfd7fe4fe639a084` | VERIFIED | Quality Gate run `36557202821`, Android CI `36557202892`, Full Regression Acceptance `36557202859`, and iOS CI `36557202820` all completed with `success`. | A new commit containing the security migration will require a new CI run. |
+| Google token claims | VERIFIED | `server/googleAuth.ts` checks configured audience, Google issuer, verified email, subject, finite expiry, and expiry in the future; tokeninfo performs Google's server-side token/signature validation. Tests cover malformed, expired, and wrong-issuer claims. | Real provider flow remains external-setup dependent until Client IDs are configured and exercised on Android and server. |
+| Google identity binding | VERIFIED | New migration `0014_google_identity.sql` / PostgreSQL equivalent adds a unique nullable `users.google_subject`; registration binds and rejects subject/email mismatches. | Existing production data must run migration 0014 before deployment. |
+| Google registration atomicity | VERIFIED | Endpoint now performs lookup, subject linking, tenant/business/branch/ledger provisioning, session creation, and audit within `withDataPlaneTransaction`; concurrent integration test produced one `201` and one `200` and one user. | PostgreSQL concurrency still requires a real PostgreSQL runtime drill. |
+| Google setup state | EXTERNAL_SETUP_REQUIRED | No Client IDs were present in this environment; no real Google token or external provider flow was claimed. | Configure `GOOGLE_OAUTH_CLIENT_ID` and Android `GOOGLE_SERVER_CLIENT_ID` through secret/build configuration. |
+| Android latest build | VERIFIED | `testDebugUnitTest`, `assembleDebug`, and `assembleRelease` passed with JDK 21 / SDK 35. `applicationId=com.aidigitalsinai`, `versionName=0.1.0`, `versionCode=1`, `targetSdk=35`. | Release signing key absent. |
+| Android Debug APK | VERIFIED | 12,782,962 bytes; SHA-256 `1b7f0e22ffbdd3e940e2385de29e2ac961429d69885247d593e72a6c7e04c208`; `apksigner verify` passed with v2; debug key only. | Physical/emulator install and runtime not verified; no ADB device and `/dev/kvm` unavailable. |
+| Android Release APK | PARTIAL | 9,058,148 bytes; SHA-256 `f496ab7370f3cc219e76514fa38df7b6f5b93e11e6548985bb6db2ae117502d5`; unsigned artifact only. | Approved release keystore and secret injection required. |
+| Android API transport | VERIFIED | Default local emulator URL is `http://10.0.2.2:4173`; `ANDROID_API_BASE_URL` overrides it. Cleartext is allowed only through `src/debug/AndroidManifest.xml`; merged Release manifest contains no cleartext allowance. | Production must provide an HTTPS URL. |
+| Android install/launch | NOT_VERIFIED | `adb devices` returned no connected devices. | Test on a physical device or hardware-accelerated emulator. |
+
+The overall Phase 04 and Production/Closed Beta decisions remain unchanged: **BLOCKED / NOT_VERIFIED** for PostgreSQL restore, external production runtime, device runtime, monitoring, and rollback.

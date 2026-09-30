@@ -1,6 +1,6 @@
 import express from "express";
 import { createServer, type Server } from "node:http";
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { getDatabase, resetDatabaseForTests } from "./database";
 import { createPlatformRouter, platformErrorHandler } from "./platform";
 import { totpForTest } from "./mfa";
@@ -39,6 +39,32 @@ beforeEach(() => {
 afterAll(() => { server.close(); resetDatabaseForTests(); });
 
 describe("platform core", () => {
+  it("provisions Google registration atomically and replays by verified subject", async () => {
+    vi.stubEnv("GOOGLE_OAUTH_CLIENT_ID", "web-client.apps.googleusercontent.com");
+    const realFetch = globalThis.fetch;
+    const googleFetch = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      if (String(input).startsWith("https://oauth2.googleapis.com/tokeninfo")) {
+        return new Response(JSON.stringify({ aud: "web-client.apps.googleusercontent.com", iss: "https://accounts.google.com", email: "google-owner@example.com", email_verified: "true", sub: "google-subject-atomic", name: "Google Owner", exp: Math.floor(Date.now() / 1000) + 300 }), { status: 200 });
+      }
+      return realFetch(input, init);
+    });
+    const body = JSON.stringify({ idToken: "verified-google-token-value-that-is-long-enough-123456789" });
+    const [first, second] = await Promise.all([
+      request("/api/platform/auth/google/register", { method: "POST", body }),
+      request("/api/platform/auth/google/register", { method: "POST", body }),
+    ]);
+    expect([first.status, second.status].sort()).toEqual([200, 201]);
+    const repeat = await request("/api/platform/auth/google/register", { method: "POST", body });
+    expect(repeat.status).toBe(200);
+    await expect(repeat.json()).resolves.toMatchObject({ ok: true, status: "EXISTING_ACCOUNT", tenants: [expect.objectContaining({ role: "TENANT_OWNER" })] });
+    const users = getDatabase().prepare("SELECT COUNT(*) AS count FROM users WHERE email = 'google-owner@example.com'").get() as { count: number };
+    const subjects = getDatabase().prepare("SELECT google_subject FROM users WHERE email = 'google-owner@example.com'").get() as { google_subject: string };
+    expect(users.count).toBe(1);
+    expect(subjects.google_subject).toBe("google-subject-atomic");
+    googleFetch.mockRestore();
+    vi.unstubAllEnvs();
+  });
+
   it("registers a tenant with an owner session and scoped resources", async () => {
     const identity = await register("owner-a@example.com", "Tenant A");
     expect(identity.token).toBeTruthy();

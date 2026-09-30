@@ -32,4 +32,13 @@ describe("Google Sign-In setup and token boundary", () => {
     }), { status: 200, headers: { "content-type": "application/json" } }));
     await expect(verifyGoogleIdToken("a-valid-looking-token-value-that-is-long-enough")).resolves.toMatchObject({ status: "VERIFIED", identity: { email: "owner@example.com", subject: "google-subject-1" } });
   });
+
+  it("rejects expired and wrong-issuer token claims", async () => {
+    vi.stubEnv("GOOGLE_OAUTH_CLIENT_ID", "web-client.apps.googleusercontent.com");
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+    fetchSpy.mockResolvedValueOnce(new Response(JSON.stringify({ aud: "web-client.apps.googleusercontent.com", iss: "https://accounts.google.com", email: "expired@example.com", email_verified: "true", sub: "expired-subject", exp: Math.floor(Date.now() / 1000) - 1 }), { status: 200 }));
+    await expect(verifyGoogleIdToken("expired-token-value-that-is-long-enough-123456789")).resolves.toMatchObject({ status: "INVALID" });
+    fetchSpy.mockResolvedValueOnce(new Response(JSON.stringify({ aud: "web-client.apps.googleusercontent.com", iss: "https://evil.example", email: "issuer@example.com", email_verified: "true", sub: "issuer-subject", exp: Math.floor(Date.now() / 1000) + 300 }), { status: 200 }));
+    await expect(verifyGoogleIdToken("wrong-issuer-token-value-that-is-long-enough-123456789")).resolves.toMatchObject({ status: "INVALID" });
+  });
 });

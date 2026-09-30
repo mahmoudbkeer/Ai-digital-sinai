@@ -703,7 +703,7 @@ async function provisionGoogleAccount(db: AsyncDataPlane, identity: GoogleIdenti
   const displayName = identity.name.trim().slice(0, 120) || identity.email.split("@")[0];
   const tenantName = `${displayName} Workspace`.slice(0, 120);
   const slug = `${tenantName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "workspace"}-${randomBytes(3).toString("hex")}`;
-  await db.prepare("INSERT INTO users (id, email, display_name, password_hash, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)").run(userId, identity.email, displayName, passwordHash(randomBytes(32).toString("base64url")), createdAt, createdAt);
+  await db.prepare("INSERT INTO users (id, email, display_name, password_hash, google_subject, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)").run(userId, identity.email, displayName, passwordHash(randomBytes(32).toString("base64url")), identity.subject, createdAt, createdAt);
   await db.prepare("INSERT INTO tenants (id, name, slug, created_at, updated_at) VALUES (?, ?, ?, ?, ?)").run(tenantId, tenantName, slug, createdAt, createdAt);
   await db.prepare("INSERT INTO tenant_members (tenant_id, user_id, role, permissions_json, created_at) VALUES (?, ?, 'TENANT_OWNER', '[]', ?)").run(tenantId, userId, createdAt);
   await db.prepare("INSERT INTO user_security (user_id, updated_at) VALUES (?, ?)").run(userId, createdAt);
@@ -1213,14 +1213,26 @@ export function createPlatformRouter(): Router {
       if (verified.status === "REQUIRES_SETUP") return res.status(503).json({ ok: false, status: verified.status, message: verified.message });
       if (verified.status === "INVALID") throw httpError(401, "invalid-google-token", verified.message);
       const db = getDataPlane();
-      const existing = await findUserByEmail(db, verified.identity.email);
-      if (existing) {
-        const token = await createSession(db, existing.id);
-        const tenants = (await db.prepare("SELECT tenant_id, role FROM tenant_members WHERE user_id = ? ORDER BY created_at").all(existing.id)) as Array<{ tenant_id: string; role: Role }>;
-        return res.json({ ok: true, status: "EXISTING_ACCOUNT", token, userId: existing.id, tenants });
-      }
-      const result = await withDataPlaneTransaction(db, () => provisionGoogleAccount(db, verified.identity));
-      return res.status(201).json({ ok: true, status: "CREATED", ...result, tenants: [{ tenant_id: result.tenantId, role: "TENANT_OWNER" }] });
+      const result = await withDataPlaneTransaction(db, async () => {
+        const bySubject = await db.prepare("SELECT id, email FROM users WHERE google_subject = ? AND status = 'active'").get(verified.identity.subject) as { id: string; email: string } | undefined;
+        const byEmail = await db.prepare("SELECT id, email, google_subject FROM users WHERE email = ? AND status = 'active'").get(verified.identity.email) as { id: string; email: string; google_subject?: string | null } | undefined;
+        const existing = bySubject ?? byEmail;
+        if (bySubject && bySubject.email !== verified.identity.email)
+          throw httpError(409, "google-identity-mismatch", "هوية Google مرتبطة بحساب مختلف.");
+        if (byEmail?.google_subject && byEmail.google_subject !== verified.identity.subject)
+          throw httpError(409, "google-identity-mismatch", "البريد مرتبط بهوية Google مختلفة.");
+        if (existing) {
+          if (!byEmail?.google_subject)
+            await db.prepare("UPDATE users SET google_subject = ?, updated_at = ? WHERE id = ? AND google_subject IS NULL").run(verified.identity.subject, now(), existing.id);
+          const tenants = (await db.prepare("SELECT tenant_id, role FROM tenant_members WHERE user_id = ? ORDER BY created_at").all(existing.id)) as Array<{ tenant_id: string; role: Role }>;
+          if (tenants.length === 0) throw httpError(409, "google-account-no-workspace", "الحساب لا يملك مساحة عمل صالحة.");
+          const token = await createSession(db, existing.id);
+          return { status: "EXISTING_ACCOUNT" as const, token, userId: existing.id, tenants };
+        }
+        const created = await provisionGoogleAccount(db, verified.identity);
+        return { status: "CREATED" as const, ...created, tenants: [{ tenant_id: created.tenantId, role: "TENANT_OWNER" as const }] };
+      });
+      return res.status(result.status === "CREATED" ? 201 : 200).json({ ok: true, ...result });
     } catch (error) {
       next(error);
     }
