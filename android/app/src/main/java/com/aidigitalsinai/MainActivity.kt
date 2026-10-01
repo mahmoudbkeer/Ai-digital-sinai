@@ -269,13 +269,15 @@ private fun LoginScreen(api: PlatformApi, store: SessionStore, onAuthenticated: 
                             if (registerMode) api.register(email, password, displayName, tenantName)
                             else api.login(email, password)
                         }
-                        message = if (result.status in 200..299) {
-                        authenticated = true
-                        onAuthenticated()
-                        notificationLoading = true
-                        analyticsLoading = true
-                        subscriptionLoading = true
-                        "تم فتح المشروع بنجاح (HTTP ${result.status}). tenant=${store.tenantId}"
+                        message = if (result.status in 200..299 && registerMode) {
+                            "تم إنشاء الحساب. تحقق من بريدك الإلكتروني ثم سجّل الدخول."
+                        } else if (result.status in 200..299) {
+                            authenticated = true
+                            onAuthenticated()
+                            notificationLoading = true
+                            analyticsLoading = true
+                            subscriptionLoading = true
+                            "تم فتح المشروع بنجاح (HTTP ${result.status}). tenant=${store.tenantId}"
                         } else if (result.isNetworkError) {
                             "تعذر الوصول إلى الخادم الآن. تحقق من تشغيل Backend وعنوان API ثم أعد المحاولة."
                         } else {

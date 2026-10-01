@@ -1,3 +1,4 @@
+import { createHash, randomUUID } from "node:crypto";
 import express from "express";
 import { createServer, type Server } from "node:http";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
@@ -14,7 +15,11 @@ async function request(path: string, init: RequestInit = {}) {
 async function register(email: string, tenantName: string) {
   const response = await request("/api/platform/auth/register", { method: "POST", body: JSON.stringify({ email, password: "secure-password-123", displayName: "مستخدم اختبار", tenantName }) });
   if (!response.ok) throw new Error(`register failed ${response.status}: ${await response.text()}`);
-  return response.json() as Promise<{ token: string; tenantId: string; businessId: string; branchId: string; userId: string }>;
+  const created = await response.json() as { tenantId: string; businessId: string; branchId: string; userId: string };
+  getDatabase().prepare("UPDATE users SET status = 'active' WHERE id = ?").run(created.userId);
+  const token = `test-session-${randomUUID()}`;
+  getDatabase().prepare("INSERT INTO sessions (id, user_id, token_hash, expires_at, created_at) VALUES (?, ?, ?, ?, ?)").run(randomUUID(), created.userId, createHash("sha256").update(token).digest("hex"), Date.now() + 3_600_000, Date.now());
+  return { ...created, token };
 }
 function auth(identity: { token: string; tenantId: string }) { return { authorization: `Bearer ${identity.token}`, "x-tenant-id": identity.tenantId }; }
 
@@ -71,6 +76,20 @@ describe("platform core", () => {
     const response = await request("/api/platform/me", { headers: auth(identity) });
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toMatchObject({ context: { tenantId: identity.tenantId, userId: identity.userId, role: "TENANT_OWNER" } });
+  });
+
+  it("does not issue or accept an authenticated session before email verification", async () => {
+    const email = "verification-gate@example.com";
+    const registration = await request("/api/platform/auth/register", { method: "POST", body: JSON.stringify({ email, password: "secure-password-123", displayName: "Verification User", tenantName: "Verification Tenant" }) });
+    expect(registration.status).toBe(201);
+    const created = await registration.json() as { token?: string; userId: string; tenantId: string };
+    expect(created.token).toBeUndefined();
+    const beforeVerification = await request("/api/platform/me", { headers: { authorization: "Bearer no-session-before-verification", "x-tenant-id": created.tenantId } });
+    expect(beforeVerification.status).toBe(401);
+    const user = getDatabase().prepare("SELECT status FROM users WHERE id = ?").get(created.userId) as { status: string };
+    expect(user.status).toBe("locked");
+    const sessions = getDatabase().prepare("SELECT COUNT(*) AS count FROM sessions WHERE user_id = ?").get(created.userId) as { count: number };
+    expect(sessions.count).toBe(0);
   });
 
   it("authenticates an existing user and rejects an incorrect password", async () => {

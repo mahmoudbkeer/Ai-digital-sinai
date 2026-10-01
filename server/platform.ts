@@ -1103,7 +1103,7 @@ export function createPlatformRouter(): Router {
         }-${randomBytes(3).toString("hex")}`;
         await db
           .prepare(
-            "INSERT INTO users (id, email, display_name, password_hash, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)"
+            "INSERT INTO users (id, email, display_name, password_hash, status, created_at, updated_at) VALUES (?, ?, ?, ?, 'locked', ?, ?)"
           )
           .run(
             userId,
@@ -1153,7 +1153,6 @@ export function createPlatformRouter(): Router {
               "INSERT INTO ledger_accounts (id, tenant_id, code, name, account_type, created_at) VALUES (?, ?, ?, ?, ?, ?)"
             )
             .run(randomUUID(), tenantId, code, name, accountType, createdAt);
-        const token = await createSession(db, userId);
         await recordAudit(
           db,
           { userId, tenantId },
@@ -1163,7 +1162,7 @@ export function createPlatformRouter(): Router {
           undefined,
           { businessId, branchId }
         );
-        return { userId, tenantId, businessId, branchId, token };
+        return { userId, tenantId, businessId, branchId };
       });
       const activation = await issueEmailVerification(getDataPlane(), result.userId, email, displayName.trim());
       return res.status(201).json({ ok: true, ...result, activation: { status: activation.status, expiresAt: activation.expiresAt } });

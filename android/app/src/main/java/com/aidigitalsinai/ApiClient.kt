@@ -378,13 +378,7 @@ class PlatformApi(private val baseUrl: String, private val session: SessionStore
         put("password", password)
         put("displayName", displayName)
         put("tenantName", tenantName)
-    }, authenticated = false).also { result ->
-        if (result.status in 200..299) {
-            session.token = result.body.optString("token")
-            session.tenantId = result.body.optString("tenantId")
-            session.branchId = result.body.optString("branchId")
-        }
-    }
+    }, authenticated = false)
 
     private fun request(method: String, path: String, payload: JSONObject?, authenticated: Boolean): ApiResult {
         var connection: HttpURLConnection? = null

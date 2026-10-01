@@ -74,9 +74,13 @@ struct LoginView: View {
     private func submit() async {
         loading = true; defer { loading = false }
         do {
-            let result: (APIResult, AuthSession?) = registerMode
-                ? try await api.register(email: email, password: password, displayName: displayName, tenantName: tenantName)
-                : try await api.login(email: email, password: password)
+            if registerMode {
+                let result = try await api.register(email: email, password: password, displayName: displayName, tenantName: tenantName)
+                guard (200...299).contains(result.0.statusCode) else { message = "تعذر إنشاء الحساب (HTTP \(result.0.statusCode))."; return }
+                message = "تم إنشاء الحساب. تحقق من بريدك الإلكتروني ثم سجّل الدخول."
+                return
+            }
+            let result = try await api.login(email: email, password: password)
             guard let session = result.1 else { message = "تعذر المصادقة (HTTP \(result.0.statusCode))."; return }
             UserDefaults.standard.set(session.token, forKey: "platform_token")
             if let tenant = session.tenantID { UserDefaults.standard.set(tenant, forKey: "platform_tenant_id") }
