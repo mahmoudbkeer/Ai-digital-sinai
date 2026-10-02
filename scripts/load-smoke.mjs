@@ -1,5 +1,9 @@
 #!/usr/bin/env node
 import { spawn } from "node:child_process";
+import { createHash, randomUUID } from "node:crypto";
+import { existsSync } from "node:fs";
+import { DatabaseSync } from "node:sqlite";
+import { resolve } from "node:path";
 
 const ownsServer = !process.env.BASE_URL;
 const port = process.env.LOAD_PORT || "4320";
@@ -85,6 +89,20 @@ async function prepareWorker(workerId) {
     },
   });
   const identity = assertResponse("identity/register", registration, [201]);
+  if (identity.token) throw new Error("identity/register issued an authenticated session");
+  const sqliteCandidates = [process.env.SQLITE_PATH, ".data/ai-digital-sinai.sqlite", ".data/dev.sqlite"]
+    .filter(Boolean).map(value => resolve(value));
+  const sqlitePath = sqliteCandidates.find(candidate => existsSync(candidate));
+  if (!sqlitePath) throw new Error("load fixture SQLite database was not initialized");
+  const database = new DatabaseSync(sqlitePath);
+  database.exec("PRAGMA busy_timeout = 10000; PRAGMA foreign_keys = ON;");
+  const stored = database.prepare("SELECT id FROM users WHERE id = ? OR email = ? LIMIT 1").get(identity.userId, `load-${suffix}@example.com`);
+  if (!stored?.id) throw new Error("load fixture user was not visible after registration");
+  database.prepare("UPDATE users SET status = 'active' WHERE id = ?").run(stored.id);
+  const token = `load-session-${randomUUID()}`;
+  database.prepare("INSERT INTO sessions (id, user_id, token_hash, expires_at, created_at) VALUES (?, ?, ?, ?, ?)").run(randomUUID(), stored.id, createHash("sha256").update(token).digest("hex"), Date.now() + 3_600_000, Date.now());
+  database.close();
+  identity.token = token;
   if (!identity.token || !identity.tenantId || !identity.businessId || !identity.branchId)
     throw new Error("identity/register did not return a complete authenticated identity");
   const headers = {
