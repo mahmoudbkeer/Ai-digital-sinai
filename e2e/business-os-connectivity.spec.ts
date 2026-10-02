@@ -1,13 +1,10 @@
 import { expect, test } from "@playwright/test";
+import { registerVerified } from "./auth";
 
 test("Business OS core modules load tenant data through their domain APIs", async ({ page }) => {
   const email = `e2e-business-os-${Date.now()}@example.test`;
   const password = "secure-password-123";
-  const registration = await page.request.post("/api/platform/auth/register", {
-    data: { email, password, displayName: "Business OS Connectivity", tenantName: "Business OS Connectivity Tenant" },
-  });
-  expect(registration.status()).toBe(201);
-  const identity = await registration.json() as { token: string; tenantId: string; businessId: string; branchId: string };
+  const identity = await registerVerified(page.request, { email, password, displayName: "Business OS Connectivity", tenantName: "Business OS Connectivity Tenant" });
   const headers = { authorization: `Bearer ${identity.token}`, "x-tenant-id": identity.tenantId };
 
   const productResponse = await page.request.post("/api/platform/products", {

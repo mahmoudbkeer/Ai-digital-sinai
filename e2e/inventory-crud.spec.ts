@@ -1,13 +1,10 @@
 import { expect, test } from "@playwright/test";
+import { registerVerified } from "./auth";
 
 test("Inventory UI reads real stock and records a movement through the API", async ({ page }) => {
   const email = `e2e-inventory-${Date.now()}@example.test`;
   const password = "secure-password-123";
-  const registration = await page.request.post("/api/platform/auth/register", {
-    data: { email, password, displayName: "Inventory E2E", tenantName: "Inventory E2E Tenant" },
-  });
-  expect(registration.status()).toBe(201);
-  const identity = await registration.json() as { token: string; tenantId: string; businessId: string; branchId: string };
+  const identity = await registerVerified(page.request, { email, password, displayName: "Inventory E2E", tenantName: "Inventory E2E Tenant" });
   const headers = { authorization: `Bearer ${identity.token}`, "x-tenant-id": identity.tenantId };
   const productResponse = await page.request.post("/api/platform/products", {
     headers,

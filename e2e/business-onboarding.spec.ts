@@ -1,11 +1,10 @@
 import { expect, test } from "@playwright/test";
+import { registerVerified } from "./auth";
 
 test("submits a business from Marketplace work area and keeps it pending review", async ({ page, request }) => {
   const email = `business-onboarding-${Date.now()}@example.com`;
   const password = "BusinessOnboardingPassword123!";
-  const registration = await request.post("/api/platform/auth/register", { data: { email, password, displayName: "اختبار تسجيل نشاط", tenantName: "مستأجر تسجيل نشاط" } });
-  expect(registration.status()).toBe(201);
-  const identity = await registration.json() as { token: string; tenantId: string };
+  const identity = await registerVerified(request, { email, password, displayName: "اختبار تسجيل نشاط", tenantName: "مستأجر تسجيل نشاط" });
 
   await page.goto("/app?tab=work");
   await page.getByRole("button", { name: "ابدأ تسجيل النشاط" }).click();

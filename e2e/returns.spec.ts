@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { registerVerified } from "./auth";
 
 async function openRetailModule(page: import("@playwright/test").Page, module: RegExp) {
   await page.goto("/app?tab=work");
@@ -8,9 +9,7 @@ async function openRetailModule(page: import("@playwright/test").Page, module: R
 }
 
 test("Sales Return from UI restores inventory and persists through Backend", async ({ page }) => {
-  const registration = await page.request.post("/api/platform/auth/register", { data: { email: `e2e-sales-return-${Date.now()}@example.test`, password: "secure-password-123", displayName: "Sales Return E2E", tenantName: "Sales Return E2E Tenant" } });
-  expect(registration.status()).toBe(201);
-  const identity = await registration.json() as { token: string; tenantId: string; businessId: string; branchId: string };
+  const identity = await registerVerified(page.request, { email: `e2e-sales-return-${Date.now()}@example.test`, password: "secure-password-123", displayName: "Sales Return E2E", tenantName: "Sales Return E2E Tenant" });
   const headers = { authorization: `Bearer ${identity.token}`, "x-tenant-id": identity.tenantId };
   const product = await page.request.post("/api/platform/products", { headers, data: { businessId: identity.businessId, sku: `RET-${Date.now()}`, name: "منتج Sales Return E2E", priceCents: 1500 } });
   const { productId } = await product.json() as { productId: string };
@@ -35,8 +34,7 @@ test("Sales Return from UI restores inventory and persists through Backend", asy
 });
 
 test("Supplier Return from UI decreases inventory and rejects unreceived quantity", async ({ page }) => {
-  const registration = await page.request.post("/api/platform/auth/register", { data: { email: `e2e-supplier-return-${Date.now()}@example.test`, password: "secure-password-123", displayName: "Supplier Return E2E", tenantName: "Supplier Return E2E Tenant" } });
-  const identity = await registration.json() as { token: string; tenantId: string; businessId: string; branchId: string };
+  const identity = await registerVerified(page.request, { email: `e2e-supplier-return-${Date.now()}@example.test`, password: "secure-password-123", displayName: "Supplier Return E2E", tenantName: "Supplier Return E2E Tenant" });
   const headers = { authorization: `Bearer ${identity.token}`, "x-tenant-id": identity.tenantId };
   const product = await page.request.post("/api/platform/products", { headers, data: { businessId: identity.businessId, sku: `SRET-${Date.now()}`, name: "منتج Supplier Return E2E", priceCents: 1500 } });
   const { productId } = await product.json() as { productId: string };

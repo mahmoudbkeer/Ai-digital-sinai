@@ -1,9 +1,8 @@
 import { expect, test } from "@playwright/test";
+import { registerVerified } from "./auth";
 
 test("Procurement and receiving operational journey: partial then final receipt", async ({ page }) => {
-  const registration = await page.request.post("/api/platform/auth/register", { data: { email: `e2e-procurement-${Date.now()}@example.test`, password: "secure-password-123", displayName: "Procurement E2E", tenantName: "Procurement E2E Tenant" } });
-  expect(registration.status()).toBe(201);
-  const identity = await registration.json() as { token: string; tenantId: string; businessId: string; branchId: string };
+  const identity = await registerVerified(page.request, { email: `e2e-procurement-${Date.now()}@example.test`, password: "secure-password-123", displayName: "Procurement E2E", tenantName: "Procurement E2E Tenant" });
   const headers = { authorization: `Bearer ${identity.token}`, "x-tenant-id": identity.tenantId };
   const supplierResponse = await page.request.post("/api/platform/suppliers", { headers, data: { businessId: identity.businessId, name: "مورد Procurement E2E" } });
   expect(supplierResponse.status()).toBe(201);

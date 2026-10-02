@@ -1,9 +1,8 @@
 import { expect, test } from "@playwright/test";
+import { registerVerified } from "./auth";
 
 test("Invoices and Expenses operational journeys use real API, ledger, audit, tenant isolation, and idempotency", async ({ page }) => {
-  const registration = await page.request.post("/api/platform/auth/register", { data: { email: `e2e-finance-${Date.now()}@example.test`, password: "secure-password-123", displayName: "Finance E2E", tenantName: "Finance E2E Tenant" } });
-  expect(registration.status()).toBe(201);
-  const identity = await registration.json() as { token: string; tenantId: string; businessId: string; branchId: string };
+  const identity = await registerVerified(page.request, { email: `e2e-finance-${Date.now()}@example.test`, password: "secure-password-123", displayName: "Finance E2E", tenantName: "Finance E2E Tenant" });
   const headers = { authorization: `Bearer ${identity.token}`, "x-tenant-id": identity.tenantId };
   const product = await page.request.post("/api/platform/products", { headers, data: { businessId: identity.businessId, sku: `FIN-${Date.now()}`, name: "منتج Finance E2E", priceCents: 2400 } });
   expect(product.status()).toBe(201);
@@ -65,8 +64,7 @@ test("Invoices and Expenses operational journeys use real API, ledger, audit, te
   expect(firstExpense.status()).toBe(201);
   expect(secondExpense.status()).toBe(200);
   await expect(secondExpense.json()).resolves.toMatchObject({ replay: true });
-  const otherRegistration = await page.request.post("/api/platform/auth/register", { data: { email: `e2e-finance-other-${Date.now()}@example.test`, password: "secure-password-123", displayName: "Other Finance E2E", tenantName: "Other Finance E2E Tenant" } });
-  const other = await otherRegistration.json() as { token: string; tenantId: string };
+  const other = await registerVerified(page.request, { email: `e2e-finance-other-${Date.now()}@example.test`, password: "secure-password-123", displayName: "Other Finance E2E", tenantName: "Other Finance E2E Tenant" });
   const otherHeaders = { authorization: `Bearer ${other.token}`, "x-tenant-id": other.tenantId };
   expect((await page.request.get(`/api/platform/invoices/${invoice?.id}`, { headers: otherHeaders })).status()).toBe(404);
   expect((await page.request.get("/api/platform/ledger/journals", { headers: otherHeaders })).status()).toBe(200);

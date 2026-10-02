@@ -1,20 +1,17 @@
 import { expect, test } from "@playwright/test";
+import { registerVerified } from "./auth";
 
 test("Customers security E2E: authentication and tenant isolation", async ({ request }) => {
   const unauthenticated = await request.get("/api/platform/customers");
   expect(unauthenticated.status()).toBe(401);
 
   const register = async (suffix: string) => {
-    const response = await request.post("/api/platform/auth/register", {
-      data: {
+    return registerVerified(request, {
         email: `e2e-customers-security-${suffix}-${Date.now()}@example.test`,
         password: "secure-password-123",
         displayName: `Customers Security ${suffix}`,
         tenantName: `Customers Security Tenant ${suffix}`,
-      },
     });
-    expect(response.status()).toBe(201);
-    return response.json() as Promise<{ token: string; tenantId: string }>;
   };
 
   const tenantA = await register("a");

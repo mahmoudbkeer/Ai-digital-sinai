@@ -1,10 +1,9 @@
 import { expect, test } from "@playwright/test";
+import { registerVerified } from "./auth";
 
 test("Suppliers operational journey: create, search, detail, reload and audit context", async ({ page }) => {
   const email = `e2e-suppliers-${Date.now()}@example.test`;
-  const registration = await page.request.post("/api/platform/auth/register", { data: { email, password: "secure-password-123", displayName: "Suppliers E2E", tenantName: "Suppliers E2E Tenant" } });
-  expect(registration.status()).toBe(201);
-  const identity = await registration.json() as { token: string; tenantId: string };
+  const identity = await registerVerified(page.request, { email, password: "secure-password-123", displayName: "Suppliers E2E", tenantName: "Suppliers E2E Tenant" });
   const headers = { authorization: `Bearer ${identity.token}`, "x-tenant-id": identity.tenantId };
   await page.addInitScript(({ token, tenantId }) => { localStorage.setItem("platform_token", token); localStorage.setItem("platform_tenant_id", tenantId); }, identity);
   await page.goto("/app?tab=work");

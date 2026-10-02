@@ -1,12 +1,10 @@
 import { expect, test } from "@playwright/test";
+import { registerVerified } from "./auth";
 
 test("web login authenticates through the API and stores the workspace session", async ({ page }) => {
   const email = `e2e-login-${Date.now()}@example.test`;
   const password = "secure-password-123";
-  const registration = await page.request.post("/api/platform/auth/register", {
-    data: { email, password, displayName: "E2E Login", tenantName: "E2E Login Tenant" },
-  });
-  expect(registration.status()).toBe(201);
+  await registerVerified(page.request, { email, password, displayName: "E2E Login", tenantName: "E2E Login Tenant" });
 
   await page.goto("/login");
   await page.getByLabel("البريد الإلكتروني").fill(email);
@@ -20,4 +18,3 @@ test("web login authenticates through the API and stores the workspace session",
   await expect.poll(() => page.evaluate(() => localStorage.getItem("platform_token"))).toBeTruthy();
   await expect.poll(() => page.evaluate(() => localStorage.getItem("platform_tenant_id"))).toBeTruthy();
 });
-

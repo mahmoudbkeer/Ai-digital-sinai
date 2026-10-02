@@ -1,15 +1,13 @@
 import { expect, test } from "@playwright/test";
+import { registerVerified } from "./auth";
 
 test("Marketplace assistant searches the live directory and renders its result", async ({ page, request }) => {
-  const registration = await request.post("/api/platform/auth/register", {
-    data: {
+  await registerVerified(request, {
       email: `marketplace-assistant-${Date.now()}@example.com`,
       password: "MarketplaceTestPassword123!",
       displayName: "اختبار مساعد Marketplace",
       tenantName: "صيدلية النور - اختبار Marketplace",
-    },
   });
-  expect(registration.status()).toBe(201);
 
   const directoryRequests: string[] = [];
   page.on("request", (request) => {
