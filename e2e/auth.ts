@@ -1,5 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 import { DatabaseSync } from "node:sqlite";
+import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { expect, type APIRequestContext } from "@playwright/test";
 
@@ -13,7 +14,20 @@ export async function registerVerified(request: APIRequestContext, data: Registr
   // The delivery provider is intentionally absent in CI. Activate only the test user
   // and create a scoped fixture session; production never uses this helper. The
   // dedicated login spec exercises the real login endpoint and UI flow.
-  const sqlitePath = resolve(process.env.SQLITE_PATH ?? ".data/dev.sqlite");
+  const candidates = [
+    process.env.SQLITE_PATH,
+    ".data/dev.sqlite",
+    ".data/ai-digital-sinai.sqlite",
+  ].filter((value): value is string => Boolean(value)).map((value) => resolve(value));
+  const sqlitePath = candidates.find((candidate) => {
+    if (!existsSync(candidate)) return false;
+    const probe = new DatabaseSync(candidate);
+    probe.exec("PRAGMA busy_timeout = 10000;");
+    const hasUsers = Boolean(probe.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'users'").get());
+    probe.close();
+    return hasUsers;
+  });
+  if (!sqlitePath) throw new Error(`E2E SQLite database was not initialized; checked ${candidates.join(", ")}`);
   const database = new DatabaseSync(sqlitePath);
   database.exec("PRAGMA busy_timeout = 10000; PRAGMA foreign_keys = ON;");
   const stored = database.prepare("SELECT id FROM users WHERE id = ? OR email = ? LIMIT 1").get(created.userId, data.email) as { id: string } | undefined;
