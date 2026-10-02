@@ -17,7 +17,7 @@ import {
   type AsyncDataPlane,
 } from "./dataPlane";
 import { resolvePaymentProvider } from "./paymentProviders";
-import { type NotificationChannel } from "./notificationProviders";
+import { resolveNotificationProvider, type NotificationChannel } from "./notificationProviders";
 import { resolveAIProvider } from "./aiProviders";
 import { createTotpSecret, createTotpUri, verifyTotp } from "./mfa";
 import { chunkDocument, resolveEmbeddingProvider } from "./rag";
@@ -917,6 +917,15 @@ export function createPlatformRouter(): Router {
     current.count += 1;
     return true;
   };
+  const allowDistributedAuthBurst = async (key: string, limit: number, windowSeconds = 60) => {
+    const redis = resolveRedisProvider();
+    if (redis.status === "configured") {
+      const count = await redis.increment(`auth-rate:${key}`, windowSeconds);
+      return count !== null && count <= limit;
+    }
+    if (process.env.NODE_ENV === "production") return false;
+    return allowAuthBurst(key, limit);
+  };
 
   router.post("/marketplace/onboarding", authenticate, async (req: AuthenticatedRequest, res, next) => {
     try {
@@ -1353,41 +1362,41 @@ export function createPlatformRouter(): Router {
       return res.json({ ok: true, status: "DISABLED" });
     } catch (error) { next(error); }
   });
-  router.post("/auth/password-reset/request", async (req, res, next) => {
+  router.post("/auth/password-reset/request", async (req: AuthenticatedRequest, res, next) => {
     try {
-      if (!allowAuthBurst(`password-reset:${req.ip}`, 5))
-        throw httpError(
-          429,
-          "rate-limited",
-          "تم تجاوز محاولات الاستعادة، أعد المحاولة لاحقاً."
-        );
+      if (!(await allowDistributedAuthBurst(`password-reset:${req.ip}`, 5))) {
+        try { await recordAudit(getDataPlane(), {}, "auth.password_reset.rate_limited", "password_reset", null, req.requestId, { outcome: "rejected" }); } catch {}
+        throw httpError(429, "rate-limited", "تم تجاوز محاولات الاستعادة، أعد المحاولة لاحقاً.");
+      }
       const email = normalizeEmail(req.body?.email ?? "");
       if (!email)
         throw httpError(400, "invalid-email", "البريد الإلكتروني مطلوب.");
       const db = getDataPlane();
       const user = (await db
-        .prepare("SELECT id FROM users WHERE email = ?")
-        .get(email)) as { id: string } | undefined;
+        .prepare("SELECT id, email, display_name FROM users WHERE email = ?")
+        .get(email)) as { id: string; email: string; display_name: string } | undefined;
       if (user) {
         const rawToken = randomBytes(32).toString("base64url");
-        await db
-          .prepare(
-            "INSERT INTO password_reset_tokens (id, user_id, token_hash, expires_at, created_at) VALUES (?, ?, ?, ?, ?)"
-          )
-          .run(
-            randomUUID(),
-            user.id,
-            hashToken(rawToken),
-            now() + 30 * 60 * 1000,
-            now()
-          );
+        const expiresAt = now() + 30 * 60 * 1000;
+        await withDataPlaneTransaction(db, async () => {
+          await db.prepare("UPDATE password_reset_tokens SET used_at = ? WHERE user_id = ? AND used_at IS NULL").run(now(), user.id);
+          await db.prepare("INSERT INTO password_reset_tokens (id, user_id, token_hash, expires_at, created_at) VALUES (?, ?, ?, ?, ?)").run(randomUUID(), user.id, hashToken(rawToken), expiresAt, now());
+          await recordAudit(db, { userId: user.id }, "auth.password_reset.requested", "user", user.id, req.requestId, { outcome: "accepted" });
+        });
+        const delivery = await resolveNotificationProvider("EMAIL").enqueue({
+          recipientUserId: user.id,
+          recipientEmail: user.email,
+          title: "تعليمات استعادة كلمة المرور — AI Digital Sinai",
+          body: `مرحباً ${user.display_name}، رمز استعادة كلمة المرور الخاص بك هو ${rawToken}. ينتهي خلال 30 دقيقة. إذا لم تطلب ذلك فتجاهل الرسالة.`,
+        });
+        if (delivery.status !== "QUEUED") await recordAudit(db, { userId: user.id }, "auth.password_reset.delivery_failed", "user", user.id, req.requestId, { outcome: "failed", providerStatus: delivery.status });
+      } else {
+        await recordAudit(db, {}, "auth.password_reset.requested", "user", null, req.requestId, { outcome: "accepted" });
       }
       return res.status(202).json({
         ok: true,
         status: "accepted",
-        delivery: process.env.EMAIL_PROVIDER_API_KEY
-          ? "queued"
-          : "requires-provider-setup",
+        delivery: "accepted",
         message:
           "إذا كان البريد مسجلاً فسيتم إرسال تعليمات الاستعادة عبر القناة المهيأة.",
       });
@@ -1396,8 +1405,12 @@ export function createPlatformRouter(): Router {
     }
   });
 
-  router.post("/auth/password-reset/confirm", async (req, res, next) => {
+  router.post("/auth/password-reset/confirm", async (req: AuthenticatedRequest, res, next) => {
     try {
+      if (!(await allowDistributedAuthBurst(`password-reset-confirm:${req.ip}`, 10))) {
+        try { await recordAudit(getDataPlane(), {}, "auth.password_reset.rate_limited", "password_reset", null, req.requestId, { outcome: "rejected" }); } catch {}
+        throw httpError(429, "rate-limited", "تم تجاوز محاولات التأكيد، أعد المحاولة لاحقاً.");
+      }
       const token = req.body?.token;
       const password = req.body?.password;
       if (
@@ -1411,34 +1424,20 @@ export function createPlatformRouter(): Router {
           "رمز الاستعادة وكلمة مرور جديدة (12 حرفاً على الأقل) مطلوبان."
         );
       const db = getDataPlane();
-      const reset = (await db
-        .prepare(
-          "SELECT id, user_id FROM password_reset_tokens WHERE token_hash = ? AND used_at IS NULL AND expires_at > ?"
-        )
-        .get(hashToken(token), now())) as
-        | { id: string; user_id: string }
-        | undefined;
-      if (!reset)
-        throw httpError(
-          400,
-          "invalid-reset",
-          "رمز الاستعادة غير صالح أو منتهي."
-        );
-      await withDataPlaneTransaction(db, async () => {
-        await db
-          .prepare(
-            "UPDATE users SET password_hash = ?, failed_login_count = 0, locked_until = NULL, updated_at = ? WHERE id = ?"
-          )
-          .run(passwordHash(password), now(), reset.user_id);
-        await db
-          .prepare("UPDATE password_reset_tokens SET used_at = ? WHERE id = ?")
-          .run(now(), reset.id);
-        await db
-          .prepare(
-            "UPDATE sessions SET revoked_at = ? WHERE user_id = ? AND revoked_at IS NULL"
-          )
-          .run(now(), reset.user_id);
+      const outcome = await withDataPlaneTransaction(db, async () => {
+        const reset = (await db.prepare("SELECT id, user_id FROM password_reset_tokens WHERE token_hash = ? AND used_at IS NULL AND expires_at > ?").get(hashToken(token), now())) as { id: string; user_id: string } | undefined;
+        if (!reset) return { ok: false as const, resourceId: null, actorUserId: undefined, reason: "invalid_or_expired" };
+        const consumed = await db.prepare("UPDATE password_reset_tokens SET used_at = ? WHERE id = ? AND used_at IS NULL AND expires_at > ?").run(now(), reset.id, now());
+        if (consumed.changes !== 1) return { ok: false as const, resourceId: reset.id, actorUserId: reset.user_id, reason: "replay_or_race" };
+        await db.prepare("UPDATE users SET password_hash = ?, failed_login_count = 0, locked_until = NULL, updated_at = ? WHERE id = ?").run(passwordHash(password), now(), reset.user_id);
+        await db.prepare("UPDATE sessions SET revoked_at = ? WHERE user_id = ? AND revoked_at IS NULL").run(now(), reset.user_id);
+        await recordAudit(db, { userId: reset.user_id }, "auth.password_reset.completed", "user", reset.user_id, req.requestId, { outcome: "success" });
+        return { ok: true as const, resourceId: reset.id, actorUserId: reset.user_id, reason: "" };
       });
+      if (!outcome.ok) {
+        await recordAudit(db, outcome.actorUserId ? { userId: outcome.actorUserId } : {}, "auth.password_reset.rejected", "password_reset", outcome.resourceId, req.requestId, { outcome: outcome.reason });
+        throw httpError(400, "invalid-reset", "رمز الاستعادة غير صالح أو منتهي.");
+      }
       return res.json({ ok: true, status: "password-updated" });
     } catch (error) {
       next(error);

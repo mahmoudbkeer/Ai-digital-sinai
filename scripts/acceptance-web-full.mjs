@@ -68,7 +68,24 @@ try {
   const page = await context.newPage();
   await page.goto(`${base}/`, { waitUntil: "networkidle" });
 
-  const result = await page.evaluate(async () => {
+  const email = `web-full-${Date.now()}@example.test`;
+  const password = "secure-password-123";
+  const registrationBefore = snapshot();
+  const registrationResponse = await fetch(`${base}/api/platform/auth/register`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, password, displayName: "Web Full Acceptance", tenantName: "Web Full Tenant" }),
+  });
+  const registrationBody = await registrationResponse.json();
+  evidence.push({ step: "register", method: "POST", endpoint: "/api/platform/auth/register", httpStatus: registrationResponse.status, response: registrationBody, dbBefore: registrationBefore, dbAfter: snapshot() });
+  if (registrationResponse.status !== 201 || registrationBody.token) throw new Error("registration issued an authenticated session");
+  if (ownsServer) {
+    const acceptanceDb = db();
+    acceptanceDb.prepare("UPDATE users SET status = 'active' WHERE id = ?").run(registrationBody.userId);
+    acceptanceDb.close();
+  }
+
+  const result = await page.evaluate(async ({ email, password, owner }) => {
     const out = [];
     const call = async (method, endpoint, body, auth) => {
       const r = await fetch(endpoint, { method, headers: { "Content-Type": "application/json", ...(auth ? { authorization: `Bearer ${auth.token}`, "x-tenant-id": auth.tenantId } : {}) }, body: body === undefined ? undefined : JSON.stringify(body) });
@@ -76,12 +93,9 @@ try {
       out.push({ method, endpoint, status: r.status, body: payload });
       return { status: r.status, body: payload };
     };
-    const email = `web-full-${Date.now()}@example.test`; const password = "secure-password-123";
-    const registered = await call("POST", "/api/platform/auth/register", { email, password, displayName: "Web Full Acceptance", tenantName: "Web Full Tenant" });
-    const owner = registered.body;
     const login = await call("POST", "/api/platform/auth/login", { email, password });
     const loginToken = login.body?.token;
-    if (login.status !== 200 || typeof loginToken !== "string" || loginToken === owner.token) throw new Error("login did not return a fresh session token");
+    if (login.status !== 200 || typeof loginToken !== "string") throw new Error("verified test user login did not return a fresh session token");
     const auth = { token: loginToken, tenantId: owner.tenantId };
     await call("GET", "/api/platform/me", undefined, auth);
     const product = await call("POST", "/api/platform/products", { businessId: owner.businessId, sku: `WEB-${Date.now()}`, name: "Web Acceptance Product", description: "real browser acceptance", priceCents: 1250, category: "local" }, auth);
@@ -113,7 +127,7 @@ try {
     await call("GET", "/api/platform/analytics/overview", undefined, auth);
     await call("GET", "/api/platform/analytics/kpis", undefined, auth);
     return { owner, productId, orderId, paymentId: payment.body.paymentIntentId, deliveryId, notificationId: notification.body.notificationId, subscriptionId: subscription.body.subscriptionId, requests: out };
-  });
+  }, { email, password, owner: registrationBody });
   const ids = result;
   let previous = snapshot();
   for (const request of result.requests) {

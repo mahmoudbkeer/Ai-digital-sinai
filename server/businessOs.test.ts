@@ -1,3 +1,4 @@
+import { createHash, randomUUID } from "node:crypto";
 import { createServer, type Server } from "node:http";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import express from "express";
@@ -25,13 +26,11 @@ async function register(email: string, tenantName: string) {
     }),
   });
   expect(response.status).toBe(201);
-  return response.json() as Promise<{
-    token: string;
-    tenantId: string;
-    businessId: string;
-    branchId: string;
-    userId: string;
-  }>;
+  const created = await response.json() as { tenantId: string; businessId?: string; branchId?: string; userId: string };
+  await getDataPlane().prepare("UPDATE users SET status = 'active' WHERE id = ?").run(created.userId);
+  const token = `test-session-${randomUUID()}`;
+  await getDataPlane().prepare("INSERT INTO sessions (id, user_id, token_hash, expires_at, created_at) VALUES (?, ?, ?, ?, ?)").run(randomUUID(), created.userId, createHash("sha256").update(token).digest("hex"), Date.now() + 3_600_000, Date.now());
+  return { ...created, token };
 }
 function auth(identity: { token: string; tenantId: string }) {
   return {

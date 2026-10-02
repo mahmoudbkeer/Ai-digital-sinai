@@ -154,6 +154,7 @@ export function resolveObjectStorageProvider(): ObjectStorageProvider {
 
 export type RedisProvider = {
   status: IntegrationStatus;
+  increment(key: string, ttlSeconds: number): Promise<number | null>;
   get(key: string): Promise<string | null>;
   set(
     key: string,
@@ -245,6 +246,14 @@ export function resolveRedisProvider(): RedisProvider {
 
   return {
     status: ready ? "configured" : "requires_setup",
+    async increment(key, ttlSeconds) {
+      if (!ready) return null;
+      try {
+        const value = Number(await command(["INCR", key]));
+        if (value === 1) await command(["EXPIRE", key, String(ttlSeconds)]);
+        return Number.isFinite(value) ? value : null;
+      } catch { return null; }
+    },
     async get(key) {
       if (ready) {
         try { return await command(["GET", key]); } catch { return null; }
