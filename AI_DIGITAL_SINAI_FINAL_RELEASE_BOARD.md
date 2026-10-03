@@ -189,3 +189,28 @@ All four associated runs were independently verified as completed with `success`
 - Transport: local default `http://10.0.2.2:4173` is permitted only in Debug; Release has no cleartext allowance and production must use HTTPS
 
 Overall decision remains **BLOCKED / NOT_VERIFIED** for Production Runtime and Closed Beta because PostgreSQL restore, approved release signing, real device runtime, external provider configuration, monitoring, deployment, and rollback evidence remain unavailable.
+
+
+## 2026-10-03 Addendum — Final CI Gate Evidence on `af246ac`
+
+**Verified HEAD and `origin/main`:** `af246acca4f5dacd2f2b82250ed8ec4576234172`.
+
+### Required CI gates
+
+| Workflow | Status | Evidence |
+|---|---|---|
+| Quality Gate | VERIFIED | [Run 37082719050](https://github.com/mahmoudbkeer/Ai-digital-sinai/actions/runs/37082719050) completed with `success`. |
+| Full Regression Acceptance | VERIFIED | [Run 37082719039](https://github.com/mahmoudbkeer/Ai-digital-sinai/actions/runs/37082719039) completed with `success`. |
+| Android CI | VERIFIED | [Run 37082719061](https://github.com/mahmoudbkeer/Ai-digital-sinai/actions/runs/37082719061) completed with `success`. |
+| iOS CI | VERIFIED | [Run 37082719074](https://github.com/mahmoudbkeer/Ai-digital-sinai/actions/runs/37082719074) completed with `success`. |
+
+### Continuation evidence
+
+- Local Playwright: **29/29 passed** after aligning all registration fixtures with the locked `Register → Verify → Login` contract.
+- Local load smoke: **50 requests, 5 checkout business successes, 0 failures**.
+- Local adversarial security and RBAC/ABAC matrices: **passed** after using isolated, verified test identities.
+- PostgreSQL critical smoke contract: updated to activate test users in PostgreSQL and perform real login before tenant and financial checks; the separate production restore drill remains outstanding.
+
+### Release decision remains conservative
+
+The four CI gates are **VERIFIED**, but this does **not** promote the project to Production Ready or Closed Beta Ready. The board remains **BLOCKED / NOT_VERIFIED** for real PostgreSQL backup/restore, approved release keystore, physical/emulator mobile runtime, iOS/iPad runtime, external monitoring, Railway/deployed runtime, provider setup, and rollback evidence.

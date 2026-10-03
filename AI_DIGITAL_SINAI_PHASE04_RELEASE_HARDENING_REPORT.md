@@ -143,3 +143,32 @@ The next execution requires a real PostgreSQL source and separate restore target
 | Android install/launch | NOT_VERIFIED | `adb devices` returned no connected devices. | Test on a physical device or hardware-accelerated emulator. |
 
 The overall Phase 04 and Production/Closed Beta decisions remain unchanged: **BLOCKED / NOT_VERIFIED** for PostgreSQL restore, external production runtime, device runtime, monitoring, and rollback.
+
+
+## 2026-10-03 Addendum — Registration Hardening, Test Contracts, and Final CI Evidence
+
+**Verified code HEAD and `origin/main`:** `af246acca4f5dacd2f2b82250ed8ec4576234172`.
+
+### Implemented and locally verified in this continuation
+
+| Area | Status | Evidence |
+|---|---|---|
+| Password-reset hardening | VERIFIED | Existing implementation and focused Vitest/typecheck work retained; atomic token consumption, distributed limiter abstraction, audit events, and session revocation remain covered by the repository tests. |
+| Playwright registration fixtures | VERIFIED | Registration fixtures now assert no session is issued before verification, activate only the isolated test user in the test SQLite database, then use a real login/session for test journeys. Local run: **29/29 passed**. |
+| Load smoke fixture | VERIFIED | `scripts/load-smoke.mjs` now follows locked registration then fixture activation and uses a real login-equivalent session. Local run: **50 requests, 5 checkout successes, 0 failures**. |
+| Adversarial security fixture | VERIFIED | Tenant/IDOR, SQL injection, XSS input, login rate limiting, webhook signature, and replay checks passed locally after adapting to the locked registration contract. |
+| RBAC/ABAC matrix fixture | VERIFIED | Owner, Manager, Employee, Consumer, provider, driver, admin, and super-admin server-side matrix plus cross-tenant IDOR checks passed locally. |
+| PostgreSQL critical smoke fixture | VERIFIED (test contract) | The smoke now activates the registered PostgreSQL test user through the test database and performs a real login before tenant/financial checks. This does not replace the separate production restore drill. |
+
+### Final CI runs for commit `af246ac`
+
+All four required workflows were independently verified as `completed` with `success`:
+
+- [Quality Gate — run 37082719050](https://github.com/mahmoudbkeer/Ai-digital-sinai/actions/runs/37082719050)
+- [Android CI — run 37082719061](https://github.com/mahmoudbkeer/Ai-digital-sinai/actions/runs/37082719061)
+- [iOS CI — run 37082719074](https://github.com/mahmoudbkeer/Ai-digital-sinai/actions/runs/37082719074)
+- [Full Regression Acceptance — run 37082719039](https://github.com/mahmoudbkeer/Ai-digital-sinai/actions/runs/37082719039)
+
+### Decision update
+
+The CI release gates are now **VERIFIED** on `af246ac`. The overall release decision remains **BLOCKED / NOT_VERIFIED** for Production Runtime and Closed Beta because the following evidence is still unavailable: real PostgreSQL backup/restore to a separate target, approved Android release signing, physical/emulator Android runtime, iOS/iPad runtime, external monitoring, Railway/deployed production runtime, provider configuration, and rollback drill.
