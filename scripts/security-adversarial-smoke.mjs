@@ -4,6 +4,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawn } from "node:child_process";
+import { DatabaseSync } from "node:sqlite";
 
 const port = process.env.ADVERSARIAL_PORT || "4322";
 const baseUrl = process.env.BASE_URL || `http://127.0.0.1:${port}`;
@@ -27,7 +28,16 @@ async function register(email, tenantName) {
     body: JSON.stringify({ email, password: "secure-password-123", displayName: "Security Test", tenantName }),
   });
   assert(`register ${tenantName}`, response.status === 201, `HTTP ${response.status}`);
-  return response.json();
+  const created = await response.json();
+  if (created.token) throw new Error("registration issued an authenticated session");
+  if (!ownsServer) throw new Error("adversarial fixture requires access to the test database for email verification");
+  const database = new DatabaseSync(join(dataDir, "security.sqlite"));
+  database.exec("PRAGMA busy_timeout = 10000;");
+  database.prepare("UPDATE users SET status = 'active' WHERE id = ?").run(created.userId);
+  database.close();
+  const login = await call("/api/platform/auth/login", { method: "POST", body: JSON.stringify({ email, password: "secure-password-123" }) });
+  assert(`login ${tenantName}`, login.status === 200, `HTTP ${login.status}`);
+  return { ...created, ...(await login.json()) };
 }
 async function waitForServer() {
   const deadline = Date.now() + 10_000;
@@ -72,7 +82,7 @@ try {
     headers: headersA,
     body: JSON.stringify({ businessId: a.businessId, sku: "SEC-XSS", name: "<script>alert(1)</script>", priceCents: 100 }),
   });
-  assert("XSS input does not crash API", [201, 400].includes(xss.status), `HTTP ${xss.status}`);
+  assert("XSS input does not crash API", [201, 400].includes(xss.status), `HTTP ${xss.status}: ${await xss.text()}`);
 
   let rateLimited = false;
   for (let attempt = 0; attempt < 12; attempt += 1) {
