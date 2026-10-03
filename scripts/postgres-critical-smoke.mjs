@@ -20,9 +20,18 @@ async function waitForServer() {
   throw new Error("staging API did not become healthy");
 }
 async function register(label) {
-  const response = await request("/api/platform/auth/register", { method: "POST", body: JSON.stringify({ email: `staging-${label}-${Date.now()}@example.com`, password: "secure-password-123", displayName: "Staging Test", tenantName: `Staging ${label}` }) });
+  const email = `staging-${label}-${Date.now()}@example.com`;
+  const response = await request("/api/platform/auth/register", { method: "POST", body: JSON.stringify({ email, password: "secure-password-123", displayName: "Staging Test", tenantName: `Staging ${label}` }) });
   assert(response.status === 201, `register ${label} returned ${response.status}`);
-  return json(response);
+  const created = await json(response);
+  assert(!created.token, `register ${label} issued an authenticated session`);
+  const fixturePool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: process.env.PG_SSL === "require" ? { rejectUnauthorized: true } : undefined });
+  try {
+    await fixturePool.query("UPDATE users SET status = 'active' WHERE id = $1", [created.userId]);
+  } finally { await fixturePool.end(); }
+  const login = await request("/api/platform/auth/login", { method: "POST", body: JSON.stringify({ email, password: "secure-password-123" }) });
+  assert(login.status === 200, `login ${label} returned ${login.status}`);
+  return { ...created, ...(await json(login)) };
 }
 
 try {
