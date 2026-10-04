@@ -1,0 +1,183 @@
+name: PostgreSQL Backup Restore Evidence
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: postgres-backup-restore-evidence
+  cancel-in-progress: false
+
+jobs:
+  backup-restore-evidence:
+    name: PostgreSQL Backup Restore Evidence
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      SOURCE_DATABASE_URL: ${{ secrets.STAGING_DATABASE_URL }}
+      RESTORE_TARGET_DATABASE_URL: ${{ secrets.RESTORE_TARGET_DATABASE_URL }}
+      BACKUP_ENCRYPTION_KEY: ${{ secrets.BACKUP_ENCRYPTION_KEY }}
+      NODE_ENV: staging
+      DATABASE_ENGINE: postgresql
+      POSTGRESQL_TEST_MODE: "true"
+      PG_SSL: require
+      BACKUP_DIR: ${{ runner.temp }}/postgres-backup
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install PostgreSQL client tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends postgresql-client
+          command -v pg_dump
+          command -v pg_restore
+          command -v psql
+          pg_dump --version
+          pg_restore --version
+          psql --version
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Verify required secrets are present
+        shell: bash
+        env:
+          CHECK_SOURCE_DATABASE_URL: ${{ secrets.STAGING_DATABASE_URL }}
+          CHECK_RESTORE_TARGET_DATABASE_URL: ${{ secrets.RESTORE_TARGET_DATABASE_URL }}
+          CHECK_BACKUP_ENCRYPTION_KEY: ${{ secrets.BACKUP_ENCRYPTION_KEY }}
+        run: |
+          set -euo pipefail
+          missing=0
+          for name in CHECK_SOURCE_DATABASE_URL CHECK_RESTORE_TARGET_DATABASE_URL CHECK_BACKUP_ENCRYPTION_KEY; do
+            if [[ -z "${!name:-}" ]]; then
+              echo "::error::Required repository secret is missing: ${name#CHECK_}"
+              missing=1
+            fi
+          done
+          [[ "$missing" -eq 0 ]]
+          node --input-type=module <<'NODE'
+          const source = process.env.CHECK_SOURCE_DATABASE_URL;
+          const target = process.env.CHECK_RESTORE_TARGET_DATABASE_URL;
+          const fingerprint = value => {
+            const url = new URL(value);
+            return [url.protocol, url.hostname, url.port, url.pathname, url.username].join("|");
+          };
+          if (!/^postgres(?:ql)?:\\/\\//i.test(source) || !/^postgres(?:ql)?:\\/\\//i.test(target)) {
+            throw new Error("Both database secrets must be PostgreSQL URLs.");
+          }
+          if (fingerprint(source) === fingerprint(target)) {
+            throw new Error("Source and restore target must be separate PostgreSQL databases.");
+          }
+          console.log("Source/target separation check: PASS");
+          NODE
+
+      - name: PostgreSQL backup from staging source
+        env:
+          DATABASE_URL: ${{ secrets.STAGING_DATABASE_URL }}
+        run: pnpm backup
+
+      - name: Verify encrypted backup manifest and checksum
+        shell: bash
+        run: |
+          set -euo pipefail
+          backup_file="$(find "$BACKUP_DIR" -maxdepth 1 -type f -name '*.dump.enc' -print -quit)"
+          manifest_file="${backup_file}.sha256.json"
+          test -n "$backup_file"
+          test -s "$backup_file"
+          test -s "$manifest_file"
+          BACKUP_FILE="$backup_file" MANIFEST_FILE="$manifest_file" node --input-type=module <<'NODE'
+          import { createHash } from "node:crypto";
+          import { readFileSync, statSync } from "node:fs";
+          const backup = process.env.BACKUP_FILE;
+          const manifestPath = process.env.MANIFEST_FILE;
+          const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+          const actualHash = createHash("sha256").update(readFileSync(backup)).digest("hex");
+          if (manifest.provider !== "postgresql") throw new Error("Backup provider is not PostgreSQL.");
+          if (manifest.encrypted !== true || manifest.algorithm !== "AES-256-GCM") throw new Error("Backup is not encrypted with AES-256-GCM.");
+          if (manifest.file !== backup.split("/").pop()) throw new Error("Manifest file name mismatch.");
+          if (Number(manifest.bytes) !== statSync(backup).size) throw new Error("Manifest byte count mismatch.");
+          if (manifest.sha256 !== actualHash) throw new Error("Backup checksum mismatch.");
+          console.log(JSON.stringify({ status: "PASS", provider: manifest.provider, encrypted: manifest.encrypted, algorithm: manifest.algorithm, bytes: manifest.bytes, checksumVerified: true }));
+          NODE
+
+      - name: Upload encrypted backup evidence artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: postgres-backup-evidence-${{ github.run_id }}
+          path: ${{ runner.temp }}/postgres-backup/*
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Restore backup into separate PostgreSQL target
+        env:
+          DATABASE_URL: ${{ secrets.RESTORE_TARGET_DATABASE_URL }}
+        run: |
+          set -euo pipefail
+          backup_file="$(find "$BACKUP_DIR" -maxdepth 1 -type f -name '*.dump.enc' -print -quit)"
+          test -n "$backup_file"
+          pnpm restore "$backup_file"
+
+      - name: Verify restored schema, data, tenant isolation, and ledger integrity
+        env:
+          DATABASE_URL: ${{ secrets.RESTORE_TARGET_DATABASE_URL }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          psql_query() {
+            psql -X -v ON_ERROR_STOP=1 "$DATABASE_URL" -Atqc "$1"
+          }
+
+          versions="$(psql_query "SELECT COALESCE(string_agg(version::text, ',' ORDER BY version), '') FROM schema_migrations;")"
+          [[ "$versions" == "1,2,3,4,5,6,7,8,9,10,11,12,13,14" ]]
+          echo "schema_migrations: PASS"
+
+          required_tables="$(psql_query "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='public' AND table_name = ANY (ARRAY['users','tenants','products','orders','invoices','ledger_accounts','ledger_journals','ledger_entries','plans','entitlements','schema_migrations']);")"
+          [[ "$required_tables" == "11" ]]
+          echo "required tables: PASS"
+
+          psql_query "SELECT format('%s=%s', table_name, table_rows) FROM (SELECT table_name, (SELECT COUNT(*) FROM users) AS table_rows FROM information_schema.tables WHERE table_schema='public' AND table_name='users' UNION ALL SELECT table_name, (SELECT COUNT(*) FROM tenants) FROM information_schema.tables WHERE table_schema='public' AND table_name='tenants' UNION ALL SELECT table_name, (SELECT COUNT(*) FROM products) FROM information_schema.tables WHERE table_schema='public' AND table_name='products' UNION ALL SELECT table_name, (SELECT COUNT(*) FROM orders) FROM information_schema.tables WHERE table_schema='public' AND table_name='orders' UNION ALL SELECT table_name, (SELECT COUNT(*) FROM invoices) FROM information_schema.tables WHERE table_schema='public' AND table_name='invoices' UNION ALL SELECT table_name, (SELECT COUNT(*) FROM ledger_journals) FROM information_schema.tables WHERE table_schema='public' AND table_name='ledger_journals') counts ORDER BY table_name;"
+
+          tenant_mismatches="$(psql_query "SELECT (SELECT COUNT(*) FROM products p JOIN businesses b ON b.id=p.business_id WHERE b.tenant_id<>p.tenant_id) + (SELECT COUNT(*) FROM orders o JOIN businesses b ON b.id=o.business_id WHERE b.tenant_id<>o.tenant_id) + (SELECT COUNT(*) FROM orders o JOIN branches b ON b.id=o.branch_id WHERE b.tenant_id<>o.tenant_id) + (SELECT COUNT(*) FROM invoices i JOIN orders o ON o.id=i.order_id WHERE o.tenant_id<>i.tenant_id) + (SELECT COUNT(*) FROM ledger_entries e JOIN ledger_accounts a ON a.id=e.account_id WHERE a.tenant_id<>e.tenant_id);")"
+          [[ "$tenant_mismatches" == "0" ]]
+          echo "tenant isolation integrity: PASS"
+
+          unbalanced="$(psql_query "SELECT COUNT(*) FROM (SELECT j.id FROM ledger_journals j JOIN ledger_entries e ON e.journal_id=j.id AND e.tenant_id=j.tenant_id GROUP BY j.id HAVING COALESCE(SUM(e.debit_cents),0)<>COALESCE(SUM(e.credit_cents),0)) q;")"
+          [[ "$unbalanced" == "0" ]]
+          duplicate_journals="$(psql_query "SELECT COUNT(*) FROM (SELECT tenant_id,idempotency_key FROM ledger_journals GROUP BY tenant_id,idempotency_key HAVING COUNT(*)>1) q;")"
+          [[ "$duplicate_journals" == "0" ]]
+          echo "financial/ledger integrity: PASS"
+
+      - name: Build application for PostgreSQL critical smoke
+        run: pnpm build
+
+      - name: Run PostgreSQL critical smoke against restored target
+        env:
+          DATABASE_URL: ${{ secrets.RESTORE_TARGET_DATABASE_URL }}
+          PG_SSL: require
+          STAGING_API_PORT: "4322"
+        run: pnpm test:staging:api
+
+      - name: Final restored-target ledger and schema verification
+        env:
+          DATABASE_URL: ${{ secrets.RESTORE_TARGET_DATABASE_URL }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          psql -X -v ON_ERROR_STOP=1 "$DATABASE_URL" -Atqc "SELECT CASE WHEN COUNT(*)=0 THEN 'PASS' ELSE 'FAIL' END FROM (SELECT j.id FROM ledger_journals j JOIN ledger_entries e ON e.journal_id=j.id AND e.tenant_id=j.tenant_id GROUP BY j.id HAVING COALESCE(SUM(e.debit_cents),0)<>COALESCE(SUM(e.credit_cents),0)) q;" | grep -qx PASS
+          psql -X -v ON_ERROR_STOP=1 "$DATABASE_URL" -Atqc "SELECT CASE WHEN COUNT(*)=14 AND MIN(version)=1 AND MAX(version)=14 THEN 'PASS' ELSE 'FAIL' END FROM schema_migrations;" | grep -qx PASS
+          echo "final restored-target verification: PASS"
