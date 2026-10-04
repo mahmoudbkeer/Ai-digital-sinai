@@ -23,7 +23,6 @@ jobs:
       DATABASE_ENGINE: postgresql
       POSTGRESQL_TEST_MODE: "true"
       PG_SSL: require
-      BACKUP_DIR: ${{ runner.temp }}/postgres-backup
 
     steps:
       - name: Checkout
@@ -89,9 +88,12 @@ jobs:
       - name: PostgreSQL backup from staging source
         env:
           DATABASE_URL: ${{ secrets.STAGING_DATABASE_URL }}
+          BACKUP_DIR: ${{ runner.temp }}/postgres-backup
         run: pnpm backup
 
       - name: Verify encrypted backup manifest and checksum
+        env:
+          BACKUP_DIR: ${{ runner.temp }}/postgres-backup
         shell: bash
         run: |
           set -euo pipefail
@@ -126,6 +128,7 @@ jobs:
       - name: Restore backup into separate PostgreSQL target
         env:
           DATABASE_URL: ${{ secrets.RESTORE_TARGET_DATABASE_URL }}
+          BACKUP_DIR: ${{ runner.temp }}/postgres-backup
         run: |
           set -euo pipefail
           backup_file="$(find "$BACKUP_DIR" -maxdepth 1 -type f -name '*.dump.enc' -print -quit)"
