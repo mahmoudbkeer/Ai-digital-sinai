@@ -94,6 +94,21 @@ jobs:
           console.log("Source/target separation check: PASS");
           NODE
 
+      - name: Verify source schema_migrations before backup
+        env:
+          DATABASE_URL: ${{ secrets.STAGING_DATABASE_URL }}
+          PGSSLMODE: require
+        shell: bash
+        run: |
+          set -euo pipefail
+          present="$(psql -X -v ON_ERROR_STOP=1 "$DATABASE_URL" -Atqc "SELECT to_regclass('public.schema_migrations') IS NOT NULL;")"
+          if [[ "$present" != "t" ]]; then
+            echo "::error::Source public.schema_migrations is missing; stopping before backup."
+            exit 1
+          fi
+          rows="$(psql -X -v ON_ERROR_STOP=1 "$DATABASE_URL" -Atqc "SELECT COUNT(*) FROM public.schema_migrations;")"
+          echo "Source schema_migrations: present; rows=${rows}"
+
       - name: PostgreSQL backup from staging source
         env:
           DATABASE_URL: ${{ secrets.STAGING_DATABASE_URL }}
@@ -126,6 +141,35 @@ jobs:
           console.log(JSON.stringify({ status: "PASS", provider: manifest.provider, encrypted: manifest.encrypted, algorithm: manifest.algorithm, bytes: manifest.bytes, checksumVerified: true }));
           NODE
 
+      - name: Inspect decrypted backup for schema_migrations
+        env:
+          BACKUP_DIR: ${{ runner.temp }}/postgres-backup
+          BACKUP_ENCRYPTION_KEY: ${{ secrets.BACKUP_ENCRYPTION_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          backup_file="$(find "$BACKUP_DIR" -maxdepth 1 -type f -name '*.dump.enc' -print -quit)"
+          decrypted_file="$BACKUP_DIR/inspection.dump"
+          BACKUP_FILE="$backup_file" DECRYPTED_FILE="$decrypted_file" node --input-type=module <<'NODE'
+          import { createDecipheriv } from "node:crypto";
+          import { readFileSync, writeFileSync } from "node:fs";
+          const value = process.env.BACKUP_ENCRYPTION_KEY?.trim();
+          const key = /^[0-9a-f]{64}$/i.test(value ?? "") ? Buffer.from(value, "hex") : Buffer.from(value ?? "", "base64");
+          if (key.length !== 32) throw new Error("Backup encryption key is invalid.");
+          const payload = readFileSync(process.env.BACKUP_FILE);
+          if (payload.subarray(0, 5).toString() !== "AISB1") throw new Error("Unsupported encrypted backup format.");
+          const decipher = createDecipheriv("aes-256-gcm", key, payload.subarray(5, 17));
+          decipher.setAuthTag(payload.subarray(17, 33));
+          writeFileSync(process.env.DECRYPTED_FILE, Buffer.concat([decipher.update(payload.subarray(33)), decipher.final()]), { mode: 0o600 });
+          NODE
+          list_file="$RUNNER_TEMP/postgres-restore-list.txt"
+          pg_restore --list "$decrypted_file" > "$list_file"
+          if ! grep -Eiq 'schema_migrations' "$list_file"; then
+            echo "::error::schema_migrations is absent from the PostgreSQL dump; stopping before restore."
+            exit 1
+          fi
+          echo "Dump schema_migrations: present in pg_restore --list"
+
       - name: Upload encrypted backup evidence artifact
         uses: actions/upload-artifact@v4
         with:
@@ -143,6 +187,21 @@ jobs:
           backup_file="$(find "$BACKUP_DIR" -maxdepth 1 -type f -name '*.dump.enc' -print -quit)"
           test -n "$backup_file"
           pnpm restore "$backup_file"
+
+      - name: Verify target schema_migrations after restore
+        env:
+          DATABASE_URL: ${{ secrets.RESTORE_TARGET_DATABASE_URL }}
+          PGSSLMODE: require
+        shell: bash
+        run: |
+          set -euo pipefail
+          present="$(psql -X -v ON_ERROR_STOP=1 "$DATABASE_URL" -Atqc "SELECT to_regclass('public.schema_migrations') IS NOT NULL;")"
+          if [[ "$present" != "t" ]]; then
+            echo "::error::Restore failure: target public.schema_migrations is missing after pg_restore."
+            exit 1
+          fi
+          rows="$(psql -X -v ON_ERROR_STOP=1 "$DATABASE_URL" -Atqc "SELECT COUNT(*) FROM public.schema_migrations;")"
+          echo "Restore target schema_migrations: present; rows=${rows}"
 
       - name: Verify restored schema, data, tenant isolation, and ledger integrity
         env:
