@@ -76,7 +76,7 @@ jobs:
             const url = new URL(value);
             return [url.protocol, url.hostname, url.port, url.pathname, url.username].join("|");
           };
-          if (!/^postgres(?:ql)?:\\/\\//i.test(source) || !/^postgres(?:ql)?:\\/\\//i.test(target)) {
+          if (!/^postgres(?:ql)?:\/\//i.test(source) || !/^postgres(?:ql)?:\/\//i.test(target)) {
             throw new Error("Both database secrets must be PostgreSQL URLs.");
           }
           if (fingerprint(source) === fingerprint(target)) {
