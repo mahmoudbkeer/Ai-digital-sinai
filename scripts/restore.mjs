@@ -39,7 +39,7 @@ let usableSource;
 try { usableSource = decryptIfNeeded(); } catch (error) { console.error(JSON.stringify({ status: "FAILED", operation: "decrypt", message: error instanceof Error ? error.message : String(error) })); process.exit(1); }
 try {
   if (/^(postgres|postgresql):\/\//i.test(process.env.DATABASE_URL ?? "")) {
-    await exec("pg_restore", ["--clean", "--if-exists", "--no-owner", "--dbname", process.env.DATABASE_URL, usableSource], { cwd: root });
+    await exec("pg_restore", ["--clean", "--if-exists", "--no-owner", "--no-acl", "--dbname", process.env.DATABASE_URL, usableSource], { cwd: root });
     console.log(JSON.stringify({ status: "COMPLETED", provider: "postgresql", source, encrypted: Boolean(manifest?.encrypted) }));
   } else {
     const target = process.env.SQLITE_PATH ?? path.resolve(root, ".data", "ai-digital-sinai.sqlite"); if (target === ":memory:") { console.error(JSON.stringify({ status: "BLOCKED", message: "SQLite restore requires a persistent SQLITE_PATH." })); process.exit(78); }
