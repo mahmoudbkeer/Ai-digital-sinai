@@ -41,14 +41,23 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl --fail --silent --show-error https://www.postgresql.org/media/keys/ACCC4CF8.asc -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc
+          . /etc/os-release
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt ${VERSION_CODENAME}-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list >/dev/null
           sudo apt-get update -qq
-          sudo apt-get install -y --no-install-recommends postgresql-client
+          sudo apt-get install -y --no-install-recommends postgresql-client-18
+          echo "/usr/lib/postgresql/18/bin" >> "$GITHUB_PATH"
+          export PATH="/usr/lib/postgresql/18/bin:$PATH"
           command -v pg_dump
           command -v pg_restore
           command -v psql
           pg_dump --version
           pg_restore --version
           psql --version
+          pg_dump --version | grep -Eq '^[^ ]+ \(PostgreSQL\) 18(\.|$)'
+          pg_restore --version | grep -Eq '^[^ ]+ \(PostgreSQL\) 18(\.|$)'
+          psql --version | grep -Eq '^[^ ]+ \(PostgreSQL\) 18(\.|$)'
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
