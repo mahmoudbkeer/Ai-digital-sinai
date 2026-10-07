@@ -213,7 +213,7 @@ jobs:
             psql -X -v ON_ERROR_STOP=1 "$DATABASE_URL" -Atqc "$1"
           }
 
-          versions="$(psql_query "SELECT COALESCE(string_agg(version::text, ',' ORDER BY version), '') FROM schema_migrations;")"
+          versions="$(psql_query "SELECT COALESCE(string_agg(version::text, ',' ORDER BY version), '') FROM public.schema_migrations;")"
           [[ "$versions" == "1,2,3,4,5,6,7,8,9,10,11,12,13,14" ]]
           echo "schema_migrations: PASS"
 
