@@ -6,6 +6,21 @@ const ownsServer = !process.env.BASE_URL;
 const port = process.env.STAGING_API_PORT || "4322";
 const baseUrl = process.env.BASE_URL || `http://127.0.0.1:${port}`;
 let server;
+let serverListenObserved = false;
+let serverExit;
+const sensitiveValues = [
+  process.env.DATABASE_URL,
+  process.env.COMMAND_CONTEXT_SECRET,
+  process.env.PAYMENT_WEBHOOK_SECRET,
+  process.env.BACKUP_ENCRYPTION_KEY,
+].filter(value => value && value.length >= 4);
+const redact = value => {
+  let safe = String(value ?? "");
+  safe = safe.replace(/postgres(?:ql)?:\/\/[^\s"']+/gi, "[REDACTED_POSTGRES_URL]");
+  for (const secret of sensitiveValues) safe = safe.split(secret).join("[REDACTED_SECRET]");
+  return safe;
+};
+const logDiagnostic = (event, details = {}) => console.log(JSON.stringify({ event, ...details, ...(details.message ? { message: redact(details.message) } : {}) }));
 const request = (path, init = {}) => fetch(new URL(path, baseUrl), { ...init, headers: { "content-type": "application/json", ...(init.headers ?? {}) } });
 const json = value => value.json();
 const assert = (condition, message) => { if (!condition) throw new Error(message); };
@@ -13,11 +28,36 @@ const auth = identity => ({ authorization: `Bearer ${identity.token}`, "x-tenant
 
 async function waitForServer() {
   const deadline = Date.now() + 15_000;
+  let lastHealthFailure = "no health request completed";
+  let loggedFirstFailure = false;
   while (Date.now() < deadline) {
-    try { if ((await request("/api/health")).ok) return; } catch {}
+    if (serverExit) {
+      lastHealthFailure = `process exited code=${serverExit.code ?? "null"} signal=${serverExit.signal ?? "null"}`;
+      break;
+    }
+    try {
+      const response = await request("/api/health");
+      const body = redact(await response.text());
+      if (response.ok) {
+        logDiagnostic("api_health", { status: response.status, body });
+        return;
+      }
+      lastHealthFailure = `HTTP ${response.status}; body=${body}`;
+      if (!loggedFirstFailure) {
+        logDiagnostic("api_health_failure", { status: response.status, body });
+        loggedFirstFailure = true;
+      }
+    } catch (error) {
+      lastHealthFailure = error instanceof Error ? redact(error.message) : redact(String(error));
+      if (!loggedFirstFailure) {
+        logDiagnostic("api_health_error", { message: lastHealthFailure });
+        loggedFirstFailure = true;
+      }
+    }
     await new Promise(resolve => setTimeout(resolve, 150));
   }
-  throw new Error("staging API did not become healthy");
+  logDiagnostic("api_health_timeout", { lastResult: redact(lastHealthFailure), serverListenObserved, processExited: Boolean(serverExit) });
+  throw new Error(`staging API did not become healthy; last health result: ${redact(lastHealthFailure)}`);
 }
 async function register(label) {
   const email = `staging-${label}-${Date.now()}@example.com`;
@@ -37,7 +77,30 @@ async function register(label) {
 try {
   assert(/^(postgres|postgresql):\/\//i.test(process.env.DATABASE_URL ?? ""), "DATABASE_URL must be PostgreSQL");
   if (ownsServer) {
-    server = spawn(process.execPath, ["dist/index.js"], { cwd: process.cwd(), env: { ...process.env, NODE_ENV: "staging", PORT: port, COMMAND_CONTEXT_SECRET: process.env.COMMAND_CONTEXT_SECRET ?? "staging-command-secret", PAYMENT_WEBHOOK_SECRET: process.env.PAYMENT_WEBHOOK_SECRET ?? "staging-webhook-secret" }, stdio: ["ignore", "ignore", "ignore"] });
+    server = spawn(process.execPath, ["dist/index.js"], { cwd: process.cwd(), env: { ...process.env, NODE_ENV: "staging", PORT: port, COMMAND_CONTEXT_SECRET: process.env.COMMAND_CONTEXT_SECRET ?? "staging-command-secret", PAYMENT_WEBHOOK_SECRET: process.env.PAYMENT_WEBHOOK_SECRET ?? "staging-webhook-secret" }, stdio: ["ignore", "pipe", "pipe"] });
+    logDiagnostic("api_process_started", { pid: server.pid, command: "node dist/index.js", port, healthUrl: baseUrl + "/api/health" });
+    for (const [streamName, stream] of [["stdout", server.stdout], ["stderr", server.stderr]]) {
+      stream.setEncoding("utf8");
+      let pending = "";
+      stream.on("data", chunk => {
+        pending += chunk;
+        const lines = pending.split(/\r?\n/);
+        pending = lines.pop() ?? "";
+        for (const line of lines) {
+          const message = redact(line);
+          if (message.includes("Server running on http://localhost:")) serverListenObserved = true;
+          logDiagnostic(`api_${streamName}`, { message });
+        }
+      });
+      stream.on("end", () => {
+        if (pending) logDiagnostic(`api_${streamName}`, { message: redact(pending) });
+      });
+    }
+    server.on("error", error => logDiagnostic("api_process_error", { message: error instanceof Error ? error.message : String(error) }));
+    server.on("exit", (code, signal) => {
+      serverExit = { code, signal };
+      logDiagnostic("api_process_exit", { code, signal, serverListenObserved });
+    });
     await waitForServer();
   }
   const a = await register("a");
