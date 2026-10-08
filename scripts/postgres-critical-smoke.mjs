@@ -65,7 +65,7 @@ async function register(label) {
   assert(response.status === 201, `register ${label} returned ${response.status}`);
   const created = await json(response);
   assert(!created.token, `register ${label} issued an authenticated session`);
-  const fixturePool = new Pool({ connectionString: process.env.DATABASE_URL, options: "-c search_path=public", ssl: process.env.PG_SSL === "require" ? { rejectUnauthorized: true } : undefined });
+  const fixturePool = new Pool({ connectionString: process.env.DATABASE_URL, onConnect: async client => { await client.query("SET search_path TO public"); }, ssl: process.env.PG_SSL === "require" ? { rejectUnauthorized: true } : undefined });
   try {
     await fixturePool.query("UPDATE users SET status = 'active' WHERE id = $1", [created.userId]);
   } finally { await fixturePool.end(); }
@@ -132,7 +132,7 @@ try {
   const paymentReplay = await request("/api/platform/payment-intents", { method: "POST", headers: headersA, body: JSON.stringify({ orderId: orderBody.orderId, amountCents: 1250, provider: "paymob", idempotencyKey: paymentKey }) });
   const paymentReplayBody = await json(paymentReplay);
   assert(paymentReplay.status === 200 && paymentReplayBody.replay === true && paymentReplayBody.paymentIntentId === paymentBody.paymentIntentId, "idempotent payment replay created a duplicate");
-  const pool = new Pool({ connectionString: process.env.DATABASE_URL, options: "-c search_path=public", ssl: process.env.PG_SSL === "require" ? { rejectUnauthorized: true } : undefined });
+  const pool = new Pool({ connectionString: process.env.DATABASE_URL, onConnect: async client => { await client.query("SET search_path TO public"); }, ssl: process.env.PG_SSL === "require" ? { rejectUnauthorized: true } : undefined });
   try {
     const financial = await pool.query("SELECT COALESCE(SUM(debit_cents), 0)::bigint AS debit, COALESCE(SUM(credit_cents), 0)::bigint AS credit FROM ledger_entries WHERE tenant_id = $1", [a.tenantId]);
     const debit = Number(financial.rows[0].debit);

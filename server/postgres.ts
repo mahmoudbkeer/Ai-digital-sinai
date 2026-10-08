@@ -14,7 +14,9 @@ export function getPostgresPool(): Pool {
   if (!pool) {
     const config: PoolConfig = {
       connectionString: process.env.DATABASE_URL,
-      options: "-c search_path=public",
+      onConnect: async client => {
+        await client.query("SET search_path TO public");
+      },
       max: Number(process.env.PG_POOL_MAX ?? 20),
       min: Number(process.env.PG_POOL_MIN ?? 2),
       idleTimeoutMillis: Number(process.env.PG_IDLE_TIMEOUT_MS ?? 30_000),
