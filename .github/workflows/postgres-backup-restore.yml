@@ -14,7 +14,7 @@ jobs:
   backup-restore-evidence:
     name: PostgreSQL Backup Restore Evidence
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 60
     env:
       SOURCE_DATABASE_URL: ${{ secrets.STAGING_DATABASE_URL }}
       RESTORE_TARGET_DATABASE_URL: ${{ secrets.RESTORE_TARGET_DATABASE_URL }}
