@@ -18,23 +18,29 @@ jobs:
   quality:
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    services:
-      postgres:
-        image: postgres:16
-        env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: ai_digital_sinai
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U postgres -d ai_digital_sinai"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Install and start PostgreSQL 16
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y postgresql-16 postgresql-client-16
+          sudo pg_ctlcluster 16 main start
+          sudo -u postgres psql -v ON_ERROR_STOP=1 <<'SQL'
+          ALTER USER postgres WITH PASSWORD 'postgres';
+          SELECT 'CREATE DATABASE ai_digital_sinai'
+          WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'ai_digital_sinai')\gexec
+          SQL
+          for attempt in $(seq 1 30); do
+            if pg_isready -h 127.0.0.1 -U postgres -d ai_digital_sinai; then
+              exit 0
+            fi
+            sleep 1
+          done
+          pg_isready -h 127.0.0.1 -U postgres -d ai_digital_sinai
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
