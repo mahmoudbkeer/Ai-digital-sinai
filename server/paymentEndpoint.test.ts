@@ -24,7 +24,7 @@ function signed(payload: string) {
   return createHmac("sha256", secret).update(payload).digest("hex");
 }
 function kashierSigned() {
-  return createHmac("sha256", secret).update("paymentStatus=SUCCESS&merchantOrderId=intent-mock&orderId=ks-order-1&transactionId=txn-1&amount=12.50&currency=EGP").digest("hex");
+  return createHmac("sha256", secret).update("paymentStatus=SUCCESS&cardDataToken=null&maskedCard=null&merchantOrderId=intent-mock&orderId=ks-order-1&cardBrand=null&orderReference=null&transactionId=txn-1&amount=12.50&currency=EGP").digest("hex");
 }
 async function post(payload: string) {
   return fetch(`${baseUrl}/api/payments/webhook`, {

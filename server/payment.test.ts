@@ -1,6 +1,6 @@
 import { createHmac } from "node:crypto";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { verifyKashierWebhookSignature, verifyWebhookSignature } from "./payment";
+import { canTransitionPaymentStatus, verifyKashierWebhookSignature, verifyWebhookSignature } from "./payment";
 import { resolvePaymentProvider } from "./paymentProviders";
 
 afterEach(() => vi.unstubAllEnvs());
@@ -53,5 +53,20 @@ describe("Kashier webhook signature", () => {
     const signature = createHmac("sha256", "kashier-test-key").update(canonical).digest("hex");
     expect(verifyKashierWebhookSignature(payload, signature, "kashier-test-key")).toBe(true);
     expect(verifyKashierWebhookSignature(payload.replace("SUCCESS", "FAILED"), signature, "kashier-test-key")).toBe(false);
+  });
+  it("signs absent callback fields as null", () => {
+    const payload = JSON.stringify({ paymentStatus: "SUCCESS", merchantOrderId: "intent-2", amount: "12.50", currency: "EGP" });
+    const canonical = "paymentStatus=SUCCESS&cardDataToken=null&maskedCard=null&merchantOrderId=intent-2&orderId=null&cardBrand=null&orderReference=null&transactionId=null&amount=12.50&currency=EGP";
+    const signature = createHmac("sha256", "kashier-test-key").update(canonical).digest("hex");
+    expect(verifyKashierWebhookSignature(payload, signature, "kashier-test-key")).toBe(true);
+  });
+});
+
+describe("payment status transitions", () => {
+  it("allows capture from an action-required payment and refund only after capture", () => {
+    expect(canTransitionPaymentStatus("REQUIRES_ACTION", "CAPTURED")).toBe(true);
+    expect(canTransitionPaymentStatus("CAPTURED", "REFUNDED")).toBe(true);
+    expect(canTransitionPaymentStatus("FAILED", "CAPTURED")).toBe(false);
+    expect(canTransitionPaymentStatus("REFUNDED", "CAPTURED")).toBe(false);
   });
 });

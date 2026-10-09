@@ -26,4 +26,22 @@ describe("Kashier payment provider", () => {
     expect(result).toEqual({ status: "REQUIRES_ACTION", providerReference: "ks-session-1", paymentUrl: "https://checkout.kashier.test/session/1", qrPayload: "https://checkout.kashier.test/session/1" });
     expect(fetchMock).toHaveBeenCalledWith("https://sandbox.kashier.test/v1/payment-sessions", expect.objectContaining({ method: "POST", headers: expect.objectContaining({ "x-api-key": "test-api-key", "x-merchant-id": "MID-test-123" }) }));
   });
+
+  it("submits a real Kashier refund contract without a Bearer prefix", async () => {
+    vi.stubEnv("KASHIER_MID", "MID-test-123");
+    vi.stubEnv("KASHIER_API_KEY", "payment-api-key");
+    vi.stubEnv("KASHIER_SECRET_KEY", "refund-secret-key");
+    vi.stubEnv("KASHIER_MODE", "test");
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ status: "SUCCESS" }), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    await expect(resolvePaymentProvider("kashier").refund({ providerReference: "kashier-order-1", amountCents: 1250, reason: "customer request" })).resolves.toEqual({ status: "REFUNDED" });
+    expect(fetchMock).toHaveBeenCalledWith("https://test-fep.kashier.io/v3/orders/kashier-order-1", expect.objectContaining({ method: "PUT", headers: expect.objectContaining({ authorization: "refund-secret-key" }), body: JSON.stringify({ apiOperation: "REFUND", reason: "customer request", transaction: { amount: "12.50" } }) }));
+  });
+
+  it("does not claim a refund when Kashier Secret Key is unavailable", async () => {
+    vi.stubEnv("KASHIER_MID", "MID-test-123");
+    vi.stubEnv("KASHIER_API_KEY", "payment-api-key");
+    vi.stubEnv("KASHIER_SECRET_KEY", "");
+    await expect(resolvePaymentProvider("kashier").refund({ providerReference: "kashier-order-1", amountCents: 1250 })).resolves.toEqual({ status: "REQUIRES_SETUP" });
+  });
 });

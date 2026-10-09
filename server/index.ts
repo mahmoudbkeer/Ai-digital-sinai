@@ -3,7 +3,7 @@ import { createServer } from "http";
 import { createHash, randomUUID } from "node:crypto";
 import path from "path";
 import { fileURLToPath } from "url";
-import { verifyKashierWebhookSignature, verifyWebhookSignature } from "./payment";
+import { canTransitionPaymentStatus, verifyKashierWebhookSignature, verifyWebhookSignature, type PaymentStatus } from "./payment";
 import { paymentProviderWebhookSecret } from "./paymentProviders";
 import { isValidCommand } from "./commandPolicy";
 import { verifyCommandContext } from "./commandAuth";
@@ -203,19 +203,47 @@ export function createApp() {
           message: "تمت معالجة هذا الحدث سابقاً؛ لم تتم إعادة التسوية.",
         });
       }
-      const providerReference = ["providerReference", "provider_reference", "paymentIntentId", "payment_intent_id", "transactionId", "transaction_id", "orderReference", "order_reference"]
+      const providerReference = ["providerReference", "provider_reference", "orderId", "order_id", "paymentIntentId", "payment_intent_id", "transactionId", "transaction_id", "orderReference", "order_reference"]
         .map(key => parsed[key]).find(value => typeof value === "string") as string | undefined;
+      const merchantOrderId = ["merchantOrderId", "merchant_order_id"].map(key => parsed[key]).find(value => typeof value === "string") as string | undefined;
       const rawEvent = [parsed.event, parsed.type, parsed.status, parsed.paymentStatus].find(value => typeof value === "string");
       const event = typeof rawEvent === "string" ? rawEvent.toLowerCase() : "";
       const nextPaymentStatus = /refund/.test(event) ? "REFUNDED" : /fail|declin|cancel/.test(event) ? "FAILED" : /captur|success|paid|authoriz/.test(event) ? "CAPTURED" : null;
       const settled = await withDataPlaneTransaction(db, async () => {
         const intent = providerReference
-          ? (await db.prepare("SELECT id, tenant_id, order_id, status FROM payment_intents WHERE provider = ? AND provider_reference = ?").get(provider, providerReference) as { id: string; tenant_id: string; order_id: string | null; status: string } | undefined)
-          : undefined;
+          ? (await db.prepare("SELECT id, tenant_id, order_id, amount_cents, status, created_by FROM payment_intents WHERE provider = ? AND provider_reference = ?").get(provider, providerReference) as { id: string; tenant_id: string; order_id: string | null; amount_cents: number; status: PaymentStatus; created_by: string } | undefined)
+          : merchantOrderId
+            ? (await db.prepare("SELECT id, tenant_id, order_id, amount_cents, status, created_by FROM payment_intents WHERE provider = ? AND id = ?").get(provider, merchantOrderId) as { id: string; tenant_id: string; order_id: string | null; amount_cents: number; status: PaymentStatus; created_by: string } | undefined)
+            : undefined;
         const eventStatus = intent && nextPaymentStatus ? nextPaymentStatus : "VERIFIED_PENDING";
+        if (intent && nextPaymentStatus && !canTransitionPaymentStatus(intent.status, nextPaymentStatus)) {
+          await db.prepare("INSERT INTO payment_webhook_events (id, provider, event_id, payload_hash, signature_hash, status, received_at) VALUES (?, ?, ?, ?, ?, 'REJECTED', ?)").run(randomUUID(), provider, eventId, payloadHash, signatureHash, Date.now());
+          return { status: "REJECTED", intentId: intent.id, tenantId: intent.tenant_id, orderId: intent.order_id };
+        }
         await db.prepare("INSERT INTO payment_webhook_events (id, provider, event_id, payload_hash, signature_hash, status, received_at) VALUES (?, ?, ?, ?, ?, ?, ?)").run(randomUUID(), provider, eventId, payloadHash, signatureHash, eventStatus, Date.now());
         if (!intent || !nextPaymentStatus) return { status: "VERIFIED_PENDING", intentId: null, tenantId: null, orderId: null };
-        await db.prepare("UPDATE payment_intents SET status = ?, updated_at = ? WHERE id = ? AND tenant_id = ? AND status NOT IN ('REFUNDED','CAPTURED')").run(nextPaymentStatus, Date.now(), intent.id, intent.tenant_id);
+        const amount = Number(parsed.amount);
+        if (nextPaymentStatus === "CAPTURED" && Number.isFinite(amount) && Math.round(amount * 100) !== intent.amount_cents) {
+          await db.prepare("UPDATE payment_webhook_events SET status = 'REJECTED' WHERE provider = ? AND event_id = ?").run(provider, eventId);
+          return { status: "REJECTED", intentId: intent.id, tenantId: intent.tenant_id, orderId: intent.order_id };
+        }
+        await db.prepare("UPDATE payment_intents SET status = ?, updated_at = ? WHERE id = ? AND tenant_id = ?").run(nextPaymentStatus, Date.now(), intent.id, intent.tenant_id);
+        if (nextPaymentStatus === "REFUNDED") {
+          const pendingRefund = await db.prepare("SELECT id, amount_cents FROM refunds WHERE payment_intent_id = ? AND status = 'PROCESSING' ORDER BY created_at ASC LIMIT 1").get(intent.id) as { id: string; amount_cents: number } | undefined;
+          if (pendingRefund) {
+            const refundTimestamp = Date.now();
+            await db.prepare("UPDATE refunds SET status = 'REFUNDED', updated_at = ? WHERE id = ? AND status = 'PROCESSING'").run(refundTimestamp, pendingRefund.id);
+            const accounts = await db.prepare("SELECT id, code FROM ledger_accounts WHERE tenant_id = ? AND code IN ('1000', '4000')").all(intent.tenant_id) as Array<{ id: string; code: string }>;
+            const debit = accounts.find(account => account.code === "4000");
+            const credit = accounts.find(account => account.code === "1000");
+            if (!debit || !credit) throw new Error("Refund webhook cannot post because the tenant ledger is not configured.");
+            const journalId = randomUUID();
+            await db.prepare("INSERT INTO ledger_journals (id, tenant_id, reference_type, reference_id, memo, idempotency_key, created_by, created_at) VALUES (?, ?, 'PAYMENT_REFUND', ?, ?, ?, ?, ?)").run(journalId, intent.tenant_id, pendingRefund.id, `Payment refund ${pendingRefund.id}`, `payment-refund:${pendingRefund.id}`, intent.created_by, refundTimestamp);
+            await db.prepare("INSERT INTO ledger_entries (id, journal_id, tenant_id, account_id, line_no, debit_cents, credit_cents, created_at) VALUES (?, ?, ?, ?, 1, ?, 0, ?)").run(randomUUID(), journalId, intent.tenant_id, debit.id, pendingRefund.amount_cents, refundTimestamp);
+            await db.prepare("INSERT INTO ledger_entries (id, journal_id, tenant_id, account_id, line_no, debit_cents, credit_cents, created_at) VALUES (?, ?, ?, ?, 2, 0, ?, ?)").run(randomUUID(), journalId, intent.tenant_id, credit.id, pendingRefund.amount_cents, refundTimestamp);
+            if (intent.order_id) await db.prepare("UPDATE invoices SET status = 'REFUNDED' WHERE order_id = ? AND tenant_id = ? AND status IN ('PAID','ISSUED')").run(intent.order_id, intent.tenant_id);
+          }
+        }
         if (intent.order_id && nextPaymentStatus === "CAPTURED") {
           await db.prepare("UPDATE orders SET state = 'CONFIRMED', updated_at = ? WHERE id = ? AND tenant_id = ? AND state IN ('PENDING','CONFIRMED')").run(Date.now(), intent.order_id, intent.tenant_id);
           await db.prepare("UPDATE invoices SET status = 'PAID' WHERE order_id = ? AND tenant_id = ? AND status IN ('DRAFT','ISSUED')").run(intent.order_id, intent.tenant_id);
@@ -223,14 +251,14 @@ export function createApp() {
         await db.prepare("INSERT INTO audit_logs (id, tenant_id, actor_user_id, action, resource_type, resource_id, request_id, metadata_json, created_at) VALUES (?, ?, NULL, ?, 'payment_intent', ?, ?, ?, ?)").run(randomUUID(), intent.tenant_id, `payment.${nextPaymentStatus.toLowerCase()}`, intent.id, req.header("x-request-id"), JSON.stringify({ provider, providerReference, eventId }), Date.now());
         return { status: nextPaymentStatus, intentId: intent.id, tenantId: intent.tenant_id, orderId: intent.order_id };
       });
-      return res.status(settled.status === "VERIFIED_PENDING" ? 202 : 200).json({
+      return res.status(settled.status === "VERIFIED_PENDING" ? 202 : settled.status === "REJECTED" ? 409 : 200).json({
         accepted: true,
         status: settled.status.toLowerCase().replaceAll("_", "-"),
         verified: true,
         eventId,
         paymentIntentId: settled.intentId,
         orderId: settled.orderId,
-        message: settled.status === "VERIFIED_PENDING" ? "تم التحقق من Webhook وتسجيله؛ لم يوجد payment intent قابل للتسوية." : "تم التحقق من Webhook وتحديث حالة الدفع والطلب والفاتورة.",
+        message: settled.status === "VERIFIED_PENDING" ? "تم التحقق من Webhook وتسجيله؛ لم يوجد payment intent قابل للتسوية." : settled.status === "REJECTED" ? "تم رفض Webhook الموثق لأن انتقال الحالة أو المبلغ غير صالح." : "تم التحقق من Webhook وتحديث حالة الدفع والطلب والفاتورة.",
       });
     }
   );

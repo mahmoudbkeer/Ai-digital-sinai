@@ -43,6 +43,66 @@ beforeEach(() => {
 
 afterAll(() => { server.close(); resetDatabaseForTests(); });
 
+describe("payment refund lifecycle", () => {
+  it("executes a Kashier refund once and posts a balanced reversal journal", async () => {
+    const identity = await register("refund-owner@example.com", "Refund Tenant");
+    const db = getDatabase();
+    const orderId = randomUUID();
+    const paymentIntentId = randomUUID();
+    const invoiceId = randomUUID();
+    const timestamp = Date.now();
+    db.prepare("INSERT INTO orders (id, tenant_id, business_id, branch_id, subtotal_cents, discount_cents, tax_cents, total_cents, created_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?, 0, 0, ?, ?, ?, ?)").run(orderId, identity.tenantId, identity.businessId, identity.branchId, 1250, 1250, identity.userId, timestamp, timestamp);
+    db.prepare("INSERT INTO invoices (id, tenant_id, order_id, invoice_number, status, subtotal_cents, tax_cents, total_cents, issued_at) VALUES (?, ?, ?, ?, 'PAID', ?, 0, ?, ?)").run(invoiceId, identity.tenantId, orderId, `REF-${orderId}`, 1250, 1250, timestamp);
+    db.prepare("INSERT INTO payment_intents (id, tenant_id, order_id, provider, amount_cents, status, provider_reference, idempotency_key, created_by, created_at, updated_at) VALUES (?, ?, ?, 'kashier', ?, 'CAPTURED', ?, ?, ?, ?, ?)").run(paymentIntentId, identity.tenantId, orderId, 1250, "kashier-order-refund-1", `intent-${orderId}`, identity.userId, timestamp, timestamp);
+    vi.stubEnv("KASHIER_MID", "MID-test-123");
+    vi.stubEnv("KASHIER_API_KEY", "payment-api-key");
+    vi.stubEnv("KASHIER_SECRET_KEY", "refund-secret-key");
+    const realFetch = globalThis.fetch;
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      if (String(input).includes("test-fep.kashier.io")) return new Response(JSON.stringify({ status: "SUCCESS" }), { status: 200 });
+      return realFetch(input, init);
+    });
+    const first = await request("/api/platform/refunds", { method: "POST", headers: auth(identity), body: JSON.stringify({ orderId, amountCents: 1250, reason: "customer request", idempotencyKey: "refund-idempotency-1" }) });
+    expect(first.status).toBe(201);
+    const firstBody = await first.json() as { refundId: string; status: string };
+    expect(firstBody).toMatchObject({ status: "REFUNDED", refundId: expect.any(String) });
+    const replay = await request("/api/platform/refunds", { method: "POST", headers: auth(identity), body: JSON.stringify({ orderId, amountCents: 1250, reason: "customer request", idempotencyKey: "refund-idempotency-1" }) });
+    expect(replay.status).toBe(200);
+    await expect(replay.json()).resolves.toMatchObject({ replay: true, status: "REFUNDED" });
+    expect(fetchMock.mock.calls.filter(([input]) => String(input).includes("test-fep.kashier.io"))).toHaveLength(1);
+    expect((db.prepare("SELECT status FROM payment_intents WHERE id = ?").get(paymentIntentId) as { status: string }).status).toBe("REFUNDED");
+    expect((db.prepare("SELECT status FROM invoices WHERE id = ?").get(invoiceId) as { status: string }).status).toBe("REFUNDED");
+    const journal = db.prepare("SELECT COALESCE(SUM(debit_cents), 0) AS debit, COALESCE(SUM(credit_cents), 0) AS credit FROM ledger_entries e JOIN ledger_journals j ON j.id = e.journal_id WHERE j.reference_type = 'PAYMENT_REFUND' AND j.reference_id = ?").get(firstBody.refundId) as { debit: number; credit: number };
+    expect(journal).toEqual({ debit: 1250, credit: 1250 });
+    fetchMock.mockRestore();
+    vi.unstubAllEnvs();
+  });
+
+  it("marks a provider failure without claiming a refund", async () => {
+    const identity = await register("refund-failure@example.com", "Refund Failure Tenant");
+    const db = getDatabase();
+    const orderId = randomUUID();
+    const paymentIntentId = randomUUID();
+    const timestamp = Date.now();
+    db.prepare("INSERT INTO orders (id, tenant_id, business_id, branch_id, subtotal_cents, discount_cents, tax_cents, total_cents, created_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?, 0, 0, ?, ?, ?, ?)").run(orderId, identity.tenantId, identity.businessId, identity.branchId, 800, 800, identity.userId, timestamp, timestamp);
+    db.prepare("INSERT INTO payment_intents (id, tenant_id, order_id, provider, amount_cents, status, provider_reference, idempotency_key, created_by, created_at, updated_at) VALUES (?, ?, ?, 'kashier', ?, 'CAPTURED', ?, ?, ?, ?, ?)").run(paymentIntentId, identity.tenantId, orderId, 800, "kashier-order-refund-failure", `intent-${orderId}`, identity.userId, timestamp, timestamp);
+    vi.stubEnv("KASHIER_MID", "MID-test-123");
+    vi.stubEnv("KASHIER_API_KEY", "payment-api-key");
+    vi.stubEnv("KASHIER_SECRET_KEY", "refund-secret-key");
+    const realFetch = globalThis.fetch;
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      if (String(input).includes("test-fep.kashier.io")) return new Response(JSON.stringify({ status: "FAILURE", message: "declined" }), { status: 422 });
+      return realFetch(input, init);
+    });
+    const response = await request("/api/platform/refunds", { method: "POST", headers: auth(identity), body: JSON.stringify({ orderId, amountCents: 800, reason: "customer request", idempotencyKey: "refund-idempotency-failure" }) });
+    expect(response.status).toBe(502);
+    expect((db.prepare("SELECT status FROM refunds WHERE idempotency_key = ?").get("refund-idempotency-failure") as { status: string }).status).toBe("FAILED");
+    expect((db.prepare("SELECT status FROM payment_intents WHERE id = ?").get(paymentIntentId) as { status: string }).status).toBe("CAPTURED");
+    fetchMock.mockRestore();
+    vi.unstubAllEnvs();
+  });
+});
+
 describe("platform core", () => {
   it("provisions Google registration atomically and replays by verified subject", async () => {
     vi.stubEnv("GOOGLE_OAUTH_CLIENT_ID", "web-client.apps.googleusercontent.com");

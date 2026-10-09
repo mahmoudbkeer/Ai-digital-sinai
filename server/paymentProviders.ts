@@ -12,7 +12,7 @@ export type PaymentProvider = {
   status: PaymentProviderStatus;
   createPaymentIntent(input: { amountCents: number; currency: string; reference: string }): Promise<PaymentResult>;
   createPaymentRequest(input: { amountCents: number; currency: string; reference: string; callbackUrl?: string }): Promise<PaymentResult>;
-  refund(input: { providerReference: string; amountCents: number }): Promise<{ status: "REFUNDED" | "REQUIRES_SETUP" | "FAILED"; error?: string }>;
+  refund(input: { providerReference: string; amountCents: number; reason?: string }): Promise<{ status: "REFUNDED" | "PROCESSING" | "REQUIRES_SETUP" | "FAILED"; error?: string }>;
 };
 
 function isProviderName(value: string): value is PaymentProviderName {
@@ -28,7 +28,8 @@ function kashierConfig() {
   const mode = (process.env.KASHIER_MODE?.trim().toLowerCase() || "test") as "test" | "live";
   const apiUrl = process.env.KASHIER_API_URL?.trim() || "https://api.kashier.io";
   const sessionsPath = process.env.KASHIER_PAYMENT_SESSIONS_PATH?.trim() || "/v1/payment-sessions";
-  return { mode: mode === "live" ? "live" : "test", apiUrl, sessionsPath, mid: process.env.KASHIER_MID?.trim(), apiKey: process.env.KASHIER_API_KEY?.trim() };
+  const refundApiUrl = process.env.KASHIER_REFUND_API_URL?.trim() || (mode === "live" ? "https://fep.kashier.io" : "https://test-fep.kashier.io");
+  return { mode: mode === "live" ? "live" : "test", apiUrl, refundApiUrl, sessionsPath, mid: process.env.KASHIER_MID?.trim(), apiKey: process.env.KASHIER_API_KEY?.trim(), secretKey: process.env.KASHIER_SECRET_KEY?.trim() };
 }
 
 async function postJson(url: string, key: string, body: unknown, headers: Record<string, string> = {}) {
@@ -69,7 +70,35 @@ function createKashierProvider(): PaymentProvider {
       return { status: "REQUIRES_ACTION", providerReference, paymentUrl, qrPayload: paymentUrl };
     } catch (error) { return { status: "FAILED", error: error instanceof Error ? error.message : String(error) }; }
   };
-  return { name: "kashier", status: configured ? "configured" : "requires_setup", createPaymentIntent: createSession, createPaymentRequest: createSession, async refund() { return configured ? { status: "FAILED", error: "Kashier refunds are not enabled by this adapter yet." } : { status: "REQUIRES_SETUP" }; } };
+  return {
+    name: "kashier",
+    status: configured ? "configured" : "requires_setup",
+    createPaymentIntent: createSession,
+    createPaymentRequest: createSession,
+    async refund(input) {
+      if (!config.secretKey) return { status: "REQUIRES_SETUP" };
+      if (!input.providerReference) return { status: "FAILED", error: "Kashier order reference is missing." };
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), Number(process.env.PAYMENT_PROVIDER_TIMEOUT_MS ?? 8000));
+      try {
+        const response = await fetch(`${config.refundApiUrl.replace(/\/$/, "")}/v3/orders/${encodeURIComponent(input.providerReference)}`, {
+          method: "PUT",
+          headers: { "content-type": "application/json", accept: "application/json", authorization: config.secretKey },
+          body: JSON.stringify({ apiOperation: "REFUND", reason: input.reason, transaction: { amount: (input.amountCents / 100).toFixed(2) } }),
+          signal: controller.signal,
+        });
+        const payload = await response.json().catch(() => ({})) as Record<string, unknown>;
+        const status = typeof payload.status === "string" ? payload.status.toUpperCase() : typeof (payload.response as Record<string, unknown> | undefined)?.status === "string" ? String((payload.response as Record<string, unknown>).status).toUpperCase() : "";
+        if (response.ok && status === "SUCCESS") return { status: "REFUNDED" };
+        if (response.ok && status === "PENDING") return { status: "PROCESSING" };
+        return { status: "FAILED", error: typeof payload.message === "string" ? payload.message : `Kashier refund returned HTTP ${response.status}.` };
+      } catch (error) {
+        return { status: "FAILED", error: error instanceof Error ? error.message : "Kashier refund request failed." };
+      } finally {
+        clearTimeout(timer);
+      }
+    },
+  };
 }
 
 export function resolvePaymentProvider(value: string): PaymentProvider {

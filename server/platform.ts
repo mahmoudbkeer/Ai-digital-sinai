@@ -17,6 +17,7 @@ import {
   type AsyncDataPlane,
 } from "./dataPlane";
 import { resolvePaymentProvider } from "./paymentProviders";
+import { canTransitionPaymentStatus, type PaymentStatus } from "./payment";
 import { resolveNotificationProvider, type NotificationChannel } from "./notificationProviders";
 import { resolveAIProvider } from "./aiProviders";
 import { createTotpSecret, createTotpUri, verifyTotp } from "./mfa";
@@ -3186,38 +3187,53 @@ export function createPlatformRouter(): Router {
             status: existing.status,
             replay: true,
           });
+        const payment = (await db
+          .prepare(
+            "SELECT id, provider, provider_reference, amount_cents FROM payment_intents WHERE tenant_id = ? AND order_id = ? AND status = 'CAPTURED' ORDER BY updated_at DESC LIMIT 1"
+          )
+          .get(context.tenantId, order.id)) as
+          | { id: string; provider: string; provider_reference: string | null; amount_cents: number }
+          | undefined;
+        if (!payment?.provider_reference)
+          throw httpError(409, "payment-not-captured", "لا يوجد دفع ملتقط قابل للاسترداد لهذا الطلب.");
+        const provider = resolvePaymentProvider(payment.provider);
+        if (provider.status !== "configured")
+          throw httpError(503, "refund-provider-unconfigured", "بيانات اعتماد مزود الاسترداد غير مهيأة؛ لم يتم تنفيذ أي استرداد.");
+        const refunded = (await db
+          .prepare("SELECT COALESCE(SUM(amount_cents), 0) AS amount FROM refunds WHERE tenant_id = ? AND order_id = ? AND status IN ('PROCESSING','REFUNDED')")
+          .get(context.tenantId, order.id)) as { amount: number };
+        if (Number(refunded.amount) + amount > payment.amount_cents)
+          throw httpError(409, "refund-over-captured-amount", "إجمالي الاستردادات يتجاوز قيمة الدفع الملتقط.");
         const refundId = randomUUID();
         const timestamp = now();
-        await db
-          .prepare(
-            "INSERT INTO refunds (id, tenant_id, order_id, amount_cents, status, reason, idempotency_key, created_by, created_at, updated_at) VALUES (?, ?, ?, ?, 'REQUIRES_SETUP', ?, ?, ?, ?, ?)"
-          )
-          .run(
-            refundId,
-            context.tenantId,
-            order.id,
-            amount,
-            reason.trim(),
-            idempotencyKey,
-            context.userId,
-            timestamp,
-            timestamp
-          );
-        await recordAudit(
-          db,
-          context,
-          "refund.request",
-          "refund",
-          refundId,
-          req.requestId,
-          { orderId, amountCents: amount }
-        );
-        return res.status(202).json({
-          ok: true,
-          refundId,
-          status: "REQUIRES_SETUP",
-          message: "تم تسجيل طلب الاسترداد؛ يلزم مزود دفع رسمي قبل التنفيذ.",
+        await withDataPlaneTransaction(db, async () => {
+          await db.prepare("INSERT INTO refunds (id, tenant_id, order_id, payment_intent_id, amount_cents, status, reason, idempotency_key, created_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?, 'PROCESSING', ?, ?, ?, ?, ?)").run(refundId, context.tenantId, order.id, payment.id, amount, reason.trim(), idempotencyKey, context.userId, timestamp, timestamp);
+          await recordAudit(db, context, "refund.request", "refund", refundId, req.requestId, { orderId, amountCents: amount, provider: payment.provider });
         });
+        const providerResult = await provider.refund({ providerReference: payment.provider_reference, amountCents: amount, reason: reason.trim() });
+        if (providerResult.status === "REQUIRES_SETUP") {
+          await db.prepare("UPDATE refunds SET status = 'FAILED', updated_at = ? WHERE id = ? AND status = 'PROCESSING'").run(now(), refundId);
+          throw httpError(503, "refund-provider-unconfigured", "بيانات اعتماد مزود الاسترداد غير مهيأة؛ لم يتم إعلان نجاح الاسترداد.");
+        }
+        if (providerResult.status === "FAILED") {
+          await db.prepare("UPDATE refunds SET status = 'FAILED', updated_at = ? WHERE id = ? AND status = 'PROCESSING'").run(now(), refundId);
+          throw httpError(502, "refund-provider-failed", providerResult.error ?? "رفض مزود الدفع الاسترداد.");
+        }
+        if (providerResult.status === "PROCESSING") {
+          return res.status(202).json({ ok: true, refundId, status: "PROCESSING", message: "قبل مزود الدفع طلب الاسترداد وهو قيد المعالجة؛ لن تتم إعادة إرساله." });
+        }
+        const result = await withDataPlaneTransaction(db, async () => {
+          await db.prepare("UPDATE refunds SET status = 'REFUNDED', updated_at = ? WHERE id = ? AND status = 'PROCESSING'").run(now(), refundId);
+          await db.prepare("UPDATE payment_intents SET status = 'REFUNDED', updated_at = ? WHERE id = ? AND status IN ('CAPTURED','AUTHORIZED')").run(now(), payment.id);
+          const totalRefunded = Number(refunded.amount) + amount;
+          if (totalRefunded >= payment.amount_cents) {
+            await db.prepare("UPDATE invoices SET status = 'REFUNDED' WHERE order_id = ? AND tenant_id = ? AND status IN ('PAID','ISSUED')").run(order.id, context.tenantId);
+          }
+          await postBalancedJournal(db, context, "PAYMENT_REFUND", refundId, `Payment refund ${refundId}`, `payment-refund:${refundId}`, "4000", "1000", amount, "ledger.payment_refund.post", req.requestId);
+          await recordAudit(db, context, "refund.completed", "refund", refundId, req.requestId, { orderId, amountCents: amount, provider: payment.provider });
+          return { refundId, status: "REFUNDED" as const };
+        });
+        return res.status(201).json({ ok: true, ...result });
       } catch (error) {
         next(error);
       }

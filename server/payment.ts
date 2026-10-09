@@ -20,13 +20,27 @@ export function verifyKashierWebhookSignature(payload: string, signature: string
   }
   const orderedKeys = ["paymentStatus", "cardDataToken", "maskedCard", "merchantOrderId", "orderId", "cardBrand", "orderReference", "transactionId", "amount", "currency"];
   const canonical = orderedKeys
-    .filter(key => fields[key] !== undefined && fields[key] !== null)
-    .map(key => `${key}=${String(fields[key])}`)
+    .map(key => `${key}=${fields[key] === undefined || fields[key] === null ? "null" : String(fields[key])}`)
     .join("&");
   const expected = createHmac("sha256", secret).update(canonical).digest("hex");
   const provided = signature.replace(/^sha256=/, "");
   if (expected.length !== provided.length) return false;
   return timingSafeEqual(Buffer.from(expected, "utf8"), Buffer.from(provided, "utf8"));
+}
+
+export type PaymentStatus = "REQUIRES_SETUP" | "REQUIRES_ACTION" | "AUTHORIZED" | "CAPTURED" | "FAILED" | "REFUNDED";
+
+export function canTransitionPaymentStatus(current: PaymentStatus, next: PaymentStatus) {
+  if (current === next) return true;
+  const transitions: Record<PaymentStatus, PaymentStatus[]> = {
+    REQUIRES_SETUP: [],
+    REQUIRES_ACTION: ["AUTHORIZED", "CAPTURED", "FAILED"],
+    AUTHORIZED: ["CAPTURED", "FAILED", "REFUNDED"],
+    CAPTURED: ["REFUNDED"],
+    FAILED: [],
+    REFUNDED: [],
+  };
+  return transitions[current].includes(next);
 }
 
 export function webhookUnavailable() {
