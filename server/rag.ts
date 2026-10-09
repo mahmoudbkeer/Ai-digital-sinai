@@ -21,10 +21,32 @@ export function chunkDocument(content: string, maxChars = 1200): string[] {
   return chunks;
 }
 export function resolveEmbeddingProvider(): EmbeddingProvider {
-  const configured = Boolean(process.env.EMBEDDING_PROVIDER_API_URL?.trim() && process.env.EMBEDDING_PROVIDER_API_KEY?.trim());
+  const endpoint = process.env.EMBEDDING_PROVIDER_API_URL?.trim();
+  const apiKey = process.env.EMBEDDING_PROVIDER_API_KEY?.trim();
+  const configured = Boolean(endpoint && /^https?:\/\//i.test(endpoint) && apiKey);
   return {
     status: configured ? "configured" : "requires_setup",
-    async embed() { return configured ? { status: "READY", refs: [] } : { status: "REQUIRES_SETUP" }; },
+    async embed(input) {
+      if (!configured || !endpoint || !apiKey || input.texts.length === 0) return { status: "REQUIRES_SETUP" };
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), Number(process.env.EMBEDDING_PROVIDER_TIMEOUT_MS ?? 15_000));
+      try {
+        const response = await fetch(endpoint, {
+          method: "POST",
+          headers: { authorization: `Bearer ${apiKey}`, "content-type": "application/json", "x-tenant-scope": input.tenantId },
+          body: JSON.stringify({ tenantId: input.tenantId, texts: input.texts }),
+          signal: controller.signal,
+        });
+        const payload = await response.json().catch(() => null) as { refs?: unknown } | null;
+        const refs = Array.isArray(payload?.refs) && payload.refs.length === input.texts.length && payload.refs.every(ref => typeof ref === "string" && ref.length > 0 && ref.length <= 500) ? payload.refs as string[] : undefined;
+        if (!response.ok || !refs) return { status: "REQUIRES_SETUP" };
+        return { status: "READY", refs };
+      } catch {
+        return { status: "REQUIRES_SETUP" };
+      } finally {
+        clearTimeout(timeout);
+      }
+    },
   };
 }
 export function filterTenantChunks(chunks: RagChunk[], tenantId: string, permissions: Set<string>): RagChunk[] {

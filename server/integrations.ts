@@ -58,9 +58,8 @@ export function getIntegrationReadiness(): IntegrationReadiness {
     )
       ? "configured"
       : "requires_setup",
-    secrets: configured(process.env.SECRETS_MANAGER_URL)
-      ? "configured"
-      : "requires_setup",
+    // A URL alone is not an integration; no secrets-manager client is wired yet.
+    secrets: "requires_setup",
   };
 }
 

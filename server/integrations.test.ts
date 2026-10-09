@@ -133,6 +133,10 @@ describe("runtime integration contracts", () => {
       objectStorage: "requires_setup",
     });
   });
+  it("does not claim a secrets manager integration from a URL alone", () => {
+    vi.stubEnv("SECRETS_MANAGER_URL", "https://secrets.example.test");
+    expect(getIntegrationReadiness().secrets).toBe("requires_setup");
+  });
 
   it("requires explicit production webhook secret and CORS allowlist", () => {
     vi.stubEnv("NODE_ENV", "production");

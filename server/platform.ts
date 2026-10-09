@@ -3301,6 +3301,7 @@ export function createPlatformRouter(): Router {
               timestamp
             );
         }
+        const embedding = await resolveEmbeddingProvider().embed({ tenantId: context.tenantId, texts: chunks });
         await recordAudit(
           db,
           context,
@@ -3314,7 +3315,7 @@ export function createPlatformRouter(): Router {
           ok: true,
           documentId,
           status: "PENDING",
-          embedding: resolveEmbeddingProvider().status === "configured" ? "READY" : "REQUIRES_SETUP",
+          embedding: embedding.status === "READY" ? "READY" : "REQUIRES_SETUP",
           chunks: chunks.length,
         });
       } catch (error) {

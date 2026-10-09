@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { chunkDocument, filterTenantChunks, resolveEmbeddingProvider } from "./rag";
-afterEach(() => vi.unstubAllEnvs());
+afterEach(() => { vi.unstubAllEnvs(); vi.unstubAllGlobals(); });
 describe("RAG pipeline contracts", () => {
   it("chunks documents deterministically", () => {
     expect(chunkDocument("  one   two three  ", 7)).toEqual(["one two", "three"]);
@@ -20,5 +20,20 @@ describe("RAG pipeline contracts", () => {
     const provider = resolveEmbeddingProvider();
     expect(provider.status).toBe("requires_setup");
     await expect(provider.embed({ tenantId: "a", texts: ["content"] })).resolves.toEqual({ status: "REQUIRES_SETUP" });
+  });
+  it("calls the configured embedding provider and validates returned refs", async () => {
+    vi.stubEnv("EMBEDDING_PROVIDER_API_URL", "https://embedding.example.test/v1/embed");
+    vi.stubEnv("EMBEDDING_PROVIDER_API_KEY", "embedding-test-key");
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ refs: ["vec-1", "vec-2"] }), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    const provider = resolveEmbeddingProvider();
+    await expect(provider.embed({ tenantId: "tenant-a", texts: ["one", "two"] })).resolves.toEqual({ status: "READY", refs: ["vec-1", "vec-2"] });
+    expect(fetchMock).toHaveBeenCalledWith("https://embedding.example.test/v1/embed", expect.objectContaining({ method: "POST", headers: expect.objectContaining({ authorization: "Bearer embedding-test-key", "x-tenant-scope": "tenant-a" }), body: JSON.stringify({ tenantId: "tenant-a", texts: ["one", "two"] }) }));
+  });
+  it("does not report READY when the embedding provider returns malformed refs", async () => {
+    vi.stubEnv("EMBEDDING_PROVIDER_API_URL", "https://embedding.example.test/v1/embed");
+    vi.stubEnv("EMBEDDING_PROVIDER_API_KEY", "embedding-test-key");
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({ refs: [] }), { status: 200 })));
+    await expect(resolveEmbeddingProvider().embed({ tenantId: "tenant-a", texts: ["one"] })).resolves.toEqual({ status: "REQUIRES_SETUP" });
   });
 });
