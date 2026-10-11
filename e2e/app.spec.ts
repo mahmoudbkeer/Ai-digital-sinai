@@ -35,7 +35,10 @@ test("App Mode opens and navigates across mobile tabs", async ({ page }) => {
   await page.getByRole("button", { name: /العملاء إدارة ملفات/ }).click();
   await expect(page.getByRole("heading", { name: "العملاء", exact: true })).toBeVisible();
   await page.getByRole("button", { name: /العودة إلى وحدات/ }).click();
-  await page.getByRole("button", { name: /الموردون تنظيم الموردين/ }).click();
+  const supplierButton = page.getByRole("button", { name: /الموردون تنظيم الموردين/ });
+  await supplierButton.scrollIntoViewIfNeeded();
+  await expect(supplierButton).toBeInViewport();
+  await supplierButton.click();
   await expect(page.getByRole("heading", { name: "الموردون", exact: true })).toBeVisible();
   await page.getByRole("button", { name: /العودة إلى وحدات/ }).click();
   const catalogButton = page.locator("button.mobile-module-card").filter({ hasText: "الكتالوج والخدمات" });
