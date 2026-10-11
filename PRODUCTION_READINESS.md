@@ -1,5 +1,7 @@
 # AI DIGITAL SINAI — Production Readiness
 
+> **مصدر الحقيقة الحالي:** راجع [RELEASE_READINESS.md](./RELEASE_READINESS.md). هذا الملف يحتفظ بسجل تاريخي للتقدم السابق، ولا يمثل وحده قرار الإطلاق الحالي.
+
 ## الحكم الحالي
 
 > **الحالة: Business Core Implemented / Production Verification Pending.**
