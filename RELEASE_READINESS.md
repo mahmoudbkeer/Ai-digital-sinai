@@ -179,10 +179,10 @@
 
 ## 10. بوابة الالتزام الحالي
 
-- **Commit المقيم قبل هذا التحديث:** `4566dbec9010907e57e961687d8980925bed4fc3`.
-- **Quality Gate:** [38115989671](https://github.com/mahmoudbkeer/Ai-digital-sinai/actions/runs/38115989671) — `PASS` على commit `4566dbe`.
-- **Android CI:** [38115989639](https://github.com/mahmoudbkeer/Ai-digital-sinai/actions/runs/38115989639) — `PASS` على commit `4566dbe`.
-- **iOS CI:** [38115989659](https://github.com/mahmoudbkeer/Ai-digital-sinai/actions/runs/38115989659) — `PASS` على commit `4566dbe`.
+- **Commit المرشح النهائي المقيم:** `2c45e8e871c3c881c20765c5810f9448b16655b0`.
+- **Quality Gate:** [38116280324](https://github.com/mahmoudbkeer/Ai-digital-sinai/actions/runs/38116280324) — `PASS` على commit `2c45e8e`.
+- **Android CI:** [38116280342](https://github.com/mahmoudbkeer/Ai-digital-sinai/actions/runs/38116280342) — `PASS` على commit `2c45e8e`.
+- **iOS CI:** [38116280279](https://github.com/mahmoudbkeer/Ai-digital-sinai/actions/runs/38116280279) — `PASS` على commit `2c45e8e`.
 - **Local release suite:** `PASS`، وتشمل frozen install، check، unit، build، E2E، smoke، load، security، adversarial security، payment contracts، notification/infrastructure contracts، dependency audit وdiff check.
 - **Staging smoke المحلي:** `BLOCKED_EXTERNAL_DEPENDENCY`, exit 78 بسبب عدم وجود PostgreSQL staging مستقل مصرح به.
 
