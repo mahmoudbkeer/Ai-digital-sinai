@@ -1,9 +1,9 @@
 # AI DIGITAL SINAI — Release Readiness Source of Truth
 
-**تاريخ التقييم:** 2026-10-11  
-**المستودع:** `mahmoudbkeer/Ai-digital-sinai`  
-**الفرع:** `main`  
-**الإصدار البرمجي المقيم:** `642399980a736a0918c87cff0c9db5a953de6af7`  
+**تاريخ التقييم:** 2026-10-12
+**المستودع:** `mahmoudbkeer/Ai-digital-sinai`
+**الفرع:** `main`
+**الإصدار البرمجي المقيم:** `d0b129e4e50dcfe5369c9349a98a75aab7c53b8f`
 **حالة Git:** `main` متزامن مع `origin/main`، وشجرة العمل نظيفة.
 
 > **قرار الإطلاق الحالي: NO-GO للإنتاج العام.**
@@ -187,3 +187,11 @@
 - **Staging smoke المحلي:** `BLOCKED_EXTERNAL_DEPENDENCY`, exit 78 بسبب عدم وجود PostgreSQL staging مستقل مصرح به.
 
 لا يوجد في هذه الجولة إصلاح كودي جديد يمكنه إغلاق الاعتماديات الخارجية دون اختلاق اتصال أو أسرار؛ لذلك بقيت تلك البنود مفتوحة بالتصنيف الصحيح.
+
+## 11. تنفيذ أمر الإطلاق — 2026-10-12
+
+- تم تثبيت خط الأساس: `main == origin/main` عند `d0b129e4e50dcfe5369c9349a98a75aab7c53b8f`، والشجرة نظيفة قبل التغييرات المحلية.
+- أضيفت [خطة الخدمات الخارجية والتكلفة](docs/RELEASE_EXTERNAL_SERVICES_PLAN.md) مع أسعار رسمية متحقق منها، نطاقات تقديرية، بدائل، وتصنيف الإلزام. لم يتم إنشاء موارد أو اشتراكات أو تنفيذ إنفاق.
+- أضيفت أدلة التشغيل: [النشر](docs/DEPLOYMENT_RUNBOOK.md)، [التراجع](docs/ROLLBACK_RUNBOOK.md)، و[الاستجابة للحوادث](docs/INCIDENT_RESPONSE_RUNBOOK.md).
+- لا تزال PostgreSQL staging الحقيقي، Kashier sandbox، Redis، Object Storage، الإشعارات الفعلية، AI provider، DAST/pentest، المراقبة الفعلية، وتوقيع/اختبار الأجهزة غير مثبتة باتصال تشغيلي حقيقي.
+- القرار لا يتغير: `NO-GO` للإنتاج العام حتى تُغلق الأدلة الخارجية وتُعاد Quality Gate وFull Regression وAndroid وiOS على آخر SHA بعد أي تعديل.
