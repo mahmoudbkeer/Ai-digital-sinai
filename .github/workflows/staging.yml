@@ -11,6 +11,8 @@ permissions:
 jobs:
   postgres-staging:
     runs-on: ubuntu-latest
+    environment:
+      name: staging
     timeout-minutes: 20
     env:
       DATABASE_URL: ${{ secrets.STAGING_DATABASE_URL }}

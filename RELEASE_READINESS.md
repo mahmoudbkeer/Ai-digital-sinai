@@ -3,7 +3,7 @@
 **تاريخ التقييم:** 2026-10-12
 **المستودع:** `mahmoudbkeer/Ai-digital-sinai`
 **الفرع:** `main`
-**الإصدار البرمجي المقيم:** `d0b129e4e50dcfe5369c9349a98a75aab7c53b8f`
+**الإصدار البرمجي المقيم:** `88215437aa8f647a7e0135eb9114e95b7f100a17`
 **حالة Git:** `main` متزامن مع `origin/main`، وشجرة العمل نظيفة.
 
 > **قرار الإطلاق الحالي: NO-GO للإنتاج العام.**
@@ -195,3 +195,39 @@
 - أضيفت أدلة التشغيل: [النشر](docs/DEPLOYMENT_RUNBOOK.md)، [التراجع](docs/ROLLBACK_RUNBOOK.md)، و[الاستجابة للحوادث](docs/INCIDENT_RESPONSE_RUNBOOK.md).
 - لا تزال PostgreSQL staging الحقيقي، Kashier sandbox، Redis، Object Storage، الإشعارات الفعلية، AI provider، DAST/pentest، المراقبة الفعلية، وتوقيع/اختبار الأجهزة غير مثبتة باتصال تشغيلي حقيقي.
 - القرار لا يتغير: `NO-GO` للإنتاج العام حتى تُغلق الأدلة الخارجية وتُعاد Quality Gate وFull Regression وAndroid وiOS على آخر SHA بعد أي تعديل.
+
+
+## 12. تحقق المرحلة الحالية — 2026-10-12
+
+- `git fetch origin main` نجح.
+- `main == origin/main == 88215437aa8f647a7e0135eb9114e95b7f100a17`.
+- الشجرة كانت نظيفة قبل تعديل هذا التقرير.
+- لم تُشغّل `pnpm test:staging` أو `pnpm test:staging:api` في هذه المرحلة؛ لم تُنفذ migrations على قاعدة حقيقية.
+- لم تُنشأ موارد مدفوعة، ولم تُغيّر Secrets أو الإنتاج.
+
+### فرق الحالة عن التقرير السابق
+
+كان التقرير السابق يشير إلى الالتزام `d0b129e...` وتشغيلات CI سابقة. الحالة الفعلية الحالية أحدث: الالتزام هو `88215437...`، وجميع بوابات Quality Gate وFull Regression وAndroid وiOS الأربع ناجحة على هذا الالتزام. لا يوجد اختلاف سلبي في نتائج CI؛ التغيير هو تحديث الأدلة والأرقام فقط. ما زالت الاعتماديات الخارجية غير مثبتة، لذلك لم يتغير قرار `NO-GO`.
+
+### تحقق PostgreSQL Staging دون تشغيل
+
+`pnpm test:staging` ينفذ `node --import tsx scripts/postgres-staging-smoke.mjs`. السكربت يتطلب `DATABASE_URL` بصيغة PostgreSQL؛ عند غيابها يتوقف بحالة `BLOCKED_EXTERNAL_DEPENDENCY` وexit 78. عند توفرها يفحص الاتصال وإصدار الخادم، يشغل `migratePostgres()`، يعيد تشغيله للتحقق من idempotency، ثم يتحقق من schema وforeign keys والقيود المركبة وتوازن الدفتر وrollback داخل معاملة.
+
+`pnpm test:staging:api` ينفذ `node scripts/postgres-critical-smoke.mjs`. ينشئ API على `PORT=4322` افتراضيًا، يفحص `/api/health`، ثم يختبر الهوية وعزل المستأجرين والمخزون والطلب والفاتورة والدفتر وحدود الدفع، مع اتصال PostgreSQL مباشر للـfixtures والتحقق المالي.
+
+`startServer()` في `server/index.ts` ينفذ `assertRuntimeEnvironment()` ثم `await ensureDataPlaneReady()` قبل `server.listen()`. وعند PostgreSQL، تستدعي الجاهزية `migratePostgres()`. في `server/postgres.ts` يهيئ `pg.Pool` كل اتصال عبر `onConnect` بتنفيذ `SET search_path TO public`؛ ثم ينفذ `migratePostgres()` كل العمليات داخل transaction واحدة مع advisory lock. وتستخدم migrations 0001–0014 أسماء جداول غير مؤهلة، ولذلك تعتمد على هذا السياق المركزي عند تشغيلها على Staging.
+
+### متطلبات Staging الآمن
+
+يلزم: قاعدة Staging منفصلة عن الإنتاج، هوية مورد قابلة للتحقق، `STAGING_DATABASE_URL` محفوظ فقط في GitHub Secret أو Secret Manager، `PG_SSL=require` مع التحقق من الشهادة، مستخدم محدود الصلاحيات، قناة اتصال آمنة مع allowlist/private networking حسب المزود، وrotation/audit policy. يوجد Workflow مخصص في `.github/workflows/staging.yml` يستخدم `STAGING_DATABASE_URL`، لكن وجود اسم Secret أو Workflow لا يثبت صحة المورد أو أمان الاتصال.
+
+**أقل خطوة آمنة تالية:** يؤكد مالك المشروع هوية قاعدة Staging وصلاحياتها عبر القناة الآمنة، دون إرسال أي Secret في المحادثة. بعد ذلك فقط تُضبط القيمة في Secret Manager/GitHub Actions، ويُنفذ Workflow Staging مرة واحدة، ثم تُراجع النتائج المنقحة قبل أي ربط أو اختبار إنتاجي.
+
+أدلة CI الحالية على نفس الالتزام:
+
+- [Quality Gate — Run 38211696066](https://github.com/mahmoudbkeer/Ai-digital-sinai/actions/runs/38211696066) — `PASS`.
+- [Full Regression Acceptance — Run 38211696073](https://github.com/mahmoudbkeer/Ai-digital-sinai/actions/runs/38211696073) — `PASS`.
+- [Android CI — Run 38211696491](https://github.com/mahmoudbkeer/Ai-digital-sinai/actions/runs/38211696491) — `PASS`.
+- [iOS CI — Run 38211696564](https://github.com/mahmoudbkeer/Ai-digital-sinai/actions/runs/38211696564) — `PASS`.
+
+لا يغيّر هذا التحقق قرار الإطلاق: `NO-GO` للإنتاج العام حتى تُثبت بيئة Staging المُدارة وبقية الاعتماديات التشغيلية.
